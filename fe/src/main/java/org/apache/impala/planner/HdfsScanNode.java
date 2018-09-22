@@ -161,6 +161,13 @@ public class HdfsScanNode extends ScanNode {
   // Read size for Parquet and ORC footers. Matches HdfsScanner::FOOTER_SIZE in backend.
   private static final long FOOTER_SIZE = 100L * 1024L;
 
+  /**
+   * Assumed row width when no other information is available. This
+   * is a total guess; it need only get us into the ballpark for join
+   * planning, and is better than no information at all.
+   */
+  public static final double ASSUMED_ROW_WIDTH = 100.0;
+
   private final FeFsTable tbl_;
 
   // List of partitions to be scanned. Partitions have been pruned.
@@ -1012,6 +1019,13 @@ public class HdfsScanNode extends ScanNode {
         double fracPercBytes = (double) sampleParams_.getPercentBytes() / 100;
         cardinality_ = Math.round(cardinality_ * fracPercBytes);
         cardinality_ = Math.max(cardinality_, 1);
+      }
+
+      // If no better guess, use the file size and an assumed
+      // row width. This is not accurate, but is at least the
+      // right order of magnitude.
+      if (cardinality_ == -1 && totalBytes_ >= 0) {
+        cardinality_ = (long) Math.max(1, Math.round(totalBytes_ / ASSUMED_ROW_WIDTH));
       }
     }
 

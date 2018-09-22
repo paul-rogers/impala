@@ -35,6 +35,12 @@ import com.google.common.base.Objects;
 import com.google.common.base.Preconditions;
 
 public class SlotRef extends Expr {
+
+  // Magic number to use to decide whether to adjust the
+  // reported NDV value to account for possible null values.
+  // Above this number, the adjustment does not add value.
+  private static final int NULL_ADJUST_THRESHOLD = 10;
+
   private final List<String> rawPath_;
   private final String label_;  // printed in toSql()
 
@@ -67,13 +73,48 @@ public class SlotRef extends Expr {
     } else {
       rawPath_ = null;
     }
-    desc_ = desc;
-    type_ = desc.getType();
     evalCost_ = SLOT_REF_COST;
     String alias = desc.getParent().getAlias();
     label_ = (alias != null ? alias + "." : "") + desc.getLabel();
-    numDistinctValues_ = desc.getStats().getNumDistinctValues();
+    try {
+      bind(desc);
+    } catch (AnalysisException e) {
+      throw new IllegalStateException(e);
+    }
     analysisDone();
+  }
+
+  /**
+   * Bind this slot to the given slot descriptor, checking types and
+   * adjusting the NDV-without-nulls of the stats workd to the
+   * NDV-with-nulls needed by the planner.
+   */
+  private void bind(SlotDescriptor desc) throws AnalysisException {
+    desc_ = desc;
+    type_ = desc.getType();
+    if (!type_.isSupported()) {
+      throw new AnalysisException("Unsupported type '"
+          + type_.toSql() + "' in '" + toSql() + "'.");
+    }
+    if (type_.isInvalid()) {
+      // In this case, the metastore contained a string we can't parse at all
+      // e.g. map. We could report a better error if we stored the original
+      // HMS string.
+      throw new AnalysisException("Unsupported type in '" + toSql() + "'.");
+    }
+    numDistinctValues_ = desc.getStats().getNumDistinctValues();
+
+    // Adjust for nulls, since NDV() does not include nulls. Don't
+    // adjust for Boolean (ColumnStats already did so), also don't
+    // adjust beyond a threshold where the difference does not
+    // matter. (Saves having to adjust unit tests.)
+    // Adjust whether the type is nullable or not since, if the
+    // column ends up the result of an outer join, it will be
+    // nullable. (This is an estimate, just has to be in the
+    // ball park.)
+    if (type_ != Type.BOOLEAN && numDistinctValues_ <= NULL_ADJUST_THRESHOLD) {
+      numDistinctValues_++;
+    }
   }
 
   /**
@@ -100,20 +141,8 @@ public class SlotRef extends Expr {
       Preconditions.checkState(false);
     }
     Preconditions.checkNotNull(resolvedPath);
-    desc_ = analyzer.registerSlotRef(resolvedPath);
-    type_ = desc_.getType();
-    if (!type_.isSupported()) {
-      throw new AnalysisException("Unsupported type '"
-          + type_.toSql() + "' in '" + toSql() + "'.");
-    }
-    if (type_.isInvalid()) {
-      // In this case, the metastore contained a string we can't parse at all
-      // e.g. map. We could report a better error if we stored the original
-      // HMS string.
-      throw new AnalysisException("Unsupported type in '" + toSql() + "'.");
-    }
+    bind(analyzer.registerSlotRef(resolvedPath));
 
-    numDistinctValues_ = desc_.getStats().getNumDistinctValues();
     FeTable rootTable = resolvedPath.getRootTable();
     if (rootTable != null && rootTable.getNumRows() > 0) {
       // The NDV cannot exceed the #rows in the table.

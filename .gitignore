@@ -45,6 +45,9 @@ target
 
 avro_schemas/
 logs/
+testdata/cluster
+fe/src/test/resources/sentry-site_*.xml
+lib/python/impala_py_lib.egg-info
 
 # Impala toolchain directory
 toolchain/
@@ -62,3 +65,7 @@ hs_err_pid*.log
 .*.swo
 .*.swp
 .vimrc
+
+#Eclipse
+*/.*
+fe/eclipse-classes

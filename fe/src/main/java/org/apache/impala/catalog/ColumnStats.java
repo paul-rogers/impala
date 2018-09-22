@@ -39,6 +39,11 @@ import com.google.common.math.LongMath;
  * Statistics for a single column.
  */
 public class ColumnStats {
+
+  // Estimated NDV if no stats are available.
+
+  public static final int DEFAULT_NDV = 1000;
+
   // Set of the currently supported column stats column types.
   private final static Set<PrimitiveType> SUPPORTED_COL_TYPES = Sets.newHashSet(
       PrimitiveType.BIGINT, PrimitiveType.BINARY, PrimitiveType.BOOLEAN,
@@ -111,11 +116,24 @@ public class ColumnStats {
       avgSize_ = colType.getSlotSize();
       maxSize_ = colType.getSlotSize();
     }
+
+    // Provide default NDVs for the case of no stats.
+
+    switch(colType.getPrimitiveType()) {
+    case BOOLEAN:
+      numDistinctValues_ = 2;
+      break;
+    case TINYINT:
+      numDistinctValues_ = LongMath.pow(2, Byte.SIZE);
+      break;
+    default:
+      numDistinctValues_ = DEFAULT_NDV;
+    }
   }
 
   /**
    * Creates ColumnStats from the given expr. Sets numDistinctValues and if the expr
-   * is a SlotRef also numNulls.
+   * is a SlotReff also numNulls.
    */
   public static ColumnStats fromExpr(Expr expr) {
     Preconditions.checkNotNull(expr);
@@ -167,7 +185,7 @@ public class ColumnStats {
   public boolean hasAvgSize() { return avgSize_ >= 0; }
   public boolean hasAvgSerializedSize() { return avgSerializedSize_ >= 0; }
   public boolean hasNumDistinctValues() { return numDistinctValues_ >= 0; }
-  public boolean hasStats() { return numNulls_ != -1 || numDistinctValues_ != -1; }
+  public boolean hasStats() { return numNulls_ != -1; }
 
   /**
    * Updates the stats with the given ColumnStatisticsData. If the ColumnStatisticsData

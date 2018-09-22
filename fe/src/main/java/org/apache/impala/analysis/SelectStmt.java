@@ -107,6 +107,11 @@ public class SelectStmt extends QueryStmt {
   public SelectList getSelectList() { return selectList_; }
 
   /**
+   * @return the original GROUP BY list from the query
+   */
+  public ArrayList<Expr> getGroupList() { return groupingExprs_; }
+
+  /**
    * @return the HAVING clause post-analysis and with aliases resolved
    */
   public Expr getHavingPred() { return havingPred_; }
