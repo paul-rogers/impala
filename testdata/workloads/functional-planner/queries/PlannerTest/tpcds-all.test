@@ -1016,7 +1016,7 @@ PLAN-ROOT SINK
    partitions=1824/1824 files=1824 size=346.60MB
    runtime filters: RF000 -> ss_item_sk, RF002 -> ss_store_sk, RF004 -> ss_cdemo_sk, RF006 -> ss_sold_date_sk
 ---- DISTRIBUTEDPLAN
-Max Per-Host Resource Reservation: Memory=54.26MB Threads=12
+Max Per-Host Resource Reservation: Memory=55.26MB Threads=12
 Per-Host Resource Estimates: Memory=454MB
 PLAN-ROOT SINK
 |
@@ -1080,7 +1080,7 @@ PLAN-ROOT SINK
    partitions=1824/1824 files=1824 size=346.60MB
    runtime filters: RF000 -> ss_item_sk, RF002 -> ss_store_sk, RF004 -> ss_cdemo_sk, RF006 -> ss_sold_date_sk
 ---- PARALLELPLANS
-Max Per-Host Resource Reservation: Memory=108.52MB Threads=13
+Max Per-Host Resource Reservation: Memory=110.52MB Threads=13
 Per-Host Resource Estimates: Memory=397MB
 PLAN-ROOT SINK
 |

@@ -35,6 +35,15 @@ import com.google.common.base.Objects;
 import com.google.common.base.Preconditions;
 
 public class SlotRef extends Expr {
+
+  // Magic number to use to decide whether to adjust the
+  // reported NDV value to account for possible null values.
+  // Above this number, the adjustment is not that helpful.
+  // Further, a higher value causes TPC-H plan tests to
+  // fail because that has several two-value, non-nullable
+  // fields that are marked as nullable.
+  private static final int NULL_ADJUST_THRESHOLD = 1;
+
   private final List<String> rawPath_;
   private final String label_;  // printed in toSql()
 
@@ -72,10 +81,9 @@ public class SlotRef extends Expr {
     evalCost_ = SLOT_REF_COST;
     String alias = desc.getParent().getAlias();
     label_ = (alias != null ? alias + "." : "") + desc.getLabel();
-    numDistinctValues_ = desc.getStats().getNumDistinctValues();
+    computeNdv();
     analysisDone();
   }
-
   /**
    * C'tor for cloning.
    */
@@ -85,6 +93,41 @@ public class SlotRef extends Expr {
     label_ = other.label_;
     desc_ = other.desc_;
     type_ = other.type_;
+  }
+
+  /**
+   * Adjusting the NDV-without-nulls of the stats world to the
+   * NDV-with-nulls needed by the planner.
+   */
+  private void computeNdv() {
+    numDistinctValues_ = desc_.getStats().getNumDistinctValues();
+
+    // Potentially adjust NDV for nulls if the column is has stats,
+    // is nullable, and is not Boolean. (ColumnStats already
+    // does adjustments for Boolean only).
+    // Only adjust for small amounts; has no impact on larger values.
+    // Adjust only if we don't know the null count or we know it is
+    // not zero.
+    // Adjust only for base table columns, not for internal columns
+    // (such as COUNT(*) that would meet the conditions, but should
+    // not be adjusted.
+    // (This is an estimate, just has to be in the ball park.)
+    if (desc_.getStats().hasStats()) {
+      // The number of nulls is reported as -1 (we don't know),
+      // 0 (no null) or >0 (has some nulls). We only care about
+      // the case when either we don't know, or we have nulls. If
+      // we know the null count is zero, then this column is
+      // non-nullable, and so needs no NDV adjustment.
+      long nullCount = desc_.getStats().getNumNulls();
+      if (desc_.getPath() != null && // Base table column
+          desc_.getIsNullable() &&
+          type_ != Type.BOOLEAN &&
+          numDistinctValues_ <= NULL_ADJUST_THRESHOLD &&
+          nullCount != 0) {
+
+        numDistinctValues_++;
+      }
+    }
   }
 
   @Override
@@ -113,7 +156,10 @@ public class SlotRef extends Expr {
       throw new AnalysisException("Unsupported type in '" + toSql() + "'.");
     }
 
-    numDistinctValues_ = desc_.getStats().getNumDistinctValues();
+    computeNdv();
+
+    // If this column is for a base table, limit NDV to the number
+    // of rows in that table.
     FeTable rootTable = resolvedPath.getRootTable();
     if (rootTable != null && rootTable.getNumRows() > 0) {
       // The NDV cannot exceed the #rows in the table.

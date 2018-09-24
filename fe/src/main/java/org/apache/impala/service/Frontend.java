@@ -177,6 +177,49 @@ public class Frontend {
   private static final int INCONSISTENT_METADATA_NUM_RETRIES =
       BackendConfig.INSTANCE.getLocalCatalogMaxFetchRetries();
 
+  /**
+   * Plan-time context that allows capturing various artifacts created
+   * during the process.
+   * <p>
+   * The describe string is captured if requested. The plan nodes are
+   * returned, if requested, for use in unit tests.
+   */
+  public static class PlanCtx {
+    public TQueryCtx queryCtx_;
+    public StringBuilder explainBuf_;
+    public boolean capturePlan_;
+    public List<PlanFragment> plan_;
+
+    public PlanCtx(TQueryCtx qCtx) {
+      queryCtx_ = qCtx;
+      explainBuf_ = new StringBuilder();
+    }
+
+    public PlanCtx(TQueryCtx qCtx, StringBuilder describe) {
+      queryCtx_ = qCtx;
+      explainBuf_ = describe;
+    }
+
+    /**
+     * Request to capture the plan tree for unit tests.
+     */
+    public void requestPlanCapture() { capturePlan_ = true; }
+    public boolean planCaptureRequested() { return capturePlan_; }
+    public TQueryCtx getQueryContext() { return queryCtx_; }
+
+    /**
+     * @return the captured plan tree. Used only for unit tests
+     */
+    public List<PlanFragment> getPlan() { return plan_; }
+
+    /**
+     * @return the captured describe string
+     */
+    public String getExplainString() {
+      return explainBuf_.toString();
+    }
+  }
+
   private final FeCatalogManager catalogManager_;
   private final AuthorizationConfig authzConfig_;
   /**
@@ -984,7 +1027,7 @@ public class Frontend {
    * Create a populated TQueryExecRequest, corresponding to the supplied planner.
    */
   private TQueryExecRequest createExecRequest(
-      Planner planner, StringBuilder explainString) throws ImpalaException {
+      Planner planner, PlanCtx planCtx) throws ImpalaException {
     TQueryCtx queryCtx = planner.getQueryCtx();
     AnalysisResult analysisResult = planner.getAnalysisResult();
     boolean isMtExec = analysisResult.isQueryStmt()
@@ -999,6 +1042,9 @@ public class Frontend {
     } else {
       LOG.trace("create plan");
       planRoots.add(planner.createPlan().get(0));
+    }
+    if (planCtx.planCaptureRequested()) {
+      planCtx.plan_ = planRoots;
     }
 
     // Compute resource requirements of the final plans.
@@ -1030,8 +1076,8 @@ public class Frontend {
     // create EXPLAIN output after setting everything else
     result.setQuery_ctx(queryCtx);  // needed by getExplainString()
     ArrayList<PlanFragment> allFragments = planRoots.get(0).getNodesPreOrder();
-    explainString.append(planner.getExplainString(allFragments, result));
-    result.setQuery_plan(explainString.toString());
+    planCtx.explainBuf_.append(planner.getExplainString(allFragments, result));
+    result.setQuery_plan(planCtx.getExplainString());
 
     return result;
   }
@@ -1054,16 +1100,21 @@ public class Frontend {
     }
   }
 
+  public TExecRequest createExecRequest(TQueryCtx queryCtx, StringBuilder explainString)
+      throws ImpalaException {
+    return createExecRequest(new PlanCtx(queryCtx, explainString));
+  }
+
   /**
    * Create a populated TExecRequest corresponding to the supplied TQueryCtx.
    */
-  public TExecRequest createExecRequest(TQueryCtx queryCtx, StringBuilder explainString)
+  public TExecRequest createExecRequest(PlanCtx planCtx)
       throws ImpalaException {
     // Timeline of important events in the planning process, used for debugging
     // and profiling.
     try (FrontendProfile.Scope scope = FrontendProfile.createNewWithScope()) {
       EventSequence timeline = new EventSequence("Query Compilation");
-      TExecRequest result = getTExecRequest(queryCtx, timeline, explainString);
+      TExecRequest result = getTExecRequest(planCtx, timeline);
       timeline.markEvent("Planning finished");
       result.setTimeline(timeline.toThrift());
       result.setProfile(FrontendProfile.getCurrent().emitAsThrift());
@@ -1083,15 +1134,16 @@ public class Frontend {
             + "%s of %s times: ",numRetries, INCONSISTENT_METADATA_NUM_RETRIES) + msg);
   }
 
-  private TExecRequest getTExecRequest(TQueryCtx queryCtx, EventSequence timeline,
-      StringBuilder explainString) throws ImpalaException {
+  private TExecRequest getTExecRequest(PlanCtx planCtx, EventSequence timeline)
+      throws ImpalaException {
+    TQueryCtx queryCtx = planCtx.getQueryContext();
     LOG.info("Analyzing query: " + queryCtx.client_request.stmt);
 
     int attempt = 0;
     String retryMsg = "";
     while (true) {
       try {
-        TExecRequest req = doCreateExecRequest(queryCtx, timeline, explainString);
+        TExecRequest req = doCreateExecRequest(planCtx, timeline);
         markTimelineRetries(attempt, retryMsg, timeline);
         return req;
       } catch (InconsistentMetadataFetchException e) {
@@ -1111,8 +1163,9 @@ public class Frontend {
     }
   }
 
-  private TExecRequest doCreateExecRequest(TQueryCtx queryCtx, EventSequence timeline,
-      StringBuilder explainString) throws ImpalaException {
+  private TExecRequest doCreateExecRequest(PlanCtx planCtx,
+      EventSequence timeline) throws ImpalaException {
+    TQueryCtx queryCtx = planCtx.getQueryContext();
     // Parse stmt and collect/load metadata to populate a stmt-local table cache
     StatementBase stmt =
         parse(queryCtx.client_request.stmt, queryCtx.client_request.query_options);
@@ -1169,7 +1222,7 @@ public class Frontend {
 
     // create TQueryExecRequest
     TQueryExecRequest queryExecRequest =
-        getPlannedExecRequest(queryCtx, analysisResult, timeline, explainString);
+        getPlannedExecRequest(planCtx, analysisResult, timeline);
 
     TLineageGraph thriftLineageGraph = analysisResult.getThriftLineageGraph();
     if (thriftLineageGraph != null && thriftLineageGraph.isSetQuery_text()) {
@@ -1183,7 +1236,7 @@ public class Frontend {
 
     if (analysisResult.isExplainStmt()) {
       // Return the EXPLAIN request
-      createExplainRequest(explainString.toString(), result);
+      createExplainRequest(planCtx.getExplainString(), result);
       return result;
     }
 
@@ -1282,14 +1335,15 @@ public class Frontend {
   /**
    * Get the TQueryExecRequest and use it to populate the query context
    */
-  private TQueryExecRequest getPlannedExecRequest(TQueryCtx queryCtx,
-      AnalysisResult analysisResult, EventSequence timeline, StringBuilder explainString)
+  private TQueryExecRequest getPlannedExecRequest(PlanCtx planCtx,
+      AnalysisResult analysisResult, EventSequence timeline)
       throws ImpalaException {
     Preconditions.checkState(analysisResult.isQueryStmt() || analysisResult.isDmlStmt()
         || analysisResult.isCreateTableAsSelectStmt() || analysisResult.isUpdateStmt()
         || analysisResult.isDeleteStmt());
+    TQueryCtx queryCtx = planCtx.getQueryContext();
     Planner planner = new Planner(analysisResult, queryCtx, timeline);
-    TQueryExecRequest queryExecRequest = createExecRequest(planner, explainString);
+    TQueryExecRequest queryExecRequest = createExecRequest(planner, planCtx);
     queryCtx.setDesc_tbl(
         planner.getAnalysisResult().getAnalyzer().getDescTbl().toThrift());
     queryExecRequest.setQuery_ctx(queryCtx);

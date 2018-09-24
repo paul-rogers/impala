@@ -1336,6 +1336,26 @@ partition by hash(a) partitions 3 stored as kudu;
 ---- DATASET
 functional
 ---- BASE_TABLE_NAME
+nullrows
+---- COLUMNS
+a string
+b string
+c string
+d int
+e double
+f string
+g string
+---- ROW_FORMAT
+delimited fields terminated by ','
+---- DEPENDENT_LOAD
+INSERT OVERWRITE TABLE {db_name}{db_suffix}.{table_name} select * from functional.nullrows;
+---- LOAD
+LOAD DATA LOCAL INPATH '{impala_home}/testdata/NullRows/data.csv'
+OVERWRITE INTO TABLE {db_name}{db_suffix}.{table_name};
+====
+---- DATASET
+functional
+---- BASE_TABLE_NAME
 nullescapedtable
 ---- COLUMNS
 a string

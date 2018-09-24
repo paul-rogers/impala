@@ -65,7 +65,27 @@ public class ExprNdvTest extends FrontendTestBase {
   }
 
   @Test
-  public void TestCaseExprBasic() throws ImpalaException {
+  public void testConsts() throws ImpalaException {
+    // Would expect 1, but is 2.
+    verifyNdv("case when 0 = 1 then 'yes' else 'no' end", 2);
+
+    // Constants have NDV=1. This is set in the base LiteralExpr class,
+    // so only an INT constant is tested, all others are the same.
+    verifyNdv("10", 1);
+
+    // Propagation of const NDV. All expressions save CASE use
+    // the same max logic.
+    verifyNdv("10 * 3", 1);
+
+    // Planner defines NDV as "number of distinct values
+    // including nulls", but the NDV function (and the stats
+    // from tables) define it as "number of distinct non-null
+    // values".
+    verifyNdv("null", 1);
+  }
+
+  @Test
+  public void testCaseExprBasic() throws ImpalaException {
     // All constants tests
     verifyNdv("case when id = 1 then 'yes' else 'no' end", 2);
     verifyNdv("case when id = 1 then 'yes' " +
@@ -91,7 +111,36 @@ public class ExprNdvTest extends FrontendTestBase {
   }
 
   @Test
-  public void TestCaseExprMissingStats() throws ImpalaException {
+  public void testExprBasic() throws ImpalaException {
+
+    // Baseline
+    verifyNdv("id", 7300);
+
+    // Produces a constant, but not worth worrying about.
+    // Actual NDV = 1 (or 2 if nullable)
+    verifyNdv("id * 0", 7300);
+
+    // Should not change NDV
+    verifyNdv("CAST(id AS VARCHAR)", 7300);
+
+    // All expressions save CASE use the max logic.
+    verifyNdv("id + 2", 7300);
+    verifyNdv("id * 2", 7300);
+
+    // IMPALA-7603: Should multiply NDVs, but does Max instead
+    verifyNdv("id + int_col", 7300);
+    verifyNdv("id * int_col", 7300);
+
+    // nullValue returns a boolean, so should be NDV=2
+    // Actual is wrong because it uses a generic calc:
+    // NDV(f(x)) = NDV(x).
+    // Should be:
+    // NDV(f(x)) = max(NDV(x), NDV(type(f)))
+    verifyNdv("nullValue(id)", 7300);
+  }
+
+  @Test
+  public void testCaseExprMissingStats() throws ImpalaException {
 
     // Consts still work
     verifyNdvTwoTable("case when a.id = 1 then 'yes' " +
@@ -108,5 +157,36 @@ public class ExprNdvTest extends FrontendTestBase {
     // Outputs has stats, input does not
     verifyNdvTwoTable("case when tiny.a = 'whatever' then a.id " +
                       "else 0 end", 7301);
+  }
+
+  /**
+   * Test the NDV-with-nulls adjustment. At present, cannot find
+   * a storage engine that sets the null count value, so can't
+   * yet test that use case.
+   */
+  @Test
+  public void testNulls() throws ImpalaException {
+    // A table with nulls for which stats have been computed
+    // NDV(a) = 26
+    verifyNdvStmt("SELECT a FROM functional.nullrows", 26);
+    // NDV(f) = 6
+    verifyNdvStmt("SELECT f FROM functional.nullrows", 6);
+    // NDV(c) = 0 (all nulls), but add 1 for nulls
+    verifyNdvStmt("SELECT c FROM functional.nullrows", 1);
+    // NDV(b) = 1, add 1 for nulls
+    verifyNdvStmt("SELECT b FROM functional.nullrows", 2);
+    // Same schema, one row, no stats
+    verifyNdvStmt("SELECT a FROM functional.nulltable", -1);
+    verifyNdvStmt("SELECT c FROM functional.nulltable", -1);
+
+    // Table with 8 rows, NDV(year) = 1,
+    // null count for year is 0, so no adjustment.
+    verifyNdvStmt("SELECT year FROM functional.alltypestiny", 1);
+
+    // Test with non-nullable columns.
+    // NDV value from stats not increased by one here.
+    verifyNdvStmt("SELECT id FROM functional_kudu.alltypestiny", 8);
+    // But, is increased for a nullable column.
+    verifyNdvStmt("SELECT year FROM functional_kudu.alltypestiny", 2);
   }
 }
