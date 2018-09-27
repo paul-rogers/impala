@@ -69,6 +69,9 @@ public class LocalFsPartition implements FeFsPartition {
     fileDescriptors_ = fileDescriptors;
     partitionStats_ = partitionStats;
     hasIncrementalStats_ = hasIncrementalStats;
+
+    // Avoid caching the unused column schemas.
+    msPartition_.getSd().unsetCols();
   }
 
   @Override
