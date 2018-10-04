@@ -14,6 +14,7 @@ load-*-generated.sql
 bin/version.info
 bin/impala-config-local.sh
 .cdh
+www/bin
 
 # distcc options
 .impala_compiler_opts
@@ -45,6 +46,9 @@ target
 
 avro_schemas/
 logs/
+testdata/cluster
+fe/src/test/resources/sentry-site_*.xml
+lib/python/impala_py_lib.egg-info
 
 # Impala toolchain directory
 toolchain/
@@ -62,3 +66,9 @@ hs_err_pid*.log
 .*.swo
 .*.swp
 .vimrc
+
+#Eclipse
+*/.project
+*/.classpath
+*/.settings
+fe/eclipse-classes

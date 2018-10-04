@@ -24,6 +24,7 @@ LOG_FILE="${IMPALA_MVN_LOGS_DIR}/mvn.log"
 
 mkdir -p "$IMPALA_MVN_LOGS_DIR"
 
+env
 cat << EOF | tee -a "$LOG_FILE"
 ========================================================================
 Running mvn $IMPALA_MAVEN_OPTIONS $@
