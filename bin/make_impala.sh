@@ -27,7 +27,6 @@ setup_report_build_error
 
 BUILD_EVERYTHING=1
 BUILD_FE_ONLY=0
-BUILD_IPE_ONLY=0
 BUILD_TESTS=1
 CLEAN=0
 TARGET_BUILD_TYPE=${TARGET_BUILD_TYPE:-""}
@@ -71,10 +70,6 @@ do
       ;;
     -fe_only)
       BUILD_FE_ONLY=1
-      BUILD_EVERYTHING=0
-      ;;
-    -ipe_only)
-      BUILD_IPE_ONLY=1
       BUILD_EVERYTHING=0
       ;;
     -cscope)
@@ -189,8 +184,6 @@ fi
 
 if [ $BUILD_FE_ONLY -eq 1 ]; then
   ${MAKE_CMD} ${MAKE_ARGS} fe
-elseif [ $BUILD_IPE_ONLY -eq 1 ]; then
-  ${MAKE_CMD} ${MAKE_ARGS} ipe
 elif [ $BUILD_EVERYTHING -eq 1 ]; then
   ${MAKE_CMD} ${MAKE_ARGS}
 else

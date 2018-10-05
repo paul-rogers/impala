@@ -77,6 +77,12 @@ public class LogReader {
       return is;
     }
 
+    public void skipData() throws IOException {
+      InputStream is = data();
+      while (is.read() != -1) { }
+      is.close();
+    }
+
     public TRuntimeProfileTree thriftProfile() throws IOException {
       TRuntimeProfileTree thriftProfile = new TRuntimeProfileTree();
       ThriftUtil.read(data(), thriftProfile, PROTOCOL_FACTORY);
@@ -134,5 +140,13 @@ public class LogReader {
 
   public void close() throws IOException {
     in.close();
+  }
+
+  public void skip(int n) throws IOException {
+    for (int i = 0; i < n; i++) {
+      QueryRecord qr = next();
+      if (qr == null) { break; }
+      qr.skipData();
+    }
   }
 }
