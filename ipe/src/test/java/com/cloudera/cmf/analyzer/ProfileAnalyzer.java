@@ -299,4 +299,8 @@ public class ProfileAnalyzer {
   public String stmt() {
     return root.attrib(QueryNode.Attrib.SQL_STATEMENT);
   }
+
+  public void computePlanSummary() {
+    root.plan().parseSummary();
+  }
 }

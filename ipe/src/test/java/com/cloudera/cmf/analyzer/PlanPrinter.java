@@ -54,4 +54,15 @@ public class PlanPrinter {
     writeIndent();
     out.println(text);
   }
+
+  public void writeBlock(String text) {
+    String lines[] = text.split("\n");
+    for (int i = 0; i < lines.length; i++) {
+      String line = lines[i];
+      if (line.isEmpty()) { continue; }
+      writeIndent();
+      out.print("  ");
+      out.println(line);
+    }
+  }
 }

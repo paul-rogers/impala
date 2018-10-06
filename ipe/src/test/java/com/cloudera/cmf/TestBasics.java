@@ -170,6 +170,7 @@ public class TestBasics {
 
     @Override
     public void apply(ProfileAnalyzer profile) {
+      profile.computePlanSummary();
       PlanPrinter printer = new PlanPrinter(profile);
       printer.toStdOut();
       printer.print();
