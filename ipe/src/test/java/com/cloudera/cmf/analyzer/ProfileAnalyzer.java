@@ -1,4 +1,4 @@
-package com.cloudera.cmf;
+package com.cloudera.cmf.analyzer;
 
 import java.util.List;
 import java.util.Map;
@@ -42,6 +42,12 @@ public class ProfileAnalyzer {
       }
       return UNKNOWN;
     }
+  }
+
+  public enum SummaryState {
+    // TODO: Fill in other. Failure? Cancelled?
+
+    OK, FAILED, OTHER
   }
 
   public enum QueryState {
@@ -171,16 +177,11 @@ public class ProfileAnalyzer {
       public String key() { return key; }
     }
 
-    public enum SummaryState {
-      // TODO: Fill in other. Failure? Cancelled?
-
-      OK, FAILED, OTHER
-    }
-
     private final HelperNode summaryNode;
     private HelperNode serverNode;
     private ExecProfileNode execNode;
     private String queryId;
+    private QueryPlan plan;
 
     public QueryNode(ProfileAnalyzer analyzer) {
       super(analyzer, 0);
@@ -236,6 +237,13 @@ public class ProfileAnalyzer {
       }
     }
 
+    public QueryPlan plan() {
+      if (plan == null) {
+        plan = new QueryPlan(this);
+      }
+      return plan;
+    }
+
     public void generateAttribs() {
       summaryNode.generateAttribs();
     }
@@ -287,4 +295,8 @@ public class ProfileAnalyzer {
   }
 
   public QueryNode query() { return root; }
+
+  public String stmt() {
+    return root.attrib(QueryNode.Attrib.SQL_STATEMENT);
+  }
 }

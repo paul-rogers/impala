@@ -1,4 +1,4 @@
-package com.cloudera.cmf;
+package com.cloudera.cmf.scanner;
 
 import java.io.BufferedInputStream;
 import java.io.File;
@@ -17,7 +17,6 @@ import org.joda.time.Instant;
 import com.cloudera.ipe.model.impala.ImpalaRuntimeProfileTree;
 import com.cloudera.ipe.rules.ImpalaRuntimeProfile;
 import com.cloudera.ipe.util.ThriftUtil;
-import com.google.common.base.Splitter;
 
 public class LogReader {
   private final static TProtocolFactory PROTOCOL_FACTORY =

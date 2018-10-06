@@ -1,4 +1,4 @@
-package com.cloudera.cmf;
+package com.cloudera.cmf.printer;
 
 import java.io.File;
 import java.io.FileWriter;

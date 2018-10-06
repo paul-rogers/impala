@@ -7,13 +7,26 @@ import java.io.InputStream;
 import org.apache.impala.thrift.TRuntimeProfileTree;
 import org.junit.Test;
 
-import com.cloudera.cmf.LogReader.QueryRecord;
+import com.cloudera.cmf.analyzer.PlanPrinter;
+import com.cloudera.cmf.analyzer.ProfileAnalyzer;
+import com.cloudera.cmf.printer.ProfilePrinter;
+import com.cloudera.cmf.scanner.AndPredicate;
+import com.cloudera.cmf.scanner.CompoundAction;
+import com.cloudera.cmf.scanner.LogReader;
+import com.cloudera.cmf.scanner.ProfileScanner;
+import com.cloudera.cmf.scanner.LogReader.QueryRecord;
+import com.cloudera.cmf.scanner.PrintStmtAction;
+import com.cloudera.cmf.scanner.ProfileScanner.Action;
+import com.cloudera.cmf.scanner.StatementStatusPredicate;
+import com.cloudera.cmf.scanner.StatementTypePredicate;
 import com.cloudera.ipe.rules.ImpalaRuntimeProfile;
 
 public class TestBasics {
 
+  public static File INPUT_DIR =
+      new File("/home/progers/data/189495");
   public static File INPUT_FILE =
-      new File("/home/progers/data/189495",
+      new File(INPUT_DIR,
           "impala_profiles_default_1.log");
 
   @Test
@@ -77,9 +90,18 @@ public class TestBasics {
   }
 
   @Test
+  public void testBigQuery() throws IOException {
+    testContentToFile(51);
+  }
+
+  @Test
   public void testContent() throws IOException {
+    testContentToFile(3);
+  }
+
+  public void testContentToFile(int skip) throws IOException {
     LogReader lr = new LogReader(INPUT_FILE);
-    lr.skip(3);
+    lr.skip(skip);
 
     QueryRecord qr = lr.next();
     TRuntimeProfileTree profile = qr.thriftProfile();
@@ -102,12 +124,88 @@ public class TestBasics {
 
   @Test
   public void testScannerBasics() throws IOException {
-    LogScanner scanner = new LogScanner(INPUT_FILE);
+    ProfileScanner scanner = new ProfileScanner()
+        .scanFile(INPUT_FILE)
+        .toConsole();
     scanner.scan();
     System.out.print("Scan count: ");
     System.out.println(scanner.scanCount());
     System.out.print("Accept count: ");
     System.out.println(scanner.acceptCount());
+  }
 
+  @Test
+  public void testScannerPredicate() throws IOException {
+    ProfileScanner scanner = new ProfileScanner()
+        .scanFile(INPUT_FILE)
+        .predicate(
+            new AndPredicate()
+              .add(StatementTypePredicate.selectOnly())
+              .add(StatementStatusPredicate.completedOnly()))
+        ;
+    scanner.scan();
+    System.out.print("Scan count: ");
+    System.out.println(scanner.scanCount());
+    System.out.print("Accept count: ");
+    System.out.println(scanner.acceptCount());
+  }
+
+  @Test
+  public void testDirScannerBasics() throws IOException {
+    ProfileScanner scanner = new ProfileScanner()
+        .scanFile(INPUT_DIR)
+        ;
+    scanner.scan();
+    System.out.print("Dir count: ");
+    System.out.println(scanner.dirCount());
+    System.out.print("File count: ");
+    System.out.println(scanner.fileCount());
+    System.out.print("Profile count: ");
+    System.out.println(scanner.scanCount());
+    System.out.print("Accept count: ");
+    System.out.println(scanner.acceptCount());
+  }
+
+  public static class PrintPlanAction implements Action {
+
+    @Override
+    public void apply(ProfileAnalyzer profile) {
+      PlanPrinter printer = new PlanPrinter(profile);
+      printer.toStdOut();
+      printer.print();
+    }
+  }
+
+  @Test
+  public void testPrintStmt() throws IOException {
+    ProfileScanner scanner = new ProfileScanner()
+        .scanFile(INPUT_FILE)
+        .predicate(
+            new AndPredicate()
+              .add(StatementTypePredicate.selectOnly())
+              .add(StatementStatusPredicate.completedOnly()))
+        .toConsole()
+        .limit(100)
+        .action(new PrintStmtAction())
+        ;
+    scanner.scan();
+  }
+
+  @Test
+  public void testPlan() throws IOException {
+    ProfileScanner scanner = new ProfileScanner()
+        .scanFile(INPUT_FILE)
+        .predicate(
+            new AndPredicate()
+              .add(StatementTypePredicate.selectOnly())
+              .add(StatementStatusPredicate.completedOnly()))
+        .limit(1)
+        .skip(51)
+        .toConsole()
+        .action(new CompoundAction()
+            .add(new PrintStmtAction())
+            .add(new PrintPlanAction()))
+        ;
+    scanner.scan();
   }
 }
