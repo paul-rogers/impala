@@ -10,8 +10,9 @@ public class PlanPrinter {
 
   private final QueryPlan plan;
   private PrintWriter out;
-  private int indent;
-  private int prevIndent;
+  private int level;
+  private int prevLevel;
+  private boolean isLeaf;
 
   public PlanPrinter(ProfileAnalyzer profile) {
     this.plan = profile.query().plan();
@@ -25,29 +26,31 @@ public class PlanPrinter {
 
   public void print() {
     visitNode(plan.root());
+    out.flush();
   }
 
   private void visitNode(PlanNode node) {
-    node.print(this);
     List<PlanNode> children = node.children();
-    if (children == null) { return; }
-    int oldIndent = indent;
+    isLeaf = (children == null);
+    node.print(this);
+    if (isLeaf) { return; }
+    int oldLevel = level;
     for (int i = children.size() - 1; i >= 0;  i--) {
-      indent = oldIndent + i;
+      level = oldLevel + i;
       visitNode(children.get(i));
     }
-    indent = oldIndent;
+    level = oldLevel;
   }
 
   public void writeIndent() {
-    prevIndent = Math.min(prevIndent, indent);
-    for (int i = 0; i < prevIndent; i++) {
+    int n = Math.min(prevLevel, level);
+    for (int i = 0; i < n; i++) {
       out.print("|  ");
     }
-    if (prevIndent < indent) {
-      out.print("|- ");
+    if (prevLevel < level) {
+      out.print("+- ");
     }
-    prevIndent = indent;
+    prevLevel = level;
   }
 
   public void write(String text) {
@@ -55,14 +58,42 @@ public class PlanPrinter {
     out.println(text);
   }
 
+  public void writeBlockIndent() {
+    out.print(detailsPrefix());
+  }
+
+  public void writeDetail(String line) {
+    writeBlockIndent();
+    out.println(line);
+  }
+
   public void writeBlock(String text) {
     String lines[] = text.split("\n");
     for (int i = 0; i < lines.length; i++) {
       String line = lines[i];
       if (line.isEmpty()) { continue; }
-      writeIndent();
-      out.print("  ");
-      out.println(line);
+      writeDetail(line);
     }
+  }
+
+  public String detailsPrefix() {
+    StringBuilder buf = new StringBuilder();
+    for (int i = 0; i < level; i++) {
+      buf.append("|  ");
+    }
+    if (isLeaf) {
+      buf.append("   ");
+    } else {
+      buf.append("|  ");
+    }
+    return buf.toString();
+  }
+
+  public void writePreFormatted(String text) {
+    out.print(text);
+  }
+
+  public void endDetails() {
+    writeDetail("");
   }
 }

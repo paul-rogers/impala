@@ -302,5 +302,10 @@ public class ProfileAnalyzer {
 
   public void computePlanSummary() {
     root.plan().parseSummary();
+    root.plan().parseTail();
+  }
+
+  public void parsePlanDetails() {
+    root.plan().parsePlanDetails();
   }
 }
