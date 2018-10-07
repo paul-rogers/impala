@@ -621,6 +621,7 @@ public class ProfileAnalyzer {
   private final RootNode root;
   private final SummaryNode summary;
   private QueryPlan plan;
+  private QueryDAG dag;
 
 
   public ProfileAnalyzer(TRuntimeProfileTree profile) {
@@ -694,5 +695,15 @@ public class ProfileAnalyzer {
   public ExecProfileNode exec() {
     expandExecNodes();
     return root.execNode();
+  }
+
+  public void buildDag() {
+    if (dag != null) { return; }
+    dag = new QueryDAG(this);
+  }
+
+  public QueryDAG dag() {
+    buildDag();
+    return dag;
   }
 }

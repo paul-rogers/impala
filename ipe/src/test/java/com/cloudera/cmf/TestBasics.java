@@ -193,14 +193,6 @@ public class TestBasics {
     scanner.scan();
   }
 
-  public static class LoadExecAction implements Action {
-
-    @Override
-    public void apply(ProfileAnalyzer profile) {
-      profile.expandExecNodes();
-    }
-  }
-
   @Test
   public void testPlan() throws IOException {
     ProfileScanner scanner = new ProfileScanner()
@@ -217,6 +209,14 @@ public class TestBasics {
             .add(new PrintPlanAction()))
         ;
     scanner.scan();
+  }
+
+  public static class LoadExecAction implements Action {
+
+    @Override
+    public void apply(ProfileAnalyzer profile) {
+      profile.dag().print();
+    }
   }
 
   @Test

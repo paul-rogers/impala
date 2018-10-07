@@ -84,15 +84,20 @@ public class QueryPlan {
       printer.writePreFormatted(fmt.toString());
     }
 
-    public String heading() {
+    public String title() {
       String suffix = suffix();
       if (suffix == null) {
         suffix = "";
       } else {
         suffix = " [" + suffix + "]";
       }
-      return String.format("%d: %s %s",
-          operatorIndex, name, suffix);
+      return String.format("%s %s",
+          name, suffix);
+    }
+
+    public String heading() {
+      return String.format("%d: %s",
+          operatorIndex, title());
     }
 
     @Override
@@ -231,6 +236,10 @@ public class QueryPlan {
 
     public int operatorId() {
       return operatorIndex;
+    }
+
+    public boolean isLeaf() {
+      return children == null || children.isEmpty();
     }
   }
 

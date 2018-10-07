@@ -9,6 +9,14 @@ import com.google.common.primitives.Ints;
 public abstract class AbstractAttribFormatter implements AttribFormatter {
 
   protected int indent;
+  boolean verbose;
+
+  public void setVerbose(boolean flag) {
+    verbose = flag;
+  }
+
+  @Override
+  public boolean verbose() { return verbose; }
 
   @Override
   public void startGroup() {
