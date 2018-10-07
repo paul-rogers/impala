@@ -219,8 +219,8 @@ public class ProfileAnalyzer {
   public static class ExecProfileNode extends ProfileNode {
 
     public boolean expanded;
-    private FragmentNode coordinator;
-    private final List<FragmentNode> summaries = new ArrayList<>();
+    private FragmentExecNode coordinator;
+    private final List<FragmentExecNode> summaries = new ArrayList<>();
     private final List<InstancesNode> details = new ArrayList<>();
 
     public ExecProfileNode(ProfileAnalyzer analyzer, int index) {
@@ -233,19 +233,31 @@ public class ProfileAnalyzer {
       for (int i = 0; i < childCount(); i++) {
         TRuntimeProfileNode profileNode = analyzer.node(index.index);
         String name = profileNode.getName();
-        if (name.startsWith(FragmentNode.COORD_PREFIX)) {
-          coordinator = new FragmentNode(analyzer, index,
-              FragmentNode.FragmentType.COORDINATOR);
+        if (name.startsWith(FragmentExecNode.COORD_PREFIX)) {
+          coordinator = new FragmentExecNode(analyzer, index,
+              FragmentExecNode.FragmentType.COORDINATOR);
         } else  if (name.startsWith(InstancesNode.NAME_PREFIX)) {
           details.add(new InstancesNode(analyzer, index));
-        } else if (name.startsWith(FragmentNode.AVERAGED_PREFIX)) {
-          summaries.add(new FragmentNode(analyzer, index,
-              FragmentNode.FragmentType.AVERAGED));
+        } else if (name.startsWith(FragmentExecNode.AVERAGED_PREFIX)) {
+          summaries.add(new FragmentExecNode(analyzer, index,
+              FragmentExecNode.FragmentType.AVERAGED));
         } else {
           throw new IllegalStateException("Exec node type");
         }
       }
       expanded = true;
+    }
+
+    public FragmentExecNode coordinator() {
+      return coordinator;
+    }
+
+    public List<FragmentExecNode> summaries() {
+      return summaries;
+    }
+
+    public List<InstancesNode> details() {
+      return details;
     }
   }
 
@@ -352,6 +364,8 @@ public class ProfileAnalyzer {
     public ExecNode(ProfileAnalyzer analyzer, int index) {
       super(analyzer, index);
     }
+
+    public int fragmentId() { return fragmentId; }
   }
 
   /**
@@ -368,7 +382,7 @@ public class ProfileAnalyzer {
 
     public static final String NAME_PREFIX = "Fragment ";
 
-    protected final List<FragmentNode> fragments = new ArrayList<>();
+    protected final List<FragmentExecNode> fragments = new ArrayList<>();
 
     public InstancesNode(ProfileAnalyzer analyzer, NodeIndex index) {
       super(analyzer, index.index);
@@ -378,9 +392,13 @@ public class ProfileAnalyzer {
       Preconditions.checkState(m.matches());
       fragmentId = Integer.parseInt(m.group(1));
       for (int i = 0; i < childCount(); i++) {
-        FragmentNode frag = new FragmentNode(analyzer, index, fragmentId);
+        FragmentExecNode frag = new FragmentExecNode(analyzer, index, fragmentId);
         fragments.add(frag);
       }
+    }
+
+    public List<FragmentExecNode> hostNodes() {
+      return fragments;
     }
   }
 
@@ -397,7 +415,7 @@ public class ProfileAnalyzer {
    *   Filter
    * </pre>
    */
-  public static class FragmentNode extends ExecNode {
+  public static class FragmentExecNode extends ExecNode {
 
     public static final String AVERAGED_PREFIX = "Averaged ";
     public static final String COORD_PREFIX = "Coordinator ";
@@ -416,7 +434,7 @@ public class ProfileAnalyzer {
     private CodeGenNode codeGen;
     private DataStreamSenderNode dataStreamSender;
 
-    public FragmentNode(ProfileAnalyzer analyzer, NodeIndex index, FragmentType fragmentType) {
+    public FragmentExecNode(ProfileAnalyzer analyzer, NodeIndex index, FragmentType fragmentType) {
       super(analyzer, index.index++);
       this.fragmentType = fragmentType;
       Pattern p = Pattern.compile(".*Fragment F(\\d+)");
@@ -426,7 +444,7 @@ public class ProfileAnalyzer {
       parseChildren(index);
     }
 
-    public FragmentNode(ProfileAnalyzer analyzer, NodeIndex index, int fragmentId) {
+    public FragmentExecNode(ProfileAnalyzer analyzer, NodeIndex index, int fragmentId) {
       super(analyzer, index.index++);
       this.fragmentId = fragmentId;
       fragmentType = FragmentType.INSTANCE;
@@ -458,8 +476,26 @@ public class ProfileAnalyzer {
         operators.add(OperatorExecNode.parseOperator(analyzer, name, index));
       }
     }
+
+    public String serverId() { return serverId; }
+
+    public List<OperatorExecNode> operators() { return operators; }
   }
 
+  /**
+   * Represents execution-time detail about an operator.
+   *
+   * <pre>
+   * &lt;operator>_NODE (id=xx)
+   *   &lt;operator>_NODE (id=xx)
+   *   ...
+   *   filter
+   *   ...
+   * </pre>
+   *
+   * The child operators represent the inputs to a binary
+   * operator (such as a join).
+   */
   public static class OperatorExecNode extends ProfileNode {
 
     private final String operatorName;
@@ -498,6 +534,12 @@ public class ProfileAnalyzer {
       } else {
         throw new IllegalStateException("Operator type: " + name);
       }
+    }
+
+    public int operatorId() { return operatorIndex; }
+
+    public List<OperatorExecNode> children() {
+      return children;
     }
   }
 
@@ -636,7 +678,6 @@ public class ProfileAnalyzer {
     return plan;
   }
 
-
   public void computePlanSummary() {
     plan().parseSummary();
     plan().parseTail();
@@ -648,5 +689,10 @@ public class ProfileAnalyzer {
 
   public void expandExecNodes() {
     root.execNode().expand();
+  }
+
+  public ExecProfileNode exec() {
+    expandExecNodes();
+    return root.execNode();
   }
 }

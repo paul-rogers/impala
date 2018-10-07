@@ -30,7 +30,7 @@ import jersey.repackaged.com.google.common.base.Preconditions;
 public class QueryPlan {
 
   public static class PlanNode {
-    protected final int index;
+    protected final int operatorIndex;
     protected final String name;
     protected final String tail;
     protected boolean tailParsed;
@@ -45,7 +45,7 @@ public class QueryPlan {
     protected int estCardinality;
 
     public PlanNode(int index, String name, String tail) {
-      this.index = index;
+      this.operatorIndex = index;
       this.name = name;
       this.tail = tail;
     }
@@ -92,7 +92,7 @@ public class QueryPlan {
         suffix = " [" + suffix + "]";
       }
       return String.format("%d: %s %s",
-          index, name, suffix);
+          operatorIndex, name, suffix);
     }
 
     @Override
@@ -227,6 +227,10 @@ public class QueryPlan {
     public int estCardinality() {
       parsePlanDetails();
       return estCardinality;
+    }
+
+    public int operatorId() {
+      return operatorIndex;
     }
   }
 
@@ -756,5 +760,13 @@ public class QueryPlan {
       nodes[i].parsePlanDetails();
     }
     planDetailsParsed = true;
+  }
+
+  public int operatorCount() {
+    return nodes.length;
+  }
+
+  public PlanNode operator(int i) {
+    return nodes[i];
   }
 }

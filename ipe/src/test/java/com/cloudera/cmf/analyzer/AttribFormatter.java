@@ -1,5 +1,6 @@
 package com.cloudera.cmf.analyzer;
 
+import java.util.Collection;
 import java.util.List;
 
 public interface AttribFormatter {
@@ -14,5 +15,5 @@ public interface AttribFormatter {
   void usAttrib(String label, double value);
   void line(String line);
   void list(String label, String values[]);
-  <T> void list(String label, List<T> values);
+  <T> void list(String label, Collection<T> values);
 }
