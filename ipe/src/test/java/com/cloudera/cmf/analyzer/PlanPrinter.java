@@ -15,7 +15,7 @@ public class PlanPrinter {
   private boolean isLeaf;
 
   public PlanPrinter(ProfileAnalyzer profile) {
-    this.plan = profile.query().plan();
+    this.plan = profile.plan();
   }
 
   public PlanPrinter toStdOut() {

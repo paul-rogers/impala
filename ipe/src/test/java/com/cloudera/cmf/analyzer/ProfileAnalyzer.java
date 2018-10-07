@@ -1,5 +1,6 @@
 package com.cloudera.cmf.analyzer;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
@@ -8,6 +9,55 @@ import java.util.regex.Pattern;
 import org.apache.impala.thrift.TRuntimeProfileNode;
 import org.apache.impala.thrift.TRuntimeProfileTree;
 
+import jersey.repackaged.com.google.common.base.Preconditions;
+
+/**
+ * Wrapper around, and analyzer of a query profile. Provides easy access to
+ * relevant bits of the profile. Parses the text plan and execution summary.
+ * Parses the abstract tree format into a single view of the plan with both
+ * plan and execution time information.
+ *
+ * <h4>Facade Structure</h4>
+ *
+ * This class provides a higher level, logical structure on top of the
+ * lower level physical structure of the profile (as shown below.)
+ *
+ * The key parts are:
+ * <ul>
+ * <li>Overview</li>
+ * <li>Query Plan
+ *   <ul>
+ *   <li>Fragment
+ *     <ul>
+ *     <li>Fragment</li>
+ *     <li>Fragment</li>
+ *     </ul></li>
+ *   <ul></li>
+ * <ul>
+ *
+ * The plan and execution nodes are merged into a single fragment tree.
+ * Fragments are available via their index, or via their tree structure.
+ *
+ * <h4>Tree Overview</h4>
+ *
+ * Root node
+ * <ul>
+ * <li>Overview node ("Query (id=...)" (req)</li>
+ * <li>Server ("ImpalaServer") (opt)</li>
+ * <li>Execution ("Execution Profile ...") (opt)
+ *   <ul>
+ *   <li>Fragment
+ *     <ul>
+ *     <li>Fragment</li>
+ *     <li>...</li>
+ *     </ul></li>
+ *   <li>Fragment</li>
+ *   <li>...</li>
+ *   </ul></li>
+ * </ul>
+ *
+ * The server and execution nodes appear only if the statement succeeded.
+ */
 public class ProfileAnalyzer {
 
   public enum QueryType {
@@ -68,14 +118,16 @@ public class ProfileAnalyzer {
     protected final TRuntimeProfileNode node;
     protected final int index;
     protected int firstChild;
-    protected final int childCount;
 
     public ProfileNode(ProfileAnalyzer analyzer, int index) {
       this.analyzer = analyzer;
       this.index = index;
       node = analyzer.node(index);
-      childCount = node.getNum_children();
       firstChild = index + 1;
+//    for (int i = 0; i < childCount; i++) {
+//      TRuntimeProfileNode child = analyzer.node(firstChild + i);
+//      System.out.println(child.getName());
+//    }
     }
 
     public String attrib(String key) {
@@ -90,6 +142,15 @@ public class ProfileAnalyzer {
       return node.getName();
     }
 
+    public int childCount() {
+      return node.getNum_children();
+    }
+
+    /**
+     * Development method to generate enum names from observed
+     * keys in the "info" field order list.
+     * @param node the node to parse
+     */
     public static void generateAttribs(TRuntimeProfileNode node) {
       System.out.println("// Generated using genAttribs()");
       System.out.println();
@@ -108,17 +169,83 @@ public class ProfileAnalyzer {
     }
   }
 
+  public static class RootNode extends ProfileNode {
+
+    public static String IMPALA_SERVER_NODE = "ImpalaServer";
+    public static String EXEC_PROFILE_NODE = "Execution Profile";
+
+    private final SummaryNode summaryNode;
+    private HelperNode serverNode;
+    private ExecProfileNode execNode;
+    public String queryId;
+
+    public RootNode(ProfileAnalyzer analyzer) {
+      super(analyzer, 0);
+      Preconditions.checkState(childCount() == 1 || childCount() == 3);
+      summaryNode = new SummaryNode(analyzer, 1);
+      if (childCount() == 3) {
+        serverNode = new HelperNode(analyzer, 2);
+        execNode = new ExecProfileNode(analyzer, 3);
+      }
+      Pattern p = Pattern.compile("\\(id=([^)]+)\\)");
+      Matcher m = p.matcher(name());
+      if (m.find()) {
+        queryId = m.group(1);
+      }
+    }
+
+    public SummaryNode summary() { return summaryNode; }
+    public HelperNode serverNode() { return serverNode; }
+    public ExecProfileNode execNode() { return execNode; }
+    public String queryId() { return queryId; }
+  }
+
   public static class HelperNode extends ProfileNode {
 
     public HelperNode(ProfileAnalyzer analyzer, int index) {
       super(analyzer, index);
+      Preconditions.checkState(childCount() == 0);
+    }
+  }
+
+  public static class NodeIndex {
+    int index;
+
+    public NodeIndex(int index) {
+      this.index = index;
     }
   }
 
   public static class ExecProfileNode extends ProfileNode {
 
+    public boolean expanded;
+    private FragmentNode coordinator;
+    private final List<FragmentNode> summaries = new ArrayList<>();
+    private final List<InstancesNode> details = new ArrayList<>();
+
     public ExecProfileNode(ProfileAnalyzer analyzer, int index) {
       super(analyzer, index);
+    }
+
+    public void expand() {
+      if (expanded) { return; }
+      NodeIndex index = new NodeIndex(firstChild);
+      for (int i = 0; i < childCount(); i++) {
+        TRuntimeProfileNode profileNode = analyzer.node(index.index);
+        String name = profileNode.getName();
+        if (name.startsWith(FragmentNode.COORD_PREFIX)) {
+          coordinator = new FragmentNode(analyzer, index,
+              FragmentNode.FragmentType.COORDINATOR);
+        } else  if (name.startsWith(InstancesNode.NAME_PREFIX)) {
+          details.add(new InstancesNode(analyzer, index));
+        } else if (name.startsWith(FragmentNode.AVERAGED_PREFIX)) {
+          summaries.add(new FragmentNode(analyzer, index,
+              FragmentNode.FragmentType.AVERAGED));
+        } else {
+          throw new IllegalStateException("Exec node type");
+        }
+      }
+      expanded = true;
     }
   }
 
@@ -130,10 +257,8 @@ public class ProfileAnalyzer {
    * <li>Execution Profile (opt)</li>
    * </ol>
    */
-  public static class QueryNode extends ProfileNode {
+  public static class SummaryNode extends ProfileNode {
 
-    public static String IMPALA_SERVER_NODE = "ImpalaServer";
-    public static String EXEC_PROFILE_NODE = "Execution Profile";
     public static String FINISHED_STATE = "FINISHED";
     public static String EXCEPTION_STATE = "EXCEPTION";
     public static String OK_STATUS = "OK";
@@ -177,38 +302,9 @@ public class ProfileAnalyzer {
       public String key() { return key; }
     }
 
-    private final HelperNode summaryNode;
-    private HelperNode serverNode;
-    private ExecProfileNode execNode;
-    private String queryId;
-    private QueryPlan plan;
-
-    public QueryNode(ProfileAnalyzer analyzer) {
-      super(analyzer, 0);
-      summaryNode = new HelperNode(analyzer, 1);
-      for (int i = 1; i < childCount; i++) {
-        TRuntimeProfileNode child = analyzer.node(firstChild + i);
-        String childName = child.getName();
-        if (childName.equals(IMPALA_SERVER_NODE)) {
-          serverNode = new HelperNode(analyzer, i);
-        } else if (childName.startsWith(EXEC_PROFILE_NODE)) {
-          execNode = new ExecProfileNode(analyzer, i);
-        } else {
-          throw new IllegalStateException("Unknown node type: " + childName);
-        }
-      }
-//      for (int i = 0; i < childCount; i++) {
-//        TRuntimeProfileNode child = analyzer.node(firstChild + i);
-//        System.out.println(child.getName());
-//      }
-      Pattern p = Pattern.compile("\\(id=([^)]+)\\)");
-      Matcher m = p.matcher(name());
-      if (m.find()) {
-        queryId = m.group(1);
-      }
+    public SummaryNode(ProfileAnalyzer analyzer, int index) {
+      super(analyzer, index);
     }
-
-    public String queryId() { return queryId; }
 
     public SummaryState summaryState() {
       String state = attrib(Attrib.QUERY_STATE);
@@ -226,7 +322,7 @@ public class ProfileAnalyzer {
     }
 
     public String attrib(Attrib attrib) {
-      return summaryNode.attrib(attrib.key());
+      return attrib(attrib.key());
     }
 
     public QueryType type() {
@@ -236,23 +332,254 @@ public class ProfileAnalyzer {
         return null;
       }
     }
+  }
 
-    public QueryPlan plan() {
-      if (plan == null) {
-        plan = new QueryPlan(this);
+  /**
+   * Parent class for the three kinds of fragment nodes:
+   * <pre>
+   * Coordinator Fragment F10
+   * Averaged Fragment F09
+   * Fragment F08:
+   *   Instance ...
+   * <pre>
+   *
+   * Note that the third kind is not really a fragment, rather
+   * it is a container of per-host fragment details.
+   */
+  public static class ExecNode extends ProfileNode {
+    protected int fragmentId;
+
+    public ExecNode(ProfileAnalyzer analyzer, int index) {
+      super(analyzer, index);
+    }
+  }
+
+  /**
+   * Details for a fragment. Holds a list of fragment details,
+   * one per host.
+   *
+   * <pre>
+   * FRAGMENT F08:
+   *   Instance xxx:xxx (host=xxx)
+   *   ...
+   * </pre>
+   */
+  public static class InstancesNode extends ExecNode {
+
+    public static final String NAME_PREFIX = "Fragment ";
+
+    protected final List<FragmentNode> fragments = new ArrayList<>();
+
+    public InstancesNode(ProfileAnalyzer analyzer, NodeIndex index) {
+      super(analyzer, index.index);
+      index.index++;
+      Pattern p = Pattern.compile("Fragment F(\\d+)");
+      Matcher m = p.matcher(name());
+      Preconditions.checkState(m.matches());
+      fragmentId = Integer.parseInt(m.group(1));
+      for (int i = 0; i < childCount(); i++) {
+        FragmentNode frag = new FragmentNode(analyzer, index, fragmentId);
+        fragments.add(frag);
       }
-      return plan;
+    }
+  }
+
+  /**
+   * Execution detail for a single fragment or an average over
+   * a set of fragments.
+   *
+   * <pre>
+   * Coordinator Fragment | Averaged Fragment | Instance
+   *   BlockMgr
+   *   CodeGen
+   *   DataStreamSender
+   *   &lt;OPERATOR>_NODE
+   *   Filter
+   * </pre>
+   */
+  public static class FragmentNode extends ExecNode {
+
+    public static final String AVERAGED_PREFIX = "Averaged ";
+    public static final String COORD_PREFIX = "Coordinator ";
+
+    public enum FragmentType {
+      COORDINATOR,
+      AVERAGED,
+      INSTANCE
     }
 
-    public void generateAttribs() {
-      summaryNode.generateAttribs();
+    protected final FragmentType fragmentType;
+    protected String fragmentGuid;
+    protected String serverId;
+    protected BlockMgrNode blockMgr;
+    protected final List<OperatorExecNode> operators = new ArrayList<>();
+    private CodeGenNode codeGen;
+    private DataStreamSenderNode dataStreamSender;
+
+    public FragmentNode(ProfileAnalyzer analyzer, NodeIndex index, FragmentType fragmentType) {
+      super(analyzer, index.index++);
+      this.fragmentType = fragmentType;
+      Pattern p = Pattern.compile(".*Fragment F(\\d+)");
+      Matcher m = p.matcher(name());
+      Preconditions.checkState(m.matches());
+      fragmentId = Integer.parseInt(m.group(1));
+      parseChildren(index);
+    }
+
+    public FragmentNode(ProfileAnalyzer analyzer, NodeIndex index, int fragmentId) {
+      super(analyzer, index.index++);
+      this.fragmentId = fragmentId;
+      fragmentType = FragmentType.INSTANCE;
+      Pattern p = Pattern.compile("Instance (\\S+) \\(host=([^(]+)\\)");
+      Matcher m = p.matcher(name());
+      Preconditions.checkState(m.matches());
+      fragmentGuid = m.group(1);
+      serverId = m.group(2);
+      parseChildren(index);
+    }
+
+    private void parseChildren(NodeIndex index) {
+      Preconditions.checkState(index.index == firstChild);
+      for (int i = 0; i < childCount(); i++) {
+        TRuntimeProfileNode profileNode = analyzer.node(index.index);
+        String name = profileNode.getName();
+        parseChild(name, index);
+      }
+    }
+
+    protected void parseChild(String name, NodeIndex index) {
+      if (name.equals(BlockMgrNode.NAME)) {
+        blockMgr = new BlockMgrNode(analyzer, index.index++);
+      } else if (name.equals(CodeGenNode.NAME)) {
+        codeGen = new CodeGenNode(analyzer, index.index++);
+      } else if (name.startsWith(DataStreamSenderNode.NAME_PREFIX)) {
+        dataStreamSender = new DataStreamSenderNode(analyzer, index.index++);
+      } else  {
+        operators.add(OperatorExecNode.parseOperator(analyzer, name, index));
+      }
+    }
+  }
+
+  public static class OperatorExecNode extends ProfileNode {
+
+    private final String operatorName;
+    private final int operatorIndex;
+    private List<OperatorExecNode> children = new ArrayList<>();
+    private final List<FilterNode> filters = new ArrayList<>();
+
+    public OperatorExecNode(ProfileAnalyzer analyzer, NodeIndex index) {
+      super(analyzer, index.index++);
+      Pattern p = Pattern.compile("(.*)_NODE \\(id=(\\d+)\\)");
+      Matcher m = p.matcher(name());
+      Preconditions.checkState(m.matches());
+      operatorName = m.group(1);
+      operatorIndex = Integer.parseInt(m.group(2));
+      for (int i = 0; i < childCount(); i++) {
+        TRuntimeProfileNode profileNode = analyzer.node(index.index);
+        String name = profileNode.getName();
+        if (name.startsWith(FilterNode.NAME_PREFIX)) {
+          filters.add(new FilterNode(analyzer, index.index++));
+        } else {
+          children.add(parseOperator(analyzer, name, index));
+        }
+      }
+    }
+
+    public static OperatorExecNode parseOperator(
+        ProfileAnalyzer analyzer, String name, NodeIndex index) {
+      if (name.startsWith(ExchangeExecNode.NAME_PREFIX)) {
+        return new ExchangeExecNode(analyzer, index);
+      } else if (name.startsWith(AggExecNode.NAME_PREFIX)) {
+        return new AggExecNode(analyzer, index);
+      } else if (name.startsWith(HashJoinExecNode.NAME_PREFIX)) {
+        return new HashJoinExecNode(analyzer, index);
+      } else if (name.startsWith(HdfsScanExecNode.NAME_PREFIX)) {
+        return new HdfsScanExecNode(analyzer, index);
+      } else {
+        throw new IllegalStateException("Operator type: " + name);
+      }
+    }
+  }
+
+  public static class ExchangeExecNode extends OperatorExecNode {
+
+    public static final String NAME_PREFIX = "EXCHANGE_NODE ";
+
+    public ExchangeExecNode(ProfileAnalyzer analyzer, NodeIndex index) {
+      super(analyzer, index);
+    }
+  }
+
+  public static class AggExecNode extends OperatorExecNode {
+
+    public static final String NAME_PREFIX = "AGGREGATION_NODE ";
+
+    public AggExecNode(ProfileAnalyzer analyzer, NodeIndex index) {
+      super(analyzer, index);
+    }
+  }
+
+  public static class HashJoinExecNode extends OperatorExecNode {
+
+    public static final String NAME_PREFIX = "HASH_JOIN_NODE ";
+
+    public HashJoinExecNode(ProfileAnalyzer analyzer, NodeIndex index) {
+      super(analyzer, index);
+    }
+  }
+
+  public static class HdfsScanExecNode extends OperatorExecNode {
+
+    public static final String NAME_PREFIX = "HDFS_SCAN_NODE ";
+
+    public HdfsScanExecNode(ProfileAnalyzer analyzer, NodeIndex index) {
+      super(analyzer, index);
+    }
+  }
+
+  public static class CodeGenNode extends HelperNode {
+
+    public static final String NAME = "CodeGen";
+
+    public CodeGenNode(ProfileAnalyzer analyzer, int index) {
+      super(analyzer, index);
+    }
+  }
+
+  public static class DataStreamSenderNode extends HelperNode {
+
+    public static final String NAME_PREFIX = "DataStreamSender ";
+
+    public DataStreamSenderNode(ProfileAnalyzer analyzer, int index) {
+      super(analyzer, index);
+    }
+  }
+
+  public static class FilterNode extends HelperNode {
+
+    public static String NAME_PREFIX = "Filter ";
+
+    public FilterNode(ProfileAnalyzer analyzer, int index) {
+      super(analyzer, index);
+    }
+  }
+
+  public static class BlockMgrNode extends HelperNode {
+
+    public static final Object NAME = "BlockMgr";
+
+    public BlockMgrNode(ProfileAnalyzer analyzer, int index) {
+      super(analyzer, index);
     }
   }
 
   private final String queryId;
   private final String label;
   private final TRuntimeProfileTree profile;
-  private final QueryNode root;
+  private final RootNode root;
+  private final SummaryNode summary;
+  private QueryPlan plan;
+
 
   public ProfileAnalyzer(TRuntimeProfileTree profile) {
     this(profile, null, null);
@@ -263,14 +590,20 @@ public class ProfileAnalyzer {
     this.queryId = queryId;
     this.label = label;
     this.profile = profile;
-    root = new QueryNode(this);
+    root = new RootNode(this);
+    summary = root.summary();
+    Preconditions.checkArgument(queryId == null ||
+        queryId.equals(root.queryId()));
   }
 
   public TRuntimeProfileNode node(int i) {
     return profile.nodes.get(i);
   }
 
-  public String queryId() { return queryId; }
+  public String queryId() {
+    return queryId == null ? root.queryId() : queryId;
+  }
+
   public String label() { return label; }
 
   public String title() {
@@ -281,31 +614,39 @@ public class ProfileAnalyzer {
         .append(": ");
     }
     buf
-      .append(root.type().name())
+      .append(summary.type().name())
       .append(" (")
-      .append(root.summaryState().name())
-      .append(")");
-    String id = queryId == null ? root.queryId() : queryId;
-    if (id != null) {
-      buf
-        .append(" - ID = ")
-        .append(id);
-    }
+      .append(summary.summaryState().name())
+      .append(")")
+      .append(" - ID = ")
+      .append(queryId());
     return buf.toString();
   }
 
-  public QueryNode query() { return root; }
+  public SummaryNode summary() { return summary; }
 
   public String stmt() {
-    return root.attrib(QueryNode.Attrib.SQL_STATEMENT);
+    return summary.attrib(SummaryNode.Attrib.SQL_STATEMENT);
   }
 
+  public QueryPlan plan() {
+    if (plan == null) {
+      plan = new QueryPlan(summary);
+    }
+    return plan;
+  }
+
+
   public void computePlanSummary() {
-    root.plan().parseSummary();
-    root.plan().parseTail();
+    plan().parseSummary();
+    plan().parseTail();
   }
 
   public void parsePlanDetails() {
-    root.plan().parsePlanDetails();
+    plan().parsePlanDetails();
+  }
+
+  public void expandExecNodes() {
+    root.execNode().expand();
   }
 }

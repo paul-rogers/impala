@@ -14,7 +14,7 @@ public class StatementTypePredicate implements Predicate {
 
   @Override
   public boolean accept(ProfileAnalyzer profile) {
-    return profile.query().type() == type;
+    return profile.summary().type() == type;
   }
 
   public static Predicate selectOnly() {

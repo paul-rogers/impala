@@ -15,8 +15,8 @@ import java.util.regex.Pattern;
 import org.joda.time.format.PeriodFormatter;
 import org.joda.time.format.PeriodFormatterBuilder;
 
-import com.cloudera.cmf.analyzer.ProfileAnalyzer.QueryNode;
-import com.cloudera.cmf.analyzer.ProfileAnalyzer.QueryNode.Attrib;
+import com.cloudera.cmf.analyzer.ProfileAnalyzer.SummaryNode;
+import com.cloudera.cmf.analyzer.ProfileAnalyzer.SummaryNode.Attrib;
 import com.cloudera.cmf.analyzer.QueryPlan.AggregateNode;
 import com.cloudera.cmf.analyzer.QueryPlan.ExchangeNode;
 import com.cloudera.cmf.analyzer.QueryPlan.HdfsScanNode;
@@ -632,7 +632,7 @@ public class QueryPlan {
     }
   }
 
-  private final QueryNode query;
+  private final SummaryNode query;
   private final String textPlan;
   private PlanNode[] nodes;
   private List<String> details = new ArrayList<>();
@@ -643,9 +643,9 @@ public class QueryPlan {
   private boolean parsedTail;
   private boolean planDetailsParsed;
 
-  public QueryPlan(QueryNode query) {
+  public QueryPlan(SummaryNode query) {
     this.query = query;
-    textPlan = query.attrib(QueryNode.Attrib.PLAN);
+    textPlan = query.attrib(SummaryNode.Attrib.PLAN);
     try {
       buildPlan();
     } catch (IOException e) {

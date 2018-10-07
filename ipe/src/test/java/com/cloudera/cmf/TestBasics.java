@@ -119,7 +119,7 @@ public class TestBasics {
     QueryRecord qr = lr.next();
     TRuntimeProfileTree profile = qr.thriftProfile();
     ProfileAnalyzer analyzer = new ProfileAnalyzer(profile);
-    analyzer.query().generateAttribs();
+    analyzer.summary().generateAttribs();
   }
 
   @Test
@@ -193,6 +193,14 @@ public class TestBasics {
     scanner.scan();
   }
 
+  public static class LoadExecAction implements Action {
+
+    @Override
+    public void apply(ProfileAnalyzer profile) {
+      profile.expandExecNodes();
+    }
+  }
+
   @Test
   public void testPlan() throws IOException {
     ProfileScanner scanner = new ProfileScanner()
@@ -205,8 +213,26 @@ public class TestBasics {
         .skip(51)
         .toConsole()
         .action(new CompoundAction()
-            .add(new PrintStmtAction())
+//            .add(new PrintStmtAction())
             .add(new PrintPlanAction()))
+        ;
+    scanner.scan();
+  }
+
+  @Test
+  public void testExec() throws IOException {
+    ProfileScanner scanner = new ProfileScanner()
+        .scanFile(INPUT_FILE)
+        .predicate(
+            new AndPredicate()
+              .add(StatementTypePredicate.selectOnly())
+              .add(StatementStatusPredicate.completedOnly()))
+        .limit(1)
+        .skip(51)
+        .toConsole()
+        .action(new CompoundAction()
+//            .add(new PrintStmtAction())
+            .add(new LoadExecAction()))
         ;
     scanner.scan();
   }
