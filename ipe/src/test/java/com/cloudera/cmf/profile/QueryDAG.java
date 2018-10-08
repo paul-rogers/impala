@@ -1,4 +1,4 @@
-package com.cloudera.cmf.analyzer;
+package com.cloudera.cmf.profile;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -8,14 +8,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
-import com.cloudera.cmf.analyzer.FragmentPNode.CoordinatorPNode;
-import com.cloudera.cmf.analyzer.FragmentPNode.FragDetailsPNode;
-import com.cloudera.cmf.analyzer.FragmentPNode.FragInstancePNode;
-import com.cloudera.cmf.analyzer.FragmentPNode.FragSummaryPNode;
-import com.cloudera.cmf.analyzer.FragmentPNode.InstancesPNode;
-import com.cloudera.cmf.analyzer.QueryPlan.PlanNode;
 import com.cloudera.cmf.printer.AttribFormatter;
 import com.cloudera.cmf.printer.AttribPrintFormatter;
+import com.cloudera.cmf.profile.FragmentPNode.CoordinatorPNode;
+import com.cloudera.cmf.profile.FragmentPNode.FragDetailsPNode;
+import com.cloudera.cmf.profile.FragmentPNode.FragInstancePNode;
+import com.cloudera.cmf.profile.FragmentPNode.FragSummaryPNode;
+import com.cloudera.cmf.profile.FragmentPNode.InstancesPNode;
+import com.cloudera.cmf.profile.QueryPlan.PlanNode;
 import com.jolbox.thirdparty.com.google.common.base.Preconditions;
 
 /**

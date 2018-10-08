@@ -7,10 +7,10 @@ import java.io.InputStream;
 import org.apache.impala.thrift.TRuntimeProfileTree;
 import org.junit.Test;
 
-import com.cloudera.cmf.analyzer.EnumBuilder;
-import com.cloudera.cmf.analyzer.ProfileFacade;
 import com.cloudera.cmf.printer.PlanPrinter;
 import com.cloudera.cmf.printer.ProfilePrinter;
+import com.cloudera.cmf.profile.EnumBuilder;
+import com.cloudera.cmf.profile.ProfileFacade;
 import com.cloudera.cmf.scanner.AndPredicate;
 import com.cloudera.cmf.scanner.CompoundAction;
 import com.cloudera.cmf.scanner.LogReader;
@@ -18,8 +18,10 @@ import com.cloudera.cmf.scanner.ProfileScanner;
 import com.cloudera.cmf.scanner.LogReader.QueryRecord;
 import com.cloudera.cmf.scanner.PrintStmtAction;
 import com.cloudera.cmf.scanner.ProfileScanner.Action;
+import com.cloudera.cmf.scanner.ProfileThriftNodeScanner.ThriftNodeScanAction;
 import com.cloudera.cmf.scanner.StatementStatusPredicate;
 import com.cloudera.cmf.scanner.StatementTypePredicate;
+import com.cloudera.cmf.scanner.ThriftNodeRules.DisabledCodeGenRule;
 import com.cloudera.ipe.rules.ImpalaRuntimeProfile;
 
 public class TestBasics {
@@ -262,6 +264,25 @@ public class TestBasics {
         .action(new CompoundAction()
 //            .add(new PrintStmtAction())
             .add(new BuildEnumsAction()))
+        ;
+    scanner.scan();
+  }
+
+  @Test
+  public void testThriftNodeScanner() throws IOException {
+    ProfileScanner scanner = new ProfileScanner()
+        .scanFile(INPUT_FILE)
+        .predicate(
+            new AndPredicate()
+              .add(StatementTypePredicate.selectOnly())
+              .add(StatementStatusPredicate.completedOnly()))
+        .limit(1)
+        .skip(51)
+        .toConsole()
+        .action(new CompoundAction()
+//            .add(new PrintStmtAction())
+            .add(new ThriftNodeScanAction()
+                .add(new DisabledCodeGenRule())))
         ;
     scanner.scan();
   }

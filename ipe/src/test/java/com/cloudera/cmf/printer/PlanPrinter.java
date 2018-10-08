@@ -4,9 +4,9 @@ import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.util.List;
 
-import com.cloudera.cmf.analyzer.ProfileFacade;
-import com.cloudera.cmf.analyzer.QueryPlan;
-import com.cloudera.cmf.analyzer.QueryPlan.PlanNode;
+import com.cloudera.cmf.profile.ProfileFacade;
+import com.cloudera.cmf.profile.QueryPlan;
+import com.cloudera.cmf.profile.QueryPlan.PlanNode;
 
 public class PlanPrinter {
 

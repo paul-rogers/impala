@@ -5,7 +5,7 @@ import java.io.IOException;
 
 import org.apache.impala.thrift.TRuntimeProfileTree;
 
-import com.cloudera.cmf.analyzer.ProfileFacade;
+import com.cloudera.cmf.profile.ProfileFacade;
 import com.cloudera.cmf.scanner.LogReader.QueryRecord;
 import com.jolbox.thirdparty.com.google.common.base.Preconditions;
 

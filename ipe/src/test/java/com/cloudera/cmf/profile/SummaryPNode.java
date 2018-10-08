@@ -1,9 +1,9 @@
-package com.cloudera.cmf.analyzer;
+package com.cloudera.cmf.profile;
 
 import org.apache.impala.thrift.TEventSequence;
 
-import com.cloudera.cmf.analyzer.ProfileFacade.QueryType;
-import com.cloudera.cmf.analyzer.ProfileFacade.SummaryState;
+import com.cloudera.cmf.profile.ProfileFacade.QueryType;
+import com.cloudera.cmf.profile.ProfileFacade.SummaryState;
 
 /**
  * Represents the statement as a whole. Has three children:
@@ -74,6 +74,9 @@ public class SummaryPNode extends ProfileNode {
   public SummaryPNode(ProfileFacade analyzer, int index) {
     super(analyzer, index);
   }
+
+  @Override
+  public PNodeType nodeType() { return PNodeType.SUMMARY; }
 
   public SummaryState summaryState() {
     String state = attrib(Attrib.QUERY_STATE);

@@ -3,7 +3,7 @@ package com.cloudera.cmf.printer;
 import java.util.Collection;
 import java.util.List;
 
-import com.cloudera.cmf.analyzer.ParseUtils;
+import com.cloudera.cmf.profile.ParseUtils;
 import com.google.common.base.Joiner;
 import com.google.common.primitives.Ints;
 

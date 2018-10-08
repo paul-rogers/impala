@@ -1,4 +1,4 @@
-package com.cloudera.cmf.analyzer;
+package com.cloudera.cmf.profile;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -9,6 +9,7 @@ import org.apache.impala.thrift.TRuntimeProfileNode;
 import org.apache.impala.thrift.TTimeSeriesCounter;
 import org.apache.impala.thrift.TUnit;
 
+import com.cloudera.cmf.profile.ParseUtils.FragmentInstance;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 
@@ -24,7 +25,8 @@ import com.google.common.collect.Lists;
  * Note that the third kind is not really a fragment, rather
  * it is a container of per-host fragment details.
  */
-public class FragmentPNode extends ProfileNode {
+public abstract class FragmentPNode extends ProfileNode {
+
   /**
    * Details for a fragment. Holds a list of fragment details,
    * one per host.
@@ -88,10 +90,7 @@ public class FragmentPNode extends ProfileNode {
     public InstancesPNode(ProfileFacade analyzer, ProfileNode.NodeIndex index) {
       super(analyzer, index.index);
       index.index++;
-      Pattern p = Pattern.compile("Fragment F(\\d+)");
-      Matcher m = p.matcher(name());
-      Preconditions.checkState(m.matches());
-      fragmentId = Integer.parseInt(m.group(1));
+      fragmentId = ParseUtils.parseFragmentId(name());
       for (int i = 0; i < childCount(); i++) {
         FragmentPNode.FragInstancePNode frag = new FragmentPNode.FragInstancePNode(analyzer, index, fragmentId);
         fragments.add(frag);
@@ -101,6 +100,9 @@ public class FragmentPNode extends ProfileNode {
     public List<FragmentPNode.FragInstancePNode> hostNodes() {
       return fragments;
     }
+
+    @Override
+    public PNodeType nodeType() { return PNodeType.FRAG_INSTANCE; }
 
     @Override
     public String genericName() { return "Fragment"; }
@@ -160,20 +162,28 @@ public class FragmentPNode extends ProfileNode {
     }
 
     protected void parseChild(String name, ProfileNode.NodeIndex index) {
-      if (name.equals(OperatorPNode.BlockMgrPNode.NAME)) {
+      PNodeType nodeType = PNodeType.parse(name);
+      switch (nodeType) {
+      case BLOCK_MGR:
         blockMgr = new OperatorPNode.BlockMgrPNode(analyzer, index.index++);
-      } else if (name.equals(OperatorPNode.CodeGenPNode.NAME)) {
-        codeGen = new OperatorPNode.CodeGenPNode(analyzer, index.index++);
-      } else if (name.startsWith(OperatorPNode.DataStreamSenderPNode.NAME_PREFIX)) {
+        break;
+      case CODE_GEN:
+         codeGen = new OperatorPNode.CodeGenPNode(analyzer, index.index++);
+         break;
+      case SENDER:
         dataStreamSender = new OperatorPNode.DataStreamSenderPNode(analyzer, index.index++);
-      } else  {
-        operators.add(OperatorPNode.parseOperator(analyzer, name, index));
+        break;
+      default:
+        operators.add(OperatorPNode.parseOperator(analyzer, name, nodeType, index));
       }
     }
 
     public List<OperatorPNode> operators() { return operators; }
 
     public abstract FragmentType fragmentType();
+
+    @Override
+    public PNodeType nodeType() { return PNodeType.FRAG_DETAIL; }
 
     @Override
     public String genericName() { return fragmentType().name(); }
@@ -255,6 +265,9 @@ public class FragmentPNode extends ProfileNode {
     @Override
     public FragmentType fragmentType() { return FragmentType.COORDINATOR; }
 
+    @Override
+    public PNodeType nodeType() { return PNodeType.COORD; }
+
     public long counter(Counter counter) {
       return counter(counter.key());
     }
@@ -324,6 +337,9 @@ public class FragmentPNode extends ProfileNode {
     }
 
     @Override
+    public PNodeType nodeType() { return PNodeType.FRAG_SUMMARY; }
+
+    @Override
     public FragmentType fragmentType() { return FragmentType.AVERAGED; }
 
     public String attrib(Attrib attrib) {
@@ -371,25 +387,23 @@ public class FragmentPNode extends ProfileNode {
       public TUnit units() { return units; }
     }
 
-    protected String fragmentGuid;
-    protected String serverId;
+    protected FragmentInstance instanceId;
 
     public FragInstancePNode(ProfileFacade analyzer, ProfileNode.NodeIndex index, int fragmentId) {
       super(analyzer, index);
       this.fragmentId = fragmentId;
-      Pattern p = Pattern.compile("Instance (\\S+) \\(host=([^(]+)\\)");
-      Matcher m = p.matcher(name());
-      Preconditions.checkState(m.matches());
-      fragmentGuid = m.group(1);
-      serverId = m.group(2);
+      instanceId = new FragmentInstance(name());
     }
+
+    @Override
+    public PNodeType nodeType() { return PNodeType.FRAG_INSTANCE; }
 
     @Override
     public FragmentType fragmentType() {
       return FragmentType.INSTANCE;
     }
 
-    public String serverId() { return serverId; }
+    public String serverId() { return instanceId.serverId(); }
 
     public String attrib(Attrib attrib) {
       return attrib(attrib.key());

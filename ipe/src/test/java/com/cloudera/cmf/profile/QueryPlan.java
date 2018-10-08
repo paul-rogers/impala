@@ -1,4 +1,4 @@
-package com.cloudera.cmf.analyzer;
+package com.cloudera.cmf.profile;
 
 import java.io.BufferedReader;
 import java.io.IOException;

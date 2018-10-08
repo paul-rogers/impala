@@ -1,7 +1,7 @@
 package com.cloudera.cmf.scanner;
 
-import com.cloudera.cmf.analyzer.ProfileFacade;
-import com.cloudera.cmf.analyzer.ProfileFacade.QueryType;
+import com.cloudera.cmf.profile.ProfileFacade;
+import com.cloudera.cmf.profile.ProfileFacade.QueryType;
 import com.cloudera.cmf.scanner.ProfileScanner.Predicate;
 
 public class StatementTypePredicate implements Predicate {

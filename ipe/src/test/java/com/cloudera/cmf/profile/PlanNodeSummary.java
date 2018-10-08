@@ -1,4 +1,4 @@
-package com.cloudera.cmf.analyzer;
+package com.cloudera.cmf.profile;
 
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;

@@ -1,4 +1,4 @@
-package com.cloudera.cmf.analyzer;
+package com.cloudera.cmf.profile;
 
 import java.util.List;
 
@@ -7,7 +7,6 @@ import org.apache.impala.thrift.TEventSequence;
 import org.apache.impala.thrift.TRuntimeProfileNode;
 import org.apache.impala.thrift.TTimeSeriesCounter;
 
-import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 
 /**
@@ -17,25 +16,13 @@ import com.google.common.collect.Lists;
  * generic structure of the profile into a meaningful set of query
  * structures.
  */
-public class ProfileNode {
+public abstract class ProfileNode {
 
   public static class NodeIndex {
     int index;
 
     public NodeIndex(int index) {
       this.index = index;
-    }
-  }
-
-  /**
-   * Generic facade for profile nodes with no useful
-   * content.
-   */
-  public static class HelperPNode extends ProfileNode {
-
-    public HelperPNode(ProfileFacade analyzer, int index) {
-      super(analyzer, index);
-      Preconditions.checkState(childCount() == 0);
     }
   }
 
@@ -52,25 +39,21 @@ public class ProfileNode {
   }
 
   public TRuntimeProfileNode node() { return node; }
+  public String name() { return node.getName(); }
+  public int childCount() { return node.getNum_children(); }
+  public String genericName() { return node.getName(); }
+  public abstract PNodeType nodeType();
+
+  public List<ProfileNode> childNodes() {
+    return Lists.newArrayList();
+  }
 
   public String attrib(String key) {
     return node.getInfo_strings().get(key);
   }
 
-  public String name() {
-    return node.getName();
-  }
-
-  public int childCount() {
-    return node.getNum_children();
-  }
-
-  public String genericName() {
-    return node.getName();
-  }
-
-  public List<ProfileNode> childNodes() {
-    return Lists.newArrayList();
+  public static String getAttrib(TRuntimeProfileNode node, String key) {
+    return node.getInfo_strings().get(key);
   }
 
   public long counter(String name) {
@@ -84,6 +67,10 @@ public class ProfileNode {
   }
 
   public TEventSequence events(String name) {
+    return getEvent(node, name);
+  }
+
+  public static TEventSequence getEvent(TRuntimeProfileNode node, String name) {
     // Used in only one node, only two sequences.
     // Linear search is fine.
     for (TEventSequence event : node.getEvent_sequences()) {

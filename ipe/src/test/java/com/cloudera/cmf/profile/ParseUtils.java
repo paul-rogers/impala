@@ -1,4 +1,4 @@
-package com.cloudera.cmf.analyzer;
+package com.cloudera.cmf.profile;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -13,6 +13,24 @@ public class ParseUtils {
   public static long US_PER_SEC = US_PER_MS * 1000;
   public static long US_PER_MIN = US_PER_SEC * 60;
   public static long US_PER_HOUR = US_PER_MIN * 60;
+
+  public static class FragmentInstance {
+    private final String fragmentGuid;
+    private final String serverId;
+
+    // Instance xxx:yyy (host=hhh:22000)
+
+    public FragmentInstance(String nodeName) {
+      Pattern p = Pattern.compile("Instance (\\S+) \\(host=([^(]+)\\)");
+      Matcher m = p.matcher(nodeName);
+      Preconditions.checkState(m.matches());
+       fragmentGuid = m.group(1);
+      serverId = m.group(2);
+    }
+
+    public String fragmentGuid() { return fragmentGuid; }
+    public String serverId() { return serverId; }
+  }
 
   public static double parseDuration(String valueStr) {
     Pattern p = Pattern.compile("([0-9.]+)us");
@@ -149,5 +167,15 @@ public class ParseUtils {
     Matcher m = p.matcher(text);
     Preconditions.checkState(m.matches());
     return ParseUtils.parseMem(m.group(1), m.group(2));
+  }
+
+  // Averaged Fragment F02
+  // Fragment F03
+
+  public static int parseFragmentId(String name) {
+    Pattern p = Pattern.compile(".*Fragment F(\\d+)");
+    Matcher m = p.matcher(name);
+    Preconditions.checkState(m.matches());
+    return Integer.parseInt(m.group(1));
   }
 }

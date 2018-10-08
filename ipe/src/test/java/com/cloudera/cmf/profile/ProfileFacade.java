@@ -1,4 +1,4 @@
-package com.cloudera.cmf.analyzer;
+package com.cloudera.cmf.profile;
 
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -135,7 +135,7 @@ public class ProfileFacade {
     public static String EXEC_PROFILE_NODE = "Execution Profile";
 
     private final SummaryPNode summaryNode;
-    private ProfileNode.HelperPNode serverNode;
+    private ServerPNode serverNode;
     private ExecPNode execNode;
     public String queryId;
 
@@ -144,7 +144,7 @@ public class ProfileFacade {
       Preconditions.checkState(childCount() == 1 || childCount() == 3);
       summaryNode = new SummaryPNode(analyzer, 1);
       if (childCount() == 3) {
-        serverNode = new ProfileNode.HelperPNode(analyzer, 2);
+        serverNode = new ServerPNode(analyzer, 2);
         execNode = new ExecPNode(analyzer, 3);
       }
       Pattern p = Pattern.compile("\\(id=([^)]+)\\)");
@@ -155,11 +155,27 @@ public class ProfileFacade {
     }
 
     public SummaryPNode summary() { return summaryNode; }
-    public ProfileNode.HelperPNode serverNode() { return serverNode; }
+    public ServerPNode serverNode() { return serverNode; }
     public ExecPNode execNode() { return execNode; }
     public String queryId() { return queryId; }
+
+    @Override
+    public PNodeType nodeType() { return PNodeType.ROOT; }
   }
 
+  /**
+   * Facade for the <code>ImpalaServer</code> node.
+   */
+  public static class ServerPNode extends ProfileNode {
+
+    public ServerPNode(ProfileFacade analyzer, int index) {
+      super(analyzer, index);
+      Preconditions.checkState(childCount() == 0);
+    }
+
+    @Override
+    public PNodeType nodeType() { return PNodeType.SERVER; }
+  }
   private final String queryId;
   private final String label;
   private final TRuntimeProfileTree profile;
@@ -211,6 +227,7 @@ public class ProfileFacade {
     return buf.toString();
   }
 
+  public RootPNode root() { return root; }
   public SummaryPNode summary() { return summary; }
 
   public String stmt() {

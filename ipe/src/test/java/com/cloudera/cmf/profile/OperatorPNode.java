@@ -1,4 +1,4 @@
-package com.cloudera.cmf.analyzer;
+package com.cloudera.cmf.profile;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -81,6 +81,9 @@ public abstract class OperatorPNode extends ProfileNode {
       public ExchangePNode(ProfileFacade analyzer, ProfileNode.NodeIndex index) {
         super(analyzer, index);
       }
+
+      @Override
+      public PNodeType nodeType() { return PNodeType.EXCHANGE_OP; }
 
       public long counter(Counter counter) {
         return counter(counter.key());
@@ -183,6 +186,9 @@ public abstract class OperatorPNode extends ProfileNode {
       super(analyzer, index);
     }
 
+    @Override
+    public PNodeType nodeType() { return PNodeType.AGG_OP; }
+
     public String attrib(Attrib attrib) {
       return attrib(attrib.key());
     }
@@ -259,6 +265,9 @@ public abstract class OperatorPNode extends ProfileNode {
     public HashJoinPNode(ProfileFacade analyzer, ProfileNode.NodeIndex index) {
       super(analyzer, index);
     }
+
+    @Override
+    public PNodeType nodeType() { return PNodeType.HASH_JOIN_OP; }
 
     public String attrib(Attrib attrib) {
       return attrib(attrib.key());
@@ -358,6 +367,9 @@ public abstract class OperatorPNode extends ProfileNode {
       super(analyzer, index);
     }
 
+    @Override
+    public PNodeType nodeType() { return PNodeType.HDFS_SCAN_OP; }
+
     public String attrib(Attrib attrib) {
       return attrib(attrib.key());
     }
@@ -374,7 +386,7 @@ public abstract class OperatorPNode extends ProfileNode {
   /**
    * Detailed metrics for the code generation function of an operator.
    */
-  public static class CodeGenPNode extends ProfileNode.HelperPNode {
+  public static class CodeGenPNode extends ProfileNode {
 
     public static final String NAME = "CodeGen";
 
@@ -407,6 +419,9 @@ public abstract class OperatorPNode extends ProfileNode {
       super(analyzer, index);
     }
 
+    @Override
+    public PNodeType nodeType() { return PNodeType.CODE_GEN; }
+
     public long counter(Counter counter) {
       return counter(counter.key());
     }
@@ -416,7 +431,7 @@ public abstract class OperatorPNode extends ProfileNode {
    * Details for the data stream sender at the root of each non-root
    * fragment.
    */
-  public static class DataStreamSenderPNode extends ProfileNode.HelperPNode {
+  public static class DataStreamSenderPNode extends ProfileNode {
 
     // Generated using EnumBuilder
     public enum Counter {
@@ -449,6 +464,9 @@ public abstract class OperatorPNode extends ProfileNode {
     }
 
     @Override
+    public PNodeType nodeType() { return PNodeType.SENDER; }
+
+    @Override
     public String genericName() { return NAME_PREFIX.trim(); }
 
     public long counter(Counter counter) {
@@ -460,7 +478,7 @@ public abstract class OperatorPNode extends ProfileNode {
    * Execution details for a filter. (Associated only with scan
    * nodes?)
    */
-  public static class FilterPNode extends ProfileNode.HelperPNode {
+  public static class FilterPNode extends ProfileNode {
 
     public static String NAME_PREFIX = "Filter ";
 
@@ -489,6 +507,9 @@ public abstract class OperatorPNode extends ProfileNode {
     }
 
     @Override
+    public PNodeType nodeType() { return PNodeType.FILTER; }
+
+    @Override
     public String genericName() { return NAME_PREFIX.trim(); }
 
     public long counter(Counter counter) {
@@ -500,7 +521,7 @@ public abstract class OperatorPNode extends ProfileNode {
    * Execution details for the Block Manager functionality
    * associated with each operator.
    */
-  public static class BlockMgrPNode extends ProfileNode.HelperPNode {
+  public static class BlockMgrPNode extends ProfileNode {
 
     public static final Object NAME = "BlockMgr";
 
@@ -537,6 +558,9 @@ public abstract class OperatorPNode extends ProfileNode {
       super(analyzer, index);
     }
 
+    @Override
+    public PNodeType nodeType() { return PNodeType.BLOCK_MGR; }
+
     public long counter(Counter counter) {
       return counter(counter.key());
     }
@@ -557,25 +581,27 @@ public abstract class OperatorPNode extends ProfileNode {
     for (int i = 0; i < childCount(); i++) {
       TRuntimeProfileNode profileNode = analyzer.node(index.index);
       String name = profileNode.getName();
-      if (name.startsWith(OperatorPNode.FilterPNode.NAME_PREFIX)) {
+      PNodeType nodeType = PNodeType.parse(name);
+      if (nodeType == PNodeType.FILTER) {
         filters.add(new OperatorPNode.FilterPNode(analyzer, index.index++));
       } else {
-        children.add(parseOperator(analyzer, name, index));
+        children.add(parseOperator(analyzer, name, nodeType, index));
       }
     }
   }
 
   public static OperatorPNode parseOperator(
-      ProfileFacade analyzer, String name, ProfileNode.NodeIndex index) {
-    if (name.startsWith(OperatorPNode.ExchangePNode.NAME_PREFIX)) {
+      ProfileFacade analyzer, String name, PNodeType nodeType, ProfileNode.NodeIndex index) {
+    switch (nodeType) {
+    case EXCHANGE_OP:
       return new OperatorPNode.ExchangePNode(analyzer, index);
-    } else if (name.startsWith(OperatorPNode.AggPNode.NAME_PREFIX)) {
+    case AGG_OP:
       return new OperatorPNode.AggPNode(analyzer, index);
-    } else if (name.startsWith(OperatorPNode.HashJoinPNode.NAME_PREFIX)) {
+    case HASH_JOIN_OP:
       return new OperatorPNode.HashJoinPNode(analyzer, index);
-    } else if (name.startsWith(OperatorPNode.HdfsScanPNode.NAME_PREFIX)) {
+    case HDFS_SCAN_OP:
       return new OperatorPNode.HdfsScanPNode(analyzer, index);
-    } else {
+    default:
       throw new IllegalStateException("Operator type: " + name);
     }
   }

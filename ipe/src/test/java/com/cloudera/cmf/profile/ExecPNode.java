@@ -1,4 +1,4 @@
-package com.cloudera.cmf.analyzer;
+package com.cloudera.cmf.profile;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -78,6 +78,9 @@ public class ExecPNode extends ProfileNode {
 
   @Override
   public String genericName() { return "Execution Profile"; }
+
+  @Override
+  public PNodeType nodeType() { return PNodeType.EXEC; }
 
   public String attrib(Attrib attrib) {
     return attrib(attrib.key());

@@ -1,6 +1,6 @@
 package com.cloudera.cmf.scanner;
 
-import com.cloudera.cmf.analyzer.ProfileFacade;
+import com.cloudera.cmf.profile.ProfileFacade;
 import com.cloudera.cmf.scanner.ProfileScanner.Action;
 
 public class PrintStmtAction implements Action {
