@@ -8,7 +8,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
+import com.cloudera.cmf.analyzer.ProfileAnalyzer.CoordinatorExecNode;
 import com.cloudera.cmf.analyzer.ProfileAnalyzer.ExecProfileNode;
+import com.cloudera.cmf.analyzer.ProfileAnalyzer.FragInstanceExecNode;
+import com.cloudera.cmf.analyzer.ProfileAnalyzer.FragSummaryExecNode;
 import com.cloudera.cmf.analyzer.ProfileAnalyzer.FragmentExecNode;
 import com.cloudera.cmf.analyzer.ProfileAnalyzer.InstancesNode;
 import com.cloudera.cmf.analyzer.ProfileAnalyzer.OperatorExecNode;
@@ -34,42 +37,23 @@ public class QueryDAG {
    * This class tracks the execution details for each of the assigned
    * servers, and the overall operator summary across servers.
    */
-  public static class FragmentSynNode {
-    private final int fragmentId;
-    private final FragmentExecNode summaryNode;
-    private InstancesNode detailsNode;
-    private final Map<String, FragmentExecNode> details = new HashMap<>();
+  public abstract static class FragmentSynNode {
+
+    protected final int fragmentId;
     private final List<FragmentSynNode> children = new ArrayList<>();
     private final List<OperatorSynNode> operators = new ArrayList<>();
     private OperatorSynNode rootOperator;
-    private FragmentSynNode parent;
 
-    public FragmentSynNode(FragmentExecNode summary) {
-      fragmentId = summary.fragmentId();
-      summaryNode = summary;
+    public FragmentSynNode(int fragmentId) {
+      this.fragmentId = fragmentId;
     }
 
-    public void defineCoordinator(String serverId) {
-      details.put(serverId, summaryNode);
-    }
-
-    public void defineDetails(InstancesNode fragDetails) {
-      detailsNode = fragDetails;
-      for (FragmentExecNode hostDetail : fragDetails.hostNodes()) {
-        Preconditions.checkState(! details.containsKey(hostDetail.serverId()));
-        details.put(hostDetail.serverId(), hostDetail);
-      }
-    }
-
-    public Map<String, FragmentExecNode> details() {
-      return details;
-    }
-
-    public FragmentExecNode summary() { return summaryNode; }
+    public abstract FragmentExecNode summary();
     public int fragmentId() { return fragmentId; }
     public boolean isLeaf() { return children.isEmpty(); }
-    public boolean isRoot() { return parent == null; }
-    public int hostCount() { return details.size(); }
+    public abstract FragmentSynNode parent();
+    public abstract boolean isRoot();
+    public abstract int hostCount();
 
     public void addOperator(OperatorSynNode opSyn) {
       operators.add(opSyn);
@@ -77,21 +61,17 @@ public class QueryDAG {
 
     public void setRootOperator(OperatorSynNode opSyn) {
       this.rootOperator = opSyn;
-      if (! opSyn.isRoot()) {
-        parent = opSyn.parent().fragment();
-        parent.children.add(this);
-      }
     }
 
-    public void format(AttribFormatter fmt) {
-      fmt.startGroup("Fragment " + fragmentId);
-      fmt.list("Servers", details.keySet());
+    public abstract void format(AttribFormatter fmt);
+
+    protected void formatDetails(AttribFormatter fmt) {
+      fmt.attrib("Root Operator", rootOperator.operatorId());
       fmt.startGroup("Operators");
       for (int i = 0; i < operators.size(); i++) {
         OperatorSynNode opSyn = operators.get(i);
         fmt.line(opSyn.planNode().heading());
       }
-      fmt.endGroup();
       fmt.endGroup();
     }
 
@@ -109,6 +89,87 @@ public class QueryDAG {
       return String.format("%d: (%s) %d hosts",
           fragmentId, OperatorSynNode.idList(operators),
           hostCount());
+    }
+  }
+
+  public static class RootFragSynNode extends FragmentSynNode {
+
+    private final CoordinatorExecNode coord;
+    private String serverId;
+
+    public RootFragSynNode(CoordinatorExecNode coord, String serverId) {
+      super(coord.fragmentId());
+      this.coord = coord;
+      this.serverId = serverId;
+    }
+
+    @Override
+    public FragmentExecNode summary() { return coord; }
+    @Override
+    public FragmentSynNode parent() { return null; }
+    @Override
+    public int hostCount() { return 1; }
+    public String serverId() { return serverId; }
+    @Override
+    public boolean isRoot() { return true; }
+
+    @Override
+    public void format(AttribFormatter fmt) {
+      fmt.startGroup("Coordinator " + fragmentId);
+      formatDetails(fmt);
+      fmt.attrib("Server", serverId);
+      fmt.endGroup();
+    }
+  }
+
+  public static class InternalFragSynNode extends FragmentSynNode {
+
+    private final FragSummaryExecNode summaryNode;
+    private InstancesNode detailsNode;
+    private final Map<String, FragInstanceExecNode> details = new HashMap<>();
+    private FragmentSynNode parent;
+
+    public InternalFragSynNode(FragSummaryExecNode summary) {
+      super(summary.fragmentId());
+      summaryNode = summary;
+    }
+
+    public void defineDetails(InstancesNode fragDetails) {
+      detailsNode = fragDetails;
+      for (FragInstanceExecNode hostDetail : fragDetails.hostNodes()) {
+        Preconditions.checkState(! details.containsKey(hostDetail.serverId()));
+        details.put(hostDetail.serverId(), hostDetail);
+      }
+    }
+
+    public Map<String, FragInstanceExecNode> details() {
+      return details;
+    }
+
+    @Override
+    public FragmentExecNode summary() { return summaryNode; }
+    @Override
+    public FragmentSynNode parent() { return parent; }
+    @Override
+    public int hostCount() { return details.size(); }
+    @Override
+    public boolean isRoot() { return false; }
+
+    @Override
+    public void setRootOperator(OperatorSynNode opSyn) {
+      super.setRootOperator(opSyn);
+      if (! opSyn.isRoot()) {
+        parent = opSyn.parent().fragment();
+        parent.children.add(this);
+      }
+    }
+
+    @Override
+    public void format(AttribFormatter fmt) {
+      fmt.startGroup("Fragment " + fragmentId);
+      formatDetails(fmt);
+      fmt.list("Servers", details.keySet());
+      fmt.endGroup();
     }
   }
 
@@ -237,7 +298,7 @@ public class QueryDAG {
    * Represents a server in the Impala cluster. Each server is
    * assigned one or more fragments to execute. One server is the
    * coordinator.
-   */
+s   */
   public static class ServerSynNode {
     private final String serverId;
     private boolean isCoordinator;
@@ -249,6 +310,7 @@ public class QueryDAG {
 
     public void addFrag(FragmentSynNode frag) {
       fragments.add(frag);
+      isCoordinator = frag.isRoot();
     }
 
     public void format(AttribFormatter fmt) {
@@ -259,10 +321,6 @@ public class QueryDAG {
       }
       fmt.attrib("Fragments", frags);
       fmt.endGroup();
-    }
-
-    public void defineCoordinator() {
-      isCoordinator = true;
     }
 
     public boolean isCoordinator() { return isCoordinator; }
@@ -279,11 +337,19 @@ public class QueryDAG {
   private final ProfileAnalyzer profile;
   private FragmentSynNode[] fragments;
   private final OperatorSynNode[] operators;
-  private FragmentSynNode rootFragment;
+  private RootFragSynNode rootFragment;
   private OperatorSynNode rootOperator;
   private final Map<String, ServerSynNode> servers = new HashMap<>();
   private List<String> serverNames = new ArrayList<>();
 
+  /**
+   * Constructor. Builds the DAG from the partially-analyzed profile.
+   * Requires that the profile has parsed the query plan and the
+   * fragment execution nodes. Builds the DAG from this partial
+   * structure.
+   *
+   * @param profile The partially-analyzed query profile
+   */
   public QueryDAG(ProfileAnalyzer profile) {
     this.profile = profile;
     QueryPlan plan = profile.plan();
@@ -297,6 +363,10 @@ public class QueryDAG {
     analyzeDag();
   }
 
+  /**
+   * Synthesizes the DAG from the structure within the query
+   * profile.
+   */
   public void analyzeDag() {
     ExecProfileNode exec = profile.exec();
     setCoordinator(exec.coordinator());
@@ -309,52 +379,90 @@ public class QueryDAG {
     stitchFragmentOperator(rootOperator);
   }
 
-  public void setCoordinator(FragmentExecNode coordinator) {
-    // Coordinator is the highest-numbered fragment
+  /**
+   * Identify the coordinator fragment. This becomes the root of the
+   * fragment DAG. The coordinator fragment is the highest-numbered
+   * fragment, which tell us the number of fragments in the DAG.
+   *
+   * @param coordinator the coordinator fragment node, the one
+   * labeled "Coordinator Fragment Fxx"
+   */
+  public void setCoordinator(CoordinatorExecNode coordinator) {
     fragments = new FragmentSynNode[coordinator.fragmentId() + 1];
-    rootFragment = defineFrag(coordinator);
-    rootFragment.defineCoordinator(profile.summary().attrib(SummaryNode.Attrib.COORDINATOR));
+    rootFragment = new RootFragSynNode(coordinator,
+        profile.summary().attrib(SummaryNode.Attrib.COORDINATOR));
+    fragments[coordinator.fragmentId()] = rootFragment;
   }
 
-  private FragmentSynNode defineFrag(FragmentExecNode summary) {
-    FragmentSynNode fragSyn = new FragmentSynNode(summary);
-    Preconditions.checkState(fragments[summary.fragmentId()] == null);
-    fragments[summary.fragmentId()] = fragSyn;
-    return fragSyn;
-  }
-
-  public void defineFrags(List<FragmentExecNode> summaries) {
-    for (FragmentExecNode frag : summaries) {
-      defineFrag(frag);
+  /**
+   * Given the list of summary exec nodes (those labeled
+   * "Averaged Fragment Fxx", define the set of fragments in the DAG.
+   *
+   * @param summaries fragment summary nodes
+   */
+  public void defineFrags(List<FragSummaryExecNode> summaries) {
+    for (FragSummaryExecNode frag : summaries) {
+      fragments[frag.fragmentId()] = new InternalFragSynNode(frag);
     }
   }
 
+  /**
+   * Given the set of fragment detail nodes (those labeled
+   * "Fragment Fxx", assign the details to the previously-created
+   * fragment synthesis node.
+   *
+   * @param details fragment details exec node which contains
+   * a child for each server on which the fragment ran
+   */
   public void defineFragDetails(List<InstancesNode> details) {
     for (InstancesNode fragDetails : details) {
-      fragments[fragDetails.fragmentId()].defineDetails(fragDetails);
+      ((InternalFragSynNode) fragments[fragDetails.fragmentId()])
+          .defineDetails(fragDetails);
     }
   }
 
+  /**
+   * Define the servers that make up the Impala cluster. Scans
+   * all the fragment synthesis nodes, checking the server associated
+   * with each fragment detail. Defines the server if not yet defined,
+   * then adds that fragment to the server. Finally, creates a sorted
+   * list of server names and marks the server which acts as the
+   * coordinator.
+   */
   private void defineServers() {
+    defineServer(rootFragment.serverId(), rootFragment);
     for (int i = 0; i < fragments.length; i++) {
-      defineServers(fragments[i]);
+      FragmentSynNode fragSyn = fragments[i];
+      if (fragSyn.isRoot()) { continue; }
+      InternalFragSynNode internalSyn = (InternalFragSynNode) fragSyn;
+      for (Entry<String, FragInstanceExecNode> entry : internalSyn.details().entrySet()) {
+        defineServer(entry.getKey(), fragSyn);
+      }
     }
     serverNames.addAll(servers.keySet());
     Collections.sort(serverNames);
-    servers.get(profile.summary().attrib(SummaryNode.Attrib.COORDINATOR)).defineCoordinator();
   }
 
-  public void defineServers(FragmentSynNode fragSyn) {
-    for (Entry<String, FragmentExecNode> entry : fragSyn.details().entrySet()) {
-      ServerSynNode server = servers.get(entry.getKey());
-      if (server == null) {
-        server = new ServerSynNode(entry.getKey());
-        servers.put(entry.getKey(), server);
-      }
-      server.addFrag(fragSyn);
+  private void defineServer(String serverId, FragmentSynNode fragSyn) {
+    ServerSynNode server = servers.get(serverId);
+    if (server == null) {
+      server = new ServerSynNode(serverId);
+      servers.put(serverId, server);
     }
+    server.addFrag(fragSyn);
   }
 
+  /**
+   * Operator summaries appear in the profile as a child of the fragment
+   * in which the operator ran. Scan each fragment, and each operator in
+   * that fragment. Assign the operator details to the operator synthesis
+   * node.
+   * <p>
+   * The fragment uses a in-fix format: if an operator has only one input,
+   * that input appears in the fragment's operator list. However, if the
+   * operator has two inputs (a join), then the inputs appear as children
+   * of the operator node with the left input first, the right input second.
+   */
   private void gatherOperatorSummaries() {
     for (int i = 0; i < fragments.length; i++) {
       FragmentSynNode fragSyn = fragments[i];
@@ -364,6 +472,17 @@ public class QueryDAG {
     }
   }
 
+  /**
+   * Define the summary for one operator within a fragment summary node.
+   * Recursively descend into the children of the operator if this operator
+   * is a join.
+   * <p>
+   * As part of this step, the fragment synthesis node is bound to the
+   * operator synthesis node and visa-versa.
+   *
+   * @param fragSyn the fragment being processed
+   * @param operExec the operator summary node being processed
+   */
   private void gatherOperatorSummary(FragmentSynNode fragSyn, OperatorExecNode operExec) {
     OperatorSynNode opSyn = operators[operExec.operatorId()];
     opSyn.setSummary(fragSyn, operExec);
@@ -373,21 +492,35 @@ public class QueryDAG {
     }
   }
 
+  /**
+   * Operators run on multiple servers. The details have been assigned
+   * to the fragment synthesis node in a map. Using the map, iterate over
+   * each fragment instance, then walk the fragment to assign the operator
+   * details to the operator synthesis node. Again, this is a recursive
+   * operation as explained for
+   * {@link #gatherOperatorSummary(FragmentSynNode, OperatorExecNode)}.
+   */
   private void gatherOperatorDetails() {
     for (int i = 0; i < fragments.length; i++) {
       FragmentSynNode fragSyn = fragments[i];
-      for (Entry<String, FragmentExecNode> entry : fragSyn.details().entrySet()) {
-        gatherOperatorDetails(entry.getKey(), entry.getValue());
+      if (fragSyn.isRoot()) { continue; }
+      InternalFragSynNode internalSyn = (InternalFragSynNode) fragSyn;
+      for (Entry<String, FragInstanceExecNode> entry : internalSyn.details().entrySet()) {
+        for (OperatorExecNode operExec : entry.getValue().operators()) {
+          gatherOperatorDetails(entry.getKey(), operExec);
+        }
       }
     }
   }
 
-  private void gatherOperatorDetails(String serverId, FragmentExecNode fragExec) {
-    for (OperatorExecNode operExec : fragExec.operators()) {
-      gatherOperatorDetails(serverId, operExec);
-    }
-  }
-
+  /**
+   * Gather operator details for one (server, operator) pair. Recursively
+   * descend into children for this operator in the fragment profile node,
+   * which are those that ran in the same fragment.
+   *
+   * @param serverId server on which the operator ran
+   * @param operExec the operator details profile node
+   */
   private void gatherOperatorDetails(String serverId, OperatorExecNode operExec) {
     OperatorSynNode opSyn = operators[operExec.operatorId()];
     opSyn.addDetail(serverId, operExec);
@@ -396,6 +529,17 @@ public class QueryDAG {
     }
   }
 
+  /**
+   * Mirror the operator plan DAG into the operator synthesis nodes,
+   * starting at the subtree given by one node. Uses the plan node
+   * for this operator to get the list of child plan nodes. Uses the
+   * operator ID in the child plan node to find the matching operator
+   * synthesis node. Then, builds the parent/child relations in the
+   * operator synthesis nodes. Recursively applies this process to
+   * child operators.
+   *
+   * @param opSyn operator synthesis node to be stitched
+   */
   private void stitchOperator(OperatorSynNode opSyn) {
     PlanNode opPlan = opSyn.planNode();
     if (opPlan.isLeaf()) { return; }
@@ -409,6 +553,14 @@ public class QueryDAG {
     opSyn.setChildren(children);
   }
 
+  /**
+   * Identify the operator which acts as the root for a particular
+   * fragment. An operator is a fragment root if the operator is
+   * the root, or its parent is in a different fragment. Mark each
+   * fragment with its root operator.
+   *
+   * @param opSyn operator synthesis node to be stitched
+   */
   private void stitchFragmentOperator(OperatorSynNode opSyn) {
     if (opSyn.isFragmentRoot()) {
       opSyn.fragment().setRootOperator(opSyn);
@@ -419,7 +571,11 @@ public class QueryDAG {
     }
   }
 
-
+  /**
+   * Prints the overall DAG structure to verify correctness.
+   * Not intended to print analysis details; that should be done
+   * using an ad-hoc mechanism for each analysis.
+   */
   public void print() {
     AttribPrintFormatter fmt = new AttribPrintFormatter();
     format(fmt);

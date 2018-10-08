@@ -7,6 +7,7 @@ import java.io.InputStream;
 import org.apache.impala.thrift.TRuntimeProfileTree;
 import org.junit.Test;
 
+import com.cloudera.cmf.analyzer.EnumBuilder;
 import com.cloudera.cmf.analyzer.PlanPrinter;
 import com.cloudera.cmf.analyzer.ProfileAnalyzer;
 import com.cloudera.cmf.printer.ProfilePrinter;
@@ -119,7 +120,7 @@ public class TestBasics {
     QueryRecord qr = lr.next();
     TRuntimeProfileTree profile = qr.thriftProfile();
     ProfileAnalyzer analyzer = new ProfileAnalyzer(profile);
-    analyzer.summary().generateAttribs();
+    EnumBuilder.NodeType.generateAttribs(analyzer.summary().node());
   }
 
   @Test
@@ -233,6 +234,34 @@ public class TestBasics {
         .action(new CompoundAction()
 //            .add(new PrintStmtAction())
             .add(new LoadExecAction()))
+        ;
+    scanner.scan();
+  }
+
+  public static class BuildEnumsAction implements Action {
+
+    @Override
+    public void apply(ProfileAnalyzer profile) {
+      EnumBuilder builder = new EnumBuilder(profile);
+      builder.build();
+      builder.print();
+    }
+  }
+
+  @Test
+  public void testEnumBuilder() throws IOException {
+    ProfileScanner scanner = new ProfileScanner()
+        .scanFile(INPUT_FILE)
+        .predicate(
+            new AndPredicate()
+              .add(StatementTypePredicate.selectOnly())
+              .add(StatementStatusPredicate.completedOnly()))
+        .limit(1)
+        .skip(51)
+        .toConsole()
+        .action(new CompoundAction()
+//            .add(new PrintStmtAction())
+            .add(new BuildEnumsAction()))
         ;
     scanner.scan();
   }

@@ -2,12 +2,17 @@ package com.cloudera.cmf.analyzer;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import org.apache.impala.thrift.TCounter;
+import org.apache.impala.thrift.TEventSequence;
 import org.apache.impala.thrift.TRuntimeProfileNode;
 import org.apache.impala.thrift.TRuntimeProfileTree;
+import org.apache.impala.thrift.TTimeSeriesCounter;
+import org.apache.impala.thrift.TUnit;
+
+import com.google.common.collect.Lists;
 
 import jersey.repackaged.com.google.common.base.Preconditions;
 
@@ -57,6 +62,26 @@ import jersey.repackaged.com.google.common.base.Preconditions;
  * </ul>
  *
  * The server and execution nodes appear only if the statement succeeded.
+ *
+ * <h4>Attributes and Counters</h4>
+ *
+ * Nodes provide attributes (called "info strings") and counters. Very
+ * few nodes have attributes. For those that do, the node facade classes
+ * define enums to identify the attributes available. Since attributes
+ * tend to have rather long names, the enums provide an easy way to
+ * ensure the correct name is used.
+ * <p>
+ * Execution nodes have counters. Enums exist for each of these, and the
+ * enum provides the units used for the counter (the same information
+ * in the tree itself, but enums provide compile-time access to the
+ * units.) The same is true for time series counters.
+ * <p>
+ * The Thrift schema defines summary counters
+ * (<code>TSummaryStatsCounter</code), but it appears that they
+ * are not actually used in the profile.
+ * <p>
+ * Each node defines an event sequence, but this attribute is used
+ * in only one node: the summary node.
  */
 public class ProfileAnalyzer {
 
@@ -124,18 +149,12 @@ public class ProfileAnalyzer {
       this.index = index;
       node = analyzer.node(index);
       firstChild = index + 1;
-//    for (int i = 0; i < childCount; i++) {
-//      TRuntimeProfileNode child = analyzer.node(firstChild + i);
-//      System.out.println(child.getName());
-//    }
     }
+
+    public TRuntimeProfileNode node() { return node; }
 
     public String attrib(String key) {
       return node.getInfo_strings().get(key);
-    }
-
-    public void generateAttribs() {
-      generateAttribs(node);
     }
 
     public String name() {
@@ -146,26 +165,44 @@ public class ProfileAnalyzer {
       return node.getNum_children();
     }
 
-    /**
-     * Development method to generate enum names from observed
-     * keys in the "info" field order list.
-     * @param node the node to parse
-     */
-    public static void generateAttribs(TRuntimeProfileNode node) {
-      System.out.println("// Generated using genAttribs()");
-      System.out.println();
-      List<String> keys = node.getInfo_strings_display_order();
-      int count = keys.size();
-      for (int i = 0; i < count; i++) {
-        String key = keys.get(i);
-        String enumName = key.toUpperCase();
-        enumName = enumName.replaceAll("[ \\-()]", "_");
-        enumName = enumName.replaceAll("__", "_");
-        enumName = enumName.replaceAll("_$", "");
-        String term = (i + 1 == count) ? ";" : ",";
-        System.out.println(String.format("%s(\"%s\")%s",
-            enumName, key, term));
+    public String genericName() {
+      return node.getName();
+    }
+
+    public List<ProfileNode> childNodes() {
+      return Lists.newArrayList();
+    }
+
+    public long counter(String name) {
+      // TODO: Cache counters in a map?
+      for (TCounter counter : node.getCounters()) {
+        if (counter.getName().equals(name)) {
+          return counter.getValue();
+        }
       }
+      return 0;
+    }
+
+    public TEventSequence events(String name) {
+      // Used in only one node, only two sequences.
+      // Linear search is fine.
+      for (TEventSequence event : node.getEvent_sequences()) {
+        if (event.getName().equals(name)) {
+          return event;
+        }
+      }
+      return null;
+    }
+
+    public TTimeSeriesCounter timeSeries(String name) {
+      // Used in only a few nodes, only two sequences.
+      // Linear search is fine.
+      for (TTimeSeriesCounter event : node.getTime_series_counters()) {
+        if (event.getName().equals(name)) {
+          return event;
+        }
+      }
+      return null;
     }
   }
 
@@ -219,8 +256,8 @@ public class ProfileAnalyzer {
   public static class ExecProfileNode extends ProfileNode {
 
     public boolean expanded;
-    private FragmentExecNode coordinator;
-    private final List<FragmentExecNode> summaries = new ArrayList<>();
+    private CoordinatorExecNode coordinator;
+    private final List<FragSummaryExecNode> summaries = new ArrayList<>();
     private final List<InstancesNode> details = new ArrayList<>();
 
     public ExecProfileNode(ProfileAnalyzer analyzer, int index) {
@@ -233,14 +270,12 @@ public class ProfileAnalyzer {
       for (int i = 0; i < childCount(); i++) {
         TRuntimeProfileNode profileNode = analyzer.node(index.index);
         String name = profileNode.getName();
-        if (name.startsWith(FragmentExecNode.COORD_PREFIX)) {
-          coordinator = new FragmentExecNode(analyzer, index,
-              FragmentExecNode.FragmentType.COORDINATOR);
+        if (name.startsWith(CoordinatorExecNode.PREFIX)) {
+          coordinator = new CoordinatorExecNode(analyzer, index);
         } else  if (name.startsWith(InstancesNode.NAME_PREFIX)) {
           details.add(new InstancesNode(analyzer, index));
-        } else if (name.startsWith(FragmentExecNode.AVERAGED_PREFIX)) {
-          summaries.add(new FragmentExecNode(analyzer, index,
-              FragmentExecNode.FragmentType.AVERAGED));
+        } else if (name.startsWith(FragSummaryExecNode.PREFIX)) {
+          summaries.add(new FragSummaryExecNode(analyzer, index));
         } else {
           throw new IllegalStateException("Exec node type");
         }
@@ -248,16 +283,28 @@ public class ProfileAnalyzer {
       expanded = true;
     }
 
-    public FragmentExecNode coordinator() {
+    public CoordinatorExecNode coordinator() {
       return coordinator;
     }
 
-    public List<FragmentExecNode> summaries() {
+    public List<FragSummaryExecNode> summaries() {
       return summaries;
     }
 
     public List<InstancesNode> details() {
       return details;
+    }
+
+    @Override
+    public String genericName() { return "Execution Profile"; }
+
+    @Override
+    public List<ProfileNode> childNodes() {
+      List<ProfileNode> children = new ArrayList<>();
+      children.add(coordinator);
+      children.addAll(summaries);
+      children.addAll(details);
+      return children;
     }
   }
 
@@ -303,11 +350,24 @@ public class ProfileAnalyzer {
       ESTIMATED_PER_HOST_VCORES("Estimated Per-Host VCores"),
       REQUEST_POOL("Request Pool"),
       ADMISSION_RESULT("Admission result"),
-      EXECSUMMARY("ExecSummary");
+      EXEC_SUMMARY("ExecSummary");
 
       private final String key;
 
       private Attrib(String key) {
+        this.key = key;
+      }
+
+      public String key() { return key; }
+    }
+
+    public enum EventSequence {
+      SESSION_TYPE("Planner Timeline"),
+      QUERY_TIMELINE("Query Timeline");
+
+      private final String key;
+
+      private EventSequence(String key) {
         this.key = key;
       }
 
@@ -337,6 +397,10 @@ public class ProfileAnalyzer {
       return attrib(attrib.key());
     }
 
+    public TEventSequence events(EventSequence attrib) {
+      return events(attrib.key());
+    }
+
     public QueryType type() {
       try {
         return QueryType.typeFor(attrib(Attrib.QUERY_TYPE));
@@ -359,6 +423,43 @@ public class ProfileAnalyzer {
    * it is a container of per-host fragment details.
    */
   public static class ExecNode extends ProfileNode {
+
+    // Generated using EnumBuilder
+    public enum Attrib {
+      NUMBER_OF_FILTERS("Number of filters"),
+      FILTER_ROUTING_TABLE("Filter routing table"),
+      FRAGMENT_START_LATENCIES("Fragment start latencies"),
+      FINAL_FILTER_TABLE("Final filter table"),
+      PER_NODE_PEAK_MEMORY_USAGE("Per Node Peak Memory Usage");
+
+      private final String key;
+
+      private Attrib(String key) {
+        this.key = key;
+      }
+
+      public String key() { return key; }
+    }
+
+    // Generated using EnumBuilder
+    public enum Counter {
+      FILTERS_RECEIVED("FiltersReceived", TUnit.UNIT),
+      FINALIZATION_TIMER("FinalizationTimer", TUnit.TIME_NS),
+      INACTIVE_TOTAL_TIME("InactiveTotalTime", TUnit.TIME_NS),
+      TOTAL_TIME("TotalTime", TUnit.TIME_NS);
+
+      private final String key;
+      private TUnit units;
+
+      private Counter(String key, TUnit units) {
+        this.key = key;
+        this.units = units;
+      }
+
+      public String key() { return key; }
+      public TUnit units() { return units; }
+    }
+
     protected int fragmentId;
 
     public ExecNode(ProfileAnalyzer analyzer, int index) {
@@ -366,6 +467,14 @@ public class ProfileAnalyzer {
     }
 
     public int fragmentId() { return fragmentId; }
+
+    public String attrib(Attrib attrib) {
+      return attrib(attrib.key());
+    }
+
+    public long counter(Counter counter) {
+      return counter(counter.key());
+    }
   }
 
   /**
@@ -382,7 +491,51 @@ public class ProfileAnalyzer {
 
     public static final String NAME_PREFIX = "Fragment ";
 
-    protected final List<FragmentExecNode> fragments = new ArrayList<>();
+    // Generated using EnumBuilder
+    public enum Counter {
+      AVERAGE_THREAD_TOKENS("AverageThreadTokens", TUnit.DOUBLE_VALUE),
+      BLOOM_FILTER_BYTES("BloomFilterBytes", TUnit.BYTES),
+      INACTIVE_TOTAL_TIME("InactiveTotalTime", TUnit.TIME_NS),
+      PEAK_MEMORY_USAGE("PeakMemoryUsage", TUnit.BYTES),
+      PER_HOST_PEAK_MEM_USAGE("PerHostPeakMemUsage", TUnit.BYTES),
+      PREPARE_TIME("PrepareTime", TUnit.TIME_NS),
+      ROWS_PRODUCED("RowsProduced", TUnit.UNIT),
+      TOTAL_CPU_TIME("TotalCpuTime", TUnit.TIME_NS),
+      TOTAL_NETWORK_RECEIVE_TIME("TotalNetworkReceiveTime", TUnit.TIME_NS),
+      TOTAL_NETWORK_SEND_TIME("TotalNetworkSendTime", TUnit.TIME_NS),
+      TOTAL_STORAGE_WAIT_TIME("TotalStorageWaitTime", TUnit.TIME_NS),
+      TOTAL_TIME("TotalTime", TUnit.TIME_NS);
+
+      private final String key;
+      private TUnit units;
+
+      private Counter(String key, TUnit units) {
+        this.key = key;
+        this.units = units;
+      }
+
+      public String key() { return key; }
+      public TUnit units() { return units; }
+    }
+
+    // Generated using EnumBuilder
+    public enum TimeSeries {
+      MEMORY_USAGE("MemoryUsage", TUnit.BYTES),
+      THREAD_USAGE("ThreadUsage", TUnit.UNIT);
+
+      private final String key;
+      private TUnit units;
+
+      private TimeSeries(String key, TUnit units) {
+        this.key = key;
+        this.units = units;
+      }
+
+      public String key() { return key; }
+      public TUnit units() { return units; }
+    }
+
+    protected final List<FragInstanceExecNode> fragments = new ArrayList<>();
 
     public InstancesNode(ProfileAnalyzer analyzer, NodeIndex index) {
       super(analyzer, index.index);
@@ -392,13 +545,29 @@ public class ProfileAnalyzer {
       Preconditions.checkState(m.matches());
       fragmentId = Integer.parseInt(m.group(1));
       for (int i = 0; i < childCount(); i++) {
-        FragmentExecNode frag = new FragmentExecNode(analyzer, index, fragmentId);
+        FragInstanceExecNode frag = new FragInstanceExecNode(analyzer, index, fragmentId);
         fragments.add(frag);
       }
     }
 
-    public List<FragmentExecNode> hostNodes() {
+    public List<FragInstanceExecNode> hostNodes() {
       return fragments;
+    }
+
+    @Override
+    public String genericName() { return "Fragment"; }
+
+    @Override
+    public List<ProfileNode> childNodes() {
+      return Lists.newArrayList(fragments);
+    }
+
+    public long counter(Counter counter) {
+      return counter(counter.key());
+    }
+
+    public TTimeSeriesCounter timeSeries(TimeSeries counter) {
+      return timeSeries(counter.key());
     }
   }
 
@@ -415,10 +584,7 @@ public class ProfileAnalyzer {
    *   Filter
    * </pre>
    */
-  public static class FragmentExecNode extends ExecNode {
-
-    public static final String AVERAGED_PREFIX = "Averaged ";
-    public static final String COORD_PREFIX = "Coordinator ";
+  public static abstract class FragmentExecNode extends ExecNode {
 
     public enum FragmentType {
       COORDINATOR,
@@ -426,33 +592,13 @@ public class ProfileAnalyzer {
       INSTANCE
     }
 
-    protected final FragmentType fragmentType;
-    protected String fragmentGuid;
-    protected String serverId;
     protected BlockMgrNode blockMgr;
     protected final List<OperatorExecNode> operators = new ArrayList<>();
     private CodeGenNode codeGen;
     private DataStreamSenderNode dataStreamSender;
 
-    public FragmentExecNode(ProfileAnalyzer analyzer, NodeIndex index, FragmentType fragmentType) {
+    public FragmentExecNode(ProfileAnalyzer analyzer, NodeIndex index) {
       super(analyzer, index.index++);
-      this.fragmentType = fragmentType;
-      Pattern p = Pattern.compile(".*Fragment F(\\d+)");
-      Matcher m = p.matcher(name());
-      Preconditions.checkState(m.matches());
-      fragmentId = Integer.parseInt(m.group(1));
-      parseChildren(index);
-    }
-
-    public FragmentExecNode(ProfileAnalyzer analyzer, NodeIndex index, int fragmentId) {
-      super(analyzer, index.index++);
-      this.fragmentId = fragmentId;
-      fragmentType = FragmentType.INSTANCE;
-      Pattern p = Pattern.compile("Instance (\\S+) \\(host=([^(]+)\\)");
-      Matcher m = p.matcher(name());
-      Preconditions.checkState(m.matches());
-      fragmentGuid = m.group(1);
-      serverId = m.group(2);
       parseChildren(index);
     }
 
@@ -477,9 +623,222 @@ public class ProfileAnalyzer {
       }
     }
 
+    public List<OperatorExecNode> operators() { return operators; }
+
+    public abstract FragmentType fragmentType();
+
+    @Override
+    public String genericName() { return fragmentType().name(); }
+
+    @Override
+    public List<ProfileNode> childNodes() {
+      List<ProfileNode> children = new ArrayList<>();
+      if (blockMgr != null) { children.add(blockMgr); }
+      if (codeGen != null) { children.add(codeGen); }
+      if (dataStreamSender != null) { children.add(dataStreamSender); }
+      children.addAll(operators);
+      return children;
+    }
+  }
+
+  public static class CoordinatorExecNode extends FragmentExecNode {
+
+    public static final String PREFIX = "Coordinator ";
+
+    // Generated using EnumBuilder
+    public enum Counter {
+      AVERAGE_THREAD_TOKENS("AverageThreadTokens", TUnit.DOUBLE_VALUE),
+      BLOOM_FILTER_BYTES("BloomFilterBytes", TUnit.BYTES),
+      INACTIVE_TOTAL_TIME("InactiveTotalTime", TUnit.TIME_NS),
+      PEAK_MEMORY_USAGE("PeakMemoryUsage", TUnit.BYTES),
+      PER_HOST_PEAK_MEM_USAGE("PerHostPeakMemUsage", TUnit.BYTES),
+      PREPARE_TIME("PrepareTime", TUnit.TIME_NS),
+      ROWS_PRODUCED("RowsProduced", TUnit.UNIT),
+      TOTAL_CPU_TIME("TotalCpuTime", TUnit.TIME_NS),
+      TOTAL_NETWORK_RECEIVE_TIME("TotalNetworkReceiveTime", TUnit.TIME_NS),
+      TOTAL_NETWORK_SEND_TIME("TotalNetworkSendTime", TUnit.TIME_NS),
+      TOTAL_STORAGE_WAIT_TIME("TotalStorageWaitTime", TUnit.TIME_NS),
+      TOTAL_TIME("TotalTime", TUnit.TIME_NS);
+
+      private final String key;
+      private TUnit units;
+
+      private Counter(String key, TUnit units) {
+        this.key = key;
+        this.units = units;
+      }
+
+      public String key() { return key; }
+      public TUnit units() { return units; }
+    }
+
+    // Generated using EnumBuilder
+    public enum TimeSeries {
+      MEMORY_USAGE("MemoryUsage", TUnit.BYTES),
+      THREAD_USAGE("ThreadUsage", TUnit.UNIT);
+
+      private final String key;
+      private TUnit units;
+
+      private TimeSeries(String key, TUnit units) {
+        this.key = key;
+        this.units = units;
+      }
+
+      public String key() { return key; }
+      public TUnit units() { return units; }
+    }
+
+    public CoordinatorExecNode(ProfileAnalyzer analyzer, NodeIndex index) {
+      super(analyzer, index);
+      Pattern p = Pattern.compile(PREFIX + "Fragment F(\\d+)");
+      Matcher m = p.matcher(name());
+      Preconditions.checkState(m.matches());
+      fragmentId = Integer.parseInt(m.group(1));
+     }
+
+    @Override
+    public FragmentType fragmentType() { return FragmentType.COORDINATOR; }
+
+    public long counter(Counter counter) {
+      return counter(counter.key());
+    }
+
+    public TTimeSeriesCounter timeSeries(TimeSeries counter) {
+      return timeSeries(counter.key());
+    }
+  }
+
+  public static class FragSummaryExecNode extends FragmentExecNode {
+
+    public static final String PREFIX = "Averaged ";
+
+    // Generated using EnumBuilder
+    public enum Attrib {
+      SPLIT_SIZES("split sizes"),
+      COMPLETION_TIMES("completion times"),
+      EXECUTION_RATES("execution rates"),
+      NUM_INSTANCES("num instances");
+
+      private final String key;
+
+      private Attrib(String key) {
+        this.key = key;
+      }
+
+      public String key() { return key; }
+    }
+
+    // Generated using EnumBuilder
+    public enum Counter {
+      AVERAGE_THREAD_TOKENS("AverageThreadTokens", TUnit.DOUBLE_VALUE),
+      BLOOM_FILTER_BYTES("BloomFilterBytes", TUnit.BYTES),
+      INACTIVE_TOTAL_TIME("InactiveTotalTime", TUnit.TIME_NS),
+      PEAK_MEMORY_USAGE("PeakMemoryUsage", TUnit.BYTES),
+      PER_HOST_PEAK_MEM_USAGE("PerHostPeakMemUsage", TUnit.BYTES),
+      PREPARE_TIME("PrepareTime", TUnit.TIME_NS),
+      ROWS_PRODUCED("RowsProduced", TUnit.UNIT),
+      TOTAL_CPU_TIME("TotalCpuTime", TUnit.TIME_NS),
+      TOTAL_NETWORK_RECEIVE_TIME("TotalNetworkReceiveTime", TUnit.TIME_NS),
+      TOTAL_NETWORK_SEND_TIME("TotalNetworkSendTime", TUnit.TIME_NS),
+      TOTAL_STORAGE_WAIT_TIME("TotalStorageWaitTime", TUnit.TIME_NS),
+      TOTAL_TIME("TotalTime", TUnit.TIME_NS);
+
+      private final String key;
+      private TUnit units;
+
+      private Counter(String key, TUnit units) {
+        this.key = key;
+        this.units = units;
+      }
+
+      public String key() { return key; }
+      public TUnit units() { return units; }
+    }
+
+    public FragSummaryExecNode(ProfileAnalyzer analyzer, NodeIndex index) {
+      super(analyzer, index);
+      Pattern p = Pattern.compile(PREFIX + "Fragment F(\\d+)");
+      Matcher m = p.matcher(name());
+      Preconditions.checkState(m.matches());
+      fragmentId = Integer.parseInt(m.group(1));
+    }
+
+    @Override
+    public FragmentType fragmentType() { return FragmentType.AVERAGED; }
+
+    public String attrib(Attrib attrib) {
+      return attrib(attrib.key());
+    }
+
+    public long counter(Counter counter) {
+      return counter(counter.key());
+    }
+  }
+
+  public static class FragInstanceExecNode extends FragmentExecNode {
+
+    // Generated using EnumBuilder
+    public enum Attrib {
+      HDFS_SPLIT_STATS("Hdfs split stats (<volume id>:<# splits>/<split lengths>)");
+
+      private final String key;
+
+      private Attrib(String key) {
+        this.key = key;
+      }
+
+      public String key() { return key; }
+    }
+
+    // Generated using EnumBuilder
+    public enum Counter {
+      INACTIVE_TOTAL_TIME("InactiveTotalTime", TUnit.TIME_NS),
+      TOTAL_TIME("TotalTime", TUnit.TIME_NS);
+
+      private final String key;
+      private TUnit units;
+
+      private Counter(String key, TUnit units) {
+        this.key = key;
+        this.units = units;
+      }
+
+      public String key() { return key; }
+      public TUnit units() { return units; }
+    }
+
+    protected String fragmentGuid;
+    protected String serverId;
+
+    public FragInstanceExecNode(ProfileAnalyzer analyzer, NodeIndex index, int fragmentId) {
+      super(analyzer, index);
+      this.fragmentId = fragmentId;
+      Pattern p = Pattern.compile("Instance (\\S+) \\(host=([^(]+)\\)");
+      Matcher m = p.matcher(name());
+      Preconditions.checkState(m.matches());
+      fragmentGuid = m.group(1);
+      serverId = m.group(2);
+    }
+
+    @Override
+    public FragmentType fragmentType() {
+      return FragmentType.INSTANCE;
+    }
+
     public String serverId() { return serverId; }
 
-    public List<OperatorExecNode> operators() { return operators; }
+    public String attrib(Attrib attrib) {
+      return attrib(attrib.key());
+    }
+
+    public String filterArrival(int filterNo) {
+      return attrib("Filter " + filterNo + " arrival");
+    }
+
+    public long counter(Counter counter) {
+      return counter(counter.key());
+    }
   }
 
   /**
@@ -541,23 +900,180 @@ public class ProfileAnalyzer {
     public List<OperatorExecNode> children() {
       return children;
     }
+
+    @Override
+    public String genericName() { return operatorName; }
+
+    @Override
+    public List<ProfileNode> childNodes() {
+      List<ProfileNode> children = new ArrayList<>();
+      children.addAll(children);
+      children.addAll(filters);
+      return children;
+    }
   }
 
   public static class ExchangeExecNode extends OperatorExecNode {
 
     public static final String NAME_PREFIX = "EXCHANGE_NODE ";
 
+    // Generated using EnumBuilder
+    public enum Counter {
+      BYTES_RECEIVED("BytesReceived", TUnit.BYTES),
+      CONVERT_ROW_BATCH_TIME("ConvertRowBatchTime", TUnit.TIME_NS),
+      DESERIALIZE_ROW_BATCH_TIMER("DeserializeRowBatchTimer", TUnit.TIME_NS),
+      FIRST_BATCH_ARRIVAL_WAIT_TIME("FirstBatchArrivalWaitTime", TUnit.TIME_NS),
+      INACTIVE_TOTAL_TIME("InactiveTotalTime", TUnit.TIME_NS),
+      PEAK_MEMORY_USAGE("PeakMemoryUsage", TUnit.BYTES),
+      ROWS_RETURNED("RowsReturned", TUnit.UNIT),
+      ROWS_RETURNED_RATE("RowsReturnedRate", TUnit.UNIT_PER_SECOND),
+      SENDERS_BLOCKED_TIMER("SendersBlockedTimer", TUnit.TIME_NS),
+      SENDERS_BLOCKED_TOTAL_TIMER("SendersBlockedTotalTimer(*)", TUnit.TIME_NS),
+      TOTAL_TIME("TotalTime", TUnit.TIME_NS);
+
+      private final String key;
+      private TUnit units;
+
+      private Counter(String key, TUnit units) {
+        this.key = key;
+        this.units = units;
+      }
+
+      public String key() { return key; }
+      public TUnit units() { return units; }
+    }
+
+ // Generated using EnumBuilder
+    public enum TimeSeries {
+      BYTES_RECEIVED("BytesReceived", TUnit.BYTES);
+
+      private final String key;
+      private TUnit units;
+
+      private TimeSeries(String key, TUnit units) {
+        this.key = key;
+        this.units = units;
+      }
+
+      public String key() { return key; }
+      public TUnit units() { return units; }
+    }
+
     public ExchangeExecNode(ProfileAnalyzer analyzer, NodeIndex index) {
       super(analyzer, index);
     }
+
+    public long counter(Counter counter) {
+      return counter(counter.key());
+    }
+
+    public TTimeSeriesCounter timeSeries(TimeSeries counter) {
+      return timeSeries(counter.key());
+    }
   }
 
+  /**
+   * Facade for AGGREGATION nodes, both the STREAMING and FINALIZE
+   * variants. The two types have distinct counters, they their
+   * execution nodes have the same name. The plan indicates which
+   * type this node represents (match op the operator IDs).
+   */
   public static class AggExecNode extends OperatorExecNode {
 
     public static final String NAME_PREFIX = "AGGREGATION_NODE ";
 
+    // Generated using EnumBuilder
+    public enum Attrib {
+      EXEC_OPTION("ExecOption");
+
+      private final String key;
+
+      private Attrib(String key) {
+        this.key = key;
+      }
+
+      public String key() { return key; }
+    }
+
+    // Generated using EnumBuilder
+    public enum StreamingCounter {
+      GET_NEW_BLOCK_TIME("GetNewBlockTime", TUnit.TIME_NS),
+      GET_RESULTS_TIME("GetResultsTime", TUnit.TIME_NS),
+      HTRESIZE_TIME("HTResizeTime", TUnit.TIME_NS),
+      HASH_BUCKETS("HashBuckets", TUnit.UNIT),
+      INACTIVE_TOTAL_TIME("InactiveTotalTime", TUnit.TIME_NS),
+      LARGEST_PARTITION_PERCENT("LargestPartitionPercent", TUnit.UNIT),
+      PARTITIONS_CREATED("PartitionsCreated", TUnit.UNIT),
+      PEAK_MEMORY_USAGE("PeakMemoryUsage", TUnit.BYTES),
+      PIN_TIME("PinTime", TUnit.TIME_NS),
+      REDUCTION_FACTOR_ESTIMATE("ReductionFactorEstimate", TUnit.DOUBLE_VALUE),
+      REDUCTION_FACTOR_THRESHOLD_TO_EXPAND("ReductionFactorThresholdToExpand", TUnit.DOUBLE_VALUE),
+      ROWS_PASSED_THROUGH("RowsPassedThrough", TUnit.UNIT),
+      ROWS_RETURNED("RowsReturned", TUnit.UNIT),
+      ROWS_RETURNED_RATE("RowsReturnedRate", TUnit.UNIT_PER_SECOND),
+      STREAMING_TIME("StreamingTime", TUnit.TIME_NS),
+      TOTAL_TIME("TotalTime", TUnit.TIME_NS),
+      UNPIN_TIME("UnpinTime", TUnit.TIME_NS);
+
+      private final String key;
+      private TUnit units;
+
+      private StreamingCounter(String key, TUnit units) {
+        this.key = key;
+        this.units = units;
+      }
+
+      public String key() { return key; }
+      public TUnit units() { return units; }
+    }
+
+    // Generated using EnumBuilder
+    public enum FinalizeCounter {
+      BUILD_TIME("BuildTime", TUnit.TIME_NS),
+      GET_NEW_BLOCK_TIME("GetNewBlockTime", TUnit.TIME_NS),
+      GET_RESULTS_TIME("GetResultsTime", TUnit.TIME_NS),
+      HTRESIZE_TIME("HTResizeTime", TUnit.TIME_NS),
+      HASH_BUCKETS("HashBuckets", TUnit.UNIT),
+      INACTIVE_TOTAL_TIME("InactiveTotalTime", TUnit.TIME_NS),
+      LARGEST_PARTITION_PERCENT("LargestPartitionPercent", TUnit.UNIT),
+      MAX_PARTITION_LEVEL("MaxPartitionLevel", TUnit.UNIT),
+      NUM_REPARTITIONS("NumRepartitions", TUnit.UNIT),
+      PARTITIONS_CREATED("PartitionsCreated", TUnit.UNIT),
+      PEAK_MEMORY_USAGE("PeakMemoryUsage", TUnit.BYTES),
+      PIN_TIME("PinTime", TUnit.TIME_NS),
+      ROWS_REPARTITIONED("RowsRepartitioned", TUnit.UNIT),
+      ROWS_RETURNED("RowsReturned", TUnit.UNIT),
+      ROWS_RETURNED_RATE("RowsReturnedRate", TUnit.UNIT_PER_SECOND),
+      SPILLED_PARTITIONS("SpilledPartitions", TUnit.UNIT),
+      TOTAL_TIME("TotalTime", TUnit.TIME_NS),
+      UNPIN_TIME("UnpinTime", TUnit.TIME_NS);
+
+      private final String key;
+      private TUnit units;
+
+      private FinalizeCounter(String key, TUnit units) {
+        this.key = key;
+        this.units = units;
+      }
+
+      public String key() { return key; }
+      public TUnit units() { return units; }
+    }
+
     public AggExecNode(ProfileAnalyzer analyzer, NodeIndex index) {
       super(analyzer, index);
+    }
+
+    public String attrib(Attrib attrib) {
+      return attrib(attrib.key());
+    }
+
+    public long counter(FinalizeCounter counter) {
+      return counter(counter.key());
+    }
+
+    public long counter(StreamingCounter counter) {
+      return counter(counter.key());
     }
   }
 
@@ -565,8 +1081,67 @@ public class ProfileAnalyzer {
 
     public static final String NAME_PREFIX = "HASH_JOIN_NODE ";
 
+    // Generated using EnumBuilder
+    public enum Attrib {
+      EXEC_OPTION("ExecOption");
+
+      private final String key;
+
+      private Attrib(String key) {
+        this.key = key;
+      }
+
+      public String key() { return key; }
+    }
+
+    // Generated using EnumBuilder
+    public enum Counter {
+      BUILD_PARTITION_TIME("BuildPartitionTime", TUnit.TIME_NS),
+      BUILD_ROWS("BuildRows", TUnit.UNIT),
+      BUILD_ROWS_PARTITIONED("BuildRowsPartitioned", TUnit.UNIT),
+      BUILD_TIME("BuildTime", TUnit.TIME_NS),
+      GET_NEW_BLOCK_TIME("GetNewBlockTime", TUnit.TIME_NS),
+      HASH_BUCKETS("HashBuckets", TUnit.UNIT),
+      HASH_COLLISIONS("HashCollisions", TUnit.UNIT),
+      INACTIVE_TOTAL_TIME("InactiveTotalTime", TUnit.TIME_NS),
+      LARGEST_PARTITION_PERCENT("LargestPartitionPercent", TUnit.UNIT),
+      LOCAL_TIME("LocalTime", TUnit.TIME_NS),
+      MAX_PARTITION_LEVEL("MaxPartitionLevel", TUnit.UNIT),
+      NUM_REPARTITIONS("NumRepartitions", TUnit.UNIT),
+      PARTITIONS_CREATED("PartitionsCreated", TUnit.UNIT),
+      PEAK_MEMORY_USAGE("PeakMemoryUsage", TUnit.BYTES),
+      PIN_TIME("PinTime", TUnit.TIME_NS),
+      PROBE_ROWS("ProbeRows", TUnit.UNIT),
+      PROBE_ROWS_PARTITIONED("ProbeRowsPartitioned", TUnit.UNIT),
+      PROBE_TIME("ProbeTime", TUnit.TIME_NS),
+      ROWS_RETURNED("RowsReturned", TUnit.UNIT),
+      ROWS_RETURNED_RATE("RowsReturnedRate", TUnit.UNIT_PER_SECOND),
+      SPILLED_PARTITIONS("SpilledPartitions", TUnit.UNIT),
+      TOTAL_TIME("TotalTime", TUnit.TIME_NS),
+      UNPIN_TIME("UnpinTime", TUnit.TIME_NS);
+
+      private final String key;
+      private TUnit units;
+
+      private Counter(String key, TUnit units) {
+        this.key = key;
+        this.units = units;
+      }
+
+      public String key() { return key; }
+      public TUnit units() { return units; }
+    }
+
     public HashJoinExecNode(ProfileAnalyzer analyzer, NodeIndex index) {
       super(analyzer, index);
+    }
+
+    public String attrib(Attrib attrib) {
+      return attrib(attrib.key());
+    }
+
+    public long counter(Counter counter) {
+      return counter(counter.key());
     }
   }
 
@@ -574,8 +1149,98 @@ public class ProfileAnalyzer {
 
     public static final String NAME_PREFIX = "HDFS_SCAN_NODE ";
 
+    // Generated using EnumBuilder
+    public enum Attrib {
+      EXEC_OPTION("ExecOption"),
+      HDFS_SPLIT_STATS("Hdfs split stats (<volume id>:<# splits>/<split lengths>)"),
+      RUNTIME_FILTERS("Runtime filters"),
+      HDFS_READ_THREAD_CONCURRENCY_BUCKET("Hdfs Read Thread Concurrency Bucket"),
+      FILE_FORMATS("File Formats");
+
+      private final String key;
+
+      private Attrib(String key) {
+        this.key = key;
+      }
+
+      public String key() { return key; }
+    }
+
+    // Generated using EnumBuilder
+    public enum Counter {
+      AVERAGE_HDFS_READ_THREAD_CONCURRENCY("AverageHdfsReadThreadConcurrency", TUnit.DOUBLE_VALUE),
+      AVERAGE_SCANNER_THREAD_CONCURRENCY("AverageScannerThreadConcurrency", TUnit.DOUBLE_VALUE),
+      BYTES_READ("BytesRead", TUnit.BYTES),
+      BYTES_READ_DATA_NODE_CACHE("BytesReadDataNodeCache", TUnit.BYTES),
+      BYTES_READ_LOCAL("BytesReadLocal", TUnit.BYTES),
+      BYTES_READ_REMOTE_UNEXPECTED("BytesReadRemoteUnexpected", TUnit.BYTES),
+      BYTES_READ_SHORT_CIRCUIT("BytesReadShortCircuit", TUnit.BYTES),
+      DECOMPRESSION_TIME("DecompressionTime", TUnit.TIME_NS),
+      INACTIVE_TOTAL_TIME("InactiveTotalTime", TUnit.TIME_NS),
+      MATERIALIZE_TUPLE_TIME("MaterializeTupleTime(*)", TUnit.TIME_NS),
+      MAX_COMPRESSED_TEXT_FILE_LENGTH("MaxCompressedTextFileLength", TUnit.BYTES),
+      NUM_COLUMNS("NumColumns", TUnit.UNIT),
+      NUM_DISKS_ACCESSED("NumDisksAccessed", TUnit.UNIT),
+      NUM_ROW_GROUPS("NumRowGroups", TUnit.UNIT),
+      NUM_SCANNER_THREADS_STARTED("NumScannerThreadsStarted", TUnit.UNIT),
+      PEAK_MEMORY_USAGE("PeakMemoryUsage", TUnit.BYTES),
+      PER_READ_THREAD_RAW_HDFS_THROUGHPUT("PerReadThreadRawHdfsThroughput", TUnit.BYTES_PER_SECOND),
+      REMOTE_SCAN_RANGES("RemoteScanRanges", TUnit.UNIT),
+      ROWS_READ("RowsRead", TUnit.UNIT),
+      ROWS_RETURNED("RowsReturned", TUnit.UNIT),
+      ROWS_RETURNED_RATE("RowsReturnedRate", TUnit.UNIT_PER_SECOND),
+      SCAN_RANGES_COMPLETE("ScanRangesComplete", TUnit.UNIT),
+      SCANNER_THREADS_INVOLUNTARY_CONTEXT_SWITCHES("ScannerThreadsInvoluntaryContextSwitches", TUnit.UNIT),
+      SCANNER_THREADS_SYS_TIME("ScannerThreadsSysTime", TUnit.TIME_NS),
+      SCANNER_THREADS_TOTAL_WALL_CLOCK_TIME("ScannerThreadsTotalWallClockTime", TUnit.TIME_NS),
+      SCANNER_THREADS_USER_TIME("ScannerThreadsUserTime", TUnit.TIME_NS),
+      SCANNER_THREADS_VOLUNTARY_CONTEXT_SWITCHES("ScannerThreadsVoluntaryContextSwitches", TUnit.UNIT),
+      TOTAL_RAW_HDFS_READ_TIME("TotalRawHdfsReadTime(*)", TUnit.TIME_NS),
+      TOTAL_READ_THROUGHPUT("TotalReadThroughput", TUnit.BYTES_PER_SECOND),
+      TOTAL_TIME("TotalTime", TUnit.TIME_NS);
+
+      private final String key;
+      private TUnit units;
+
+      private Counter(String key, TUnit units) {
+        this.key = key;
+        this.units = units;
+      }
+
+      public String key() { return key; }
+      public TUnit units() { return units; }
+    }
+
+    // Generated using EnumBuilder
+    public enum TimeSeries {
+      BYTES_READ("BytesRead", TUnit.BYTES);
+
+      private final String key;
+      private TUnit units;
+
+      private TimeSeries(String key, TUnit units) {
+        this.key = key;
+        this.units = units;
+      }
+
+      public String key() { return key; }
+      public TUnit units() { return units; }
+    }
+
     public HdfsScanExecNode(ProfileAnalyzer analyzer, NodeIndex index) {
       super(analyzer, index);
+    }
+
+    public String attrib(Attrib attrib) {
+      return attrib(attrib.key());
+    }
+
+    public long counter(Counter counter) {
+      return counter(counter.key());
+    }
+
+    public TTimeSeriesCounter timeSeries(TimeSeries counter) {
+      return timeSeries(counter.key());
     }
   }
 
@@ -583,17 +1248,77 @@ public class ProfileAnalyzer {
 
     public static final String NAME = "CodeGen";
 
+    // Generated using EnumBuilder
+    public enum Counter {
+      CODEGEN_TIME("CodegenTime", TUnit.TIME_NS),
+      COMPILE_TIME("CompileTime", TUnit.TIME_NS),
+      INACTIVE_TOTAL_TIME("InactiveTotalTime", TUnit.TIME_NS),
+      LOAD_TIME("LoadTime", TUnit.TIME_NS),
+      MODULE_BITCODE_SIZE("ModuleBitcodeSize", TUnit.BYTES),
+      NUM_FUNCTIONS("NumFunctions", TUnit.UNIT),
+      NUM_INSTRUCTIONS("NumInstructions", TUnit.UNIT),
+      OPTIMIZATION_TIME("OptimizationTime", TUnit.TIME_NS),
+      PREPARE_TIME("PrepareTime", TUnit.TIME_NS),
+      TOTAL_TIME("TotalTime", TUnit.TIME_NS);
+
+      private final String key;
+      private TUnit units;
+
+      private Counter(String key, TUnit units) {
+        this.key = key;
+        this.units = units;
+      }
+
+      public String key() { return key; }
+      public TUnit units() { return units; }
+    }
+
     public CodeGenNode(ProfileAnalyzer analyzer, int index) {
       super(analyzer, index);
+    }
+
+    public long counter(Counter counter) {
+      return counter(counter.key());
     }
   }
 
   public static class DataStreamSenderNode extends HelperNode {
 
+    // Generated using EnumBuilder
+    public enum Counter {
+      BYTES_SENT("BytesSent", TUnit.BYTES),
+      INACTIVE_TOTAL_TIME("InactiveTotalTime", TUnit.TIME_NS),
+      NETWORK_THROUGHPUT("NetworkThroughput(*)", TUnit.BYTES_PER_SECOND),
+      OVERALL_THROUGHPUT("OverallThroughput", TUnit.BYTES_PER_SECOND),
+      PEAK_MEMORY_USAGE("PeakMemoryUsage", TUnit.BYTES),
+      ROWS_RETURNED("RowsReturned", TUnit.UNIT),
+      SERIALIZE_BATCH_TIME("SerializeBatchTime", TUnit.TIME_NS),
+      TOTAL_TIME("TotalTime", TUnit.TIME_NS),
+      TRANSMIT_DATA_RPCTIME("TransmitDataRPCTime", TUnit.TIME_NS),
+      UNCOMPRESSED_ROW_BATCH_SIZE("UncompressedRowBatchSize", TUnit.BYTES);
+
+      private final String key;
+      private TUnit units;
+
+      private Counter(String key, TUnit units) {
+        this.key = key;
+        this.units = units;
+      }
+
+      public String key() { return key; }
+      public TUnit units() { return units; }
+    }
     public static final String NAME_PREFIX = "DataStreamSender ";
 
     public DataStreamSenderNode(ProfileAnalyzer analyzer, int index) {
       super(analyzer, index);
+    }
+
+    @Override
+    public String genericName() { return NAME_PREFIX.trim(); }
+
+    public long counter(Counter counter) {
+      return counter(counter.key());
     }
   }
 
@@ -601,8 +1326,35 @@ public class ProfileAnalyzer {
 
     public static String NAME_PREFIX = "Filter ";
 
+    // Generated using EnumBuilder
+    public enum Counter {
+      INACTIVE_TOTAL_TIME("InactiveTotalTime", TUnit.TIME_NS),
+      ROWS_PROCESSED("Rows processed", TUnit.UNIT),
+      ROWS_REJECTED("Rows rejected", TUnit.UNIT),
+      ROWS_TOTAL("Rows total", TUnit.UNIT),
+      TOTAL_TIME("TotalTime", TUnit.TIME_NS);
+
+      private final String key;
+      private TUnit units;
+
+      private Counter(String key, TUnit units) {
+        this.key = key;
+        this.units = units;
+      }
+
+      public String key() { return key; }
+      public TUnit units() { return units; }
+    }
+
     public FilterNode(ProfileAnalyzer analyzer, int index) {
       super(analyzer, index);
+    }
+
+    @Override
+    public String genericName() { return NAME_PREFIX.trim(); }
+
+    public long counter(Counter counter) {
+      return counter(counter.key());
     }
   }
 
@@ -610,8 +1362,41 @@ public class ProfileAnalyzer {
 
     public static final Object NAME = "BlockMgr";
 
+    // Generated using EnumBuilder
+    public enum Counter {
+      BLOCK_WRITES_OUTSTANDING("BlockWritesOutstanding", TUnit.UNIT),
+      BLOCKS_CREATED("BlocksCreated", TUnit.UNIT),
+      BLOCKS_RECYCLED("BlocksRecycled", TUnit.UNIT),
+      BUFFERED_PINS("BufferedPins", TUnit.UNIT),
+      BYTES_WRITTEN("BytesWritten", TUnit.BYTES),
+      INACTIVE_TOTAL_TIME("InactiveTotalTime", TUnit.TIME_NS),
+      MAX_BLOCK_SIZE("MaxBlockSize", TUnit.BYTES),
+      MEMORY_LIMIT("MemoryLimit", TUnit.BYTES),
+      PEAK_MEMORY_USAGE("PeakMemoryUsage", TUnit.BYTES),
+      TOTAL_BUFFER_WAIT_TIME("TotalBufferWaitTime", TUnit.TIME_NS),
+      TOTAL_ENCRYPTION_TIME("TotalEncryptionTime", TUnit.TIME_NS),
+      TOTAL_INTEGRITY_CHECK_TIME("TotalIntegrityCheckTime", TUnit.TIME_NS),
+      TOTAL_READ_BLOCK_TIME("TotalReadBlockTime", TUnit.TIME_NS),
+      TOTAL_TIME("TotalTime", TUnit.TIME_NS);
+
+      private final String key;
+      private TUnit units;
+
+      private Counter(String key, TUnit units) {
+        this.key = key;
+        this.units = units;
+      }
+
+      public String key() { return key; }
+      public TUnit units() { return units; }
+    }
+
     public BlockMgrNode(ProfileAnalyzer analyzer, int index) {
       super(analyzer, index);
+    }
+
+    public long counter(Counter counter) {
+      return counter(counter.key());
     }
   }
 

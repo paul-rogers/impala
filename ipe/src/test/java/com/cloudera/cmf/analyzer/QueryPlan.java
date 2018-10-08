@@ -3,30 +3,23 @@ package com.cloudera.cmf.analyzer;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.StringReader;
-import java.time.Period;
-import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Deque;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import org.joda.time.format.PeriodFormatter;
-import org.joda.time.format.PeriodFormatterBuilder;
-
 import com.cloudera.cmf.analyzer.ProfileAnalyzer.SummaryNode;
 import com.cloudera.cmf.analyzer.ProfileAnalyzer.SummaryNode.Attrib;
-import com.cloudera.cmf.analyzer.QueryPlan.AggregateNode;
-import com.cloudera.cmf.analyzer.QueryPlan.ExchangeNode;
-import com.cloudera.cmf.analyzer.QueryPlan.HdfsScanNode;
-import com.cloudera.cmf.analyzer.QueryPlan.PlanNode;
-import com.google.common.base.Joiner;
-import com.google.common.primitives.Ints;
-import com.jolbox.thirdparty.com.google.common.collect.Iterators;
+import com.google.common.base.Preconditions;
 
-import jersey.repackaged.com.google.common.base.Preconditions;
-
+/**
+ * Models the query plan as parsed from the text plan and text summary table in
+ * the query profile. Describes plan-level properties of each operator, as well
+ * as a few aggregate execution summary statistics.
+ * <p>
+ * The plan may be needed when scanning queries looking for those of interest.
+ * Summary information is loaded only when requested to avoid wasted effort.
+ */
 public class QueryPlan {
 
   public static class PlanNode {
@@ -387,21 +380,13 @@ public class QueryPlan {
 
     private List<ScanRef> project;
     private String scanType;
-
     private int partitionIndex;
-
     private int partitionCount;
-
     private int fileCount;
-
     private int partitionSize;
-
     private int estRowCount;
-
     private String columnStats;
-
     private String[] predicates;
-
     private String[] filters;
 
     public HdfsScanNode(int index, String name, String tail) {
@@ -745,7 +730,7 @@ public class QueryPlan {
     if (hasSummary) { return; }
     try {
       BufferedReader in = new BufferedReader(
-          new StringReader(query.attrib(Attrib.EXECSUMMARY)));
+          new StringReader(query.attrib(Attrib.EXEC_SUMMARY)));
       String line = in.readLine();
       line = in.readLine();
       line = in.readLine();
