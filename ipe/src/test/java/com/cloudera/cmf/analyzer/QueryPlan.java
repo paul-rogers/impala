@@ -8,8 +8,9 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import com.cloudera.cmf.analyzer.ProfileAnalyzer.SummaryNode;
-import com.cloudera.cmf.analyzer.ProfileAnalyzer.SummaryNode.Attrib;
+import com.cloudera.cmf.printer.AttribBufFormatter;
+import com.cloudera.cmf.printer.AttribFormatter;
+import com.cloudera.cmf.printer.PlanPrinter;
 import com.google.common.base.Preconditions;
 
 /**
@@ -630,7 +631,7 @@ public class QueryPlan {
     }
   }
 
-  private final SummaryNode query;
+  private final SummaryPNode query;
   private final String textPlan;
   private PlanNode[] nodes;
   private List<String> details = new ArrayList<>();
@@ -641,9 +642,9 @@ public class QueryPlan {
   private boolean parsedTail;
   private boolean planDetailsParsed;
 
-  public QueryPlan(SummaryNode query) {
+  public QueryPlan(SummaryPNode query) {
     this.query = query;
-    textPlan = query.attrib(SummaryNode.Attrib.PLAN);
+    textPlan = query.attrib(SummaryPNode.Attrib.PLAN);
     try {
       buildPlan();
     } catch (IOException e) {
@@ -730,7 +731,7 @@ public class QueryPlan {
     if (hasSummary) { return; }
     try {
       BufferedReader in = new BufferedReader(
-          new StringReader(query.attrib(Attrib.EXEC_SUMMARY)));
+          new StringReader(query.attrib(SummaryPNode.Attrib.EXEC_SUMMARY)));
       String line = in.readLine();
       line = in.readLine();
       line = in.readLine();

@@ -3,7 +3,7 @@ package com.cloudera.cmf.scanner;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.cloudera.cmf.analyzer.ProfileAnalyzer;
+import com.cloudera.cmf.analyzer.ProfileFacade;
 import com.cloudera.cmf.scanner.ProfileScanner.Action;
 
 public class CompoundAction implements Action {
@@ -16,7 +16,7 @@ public class CompoundAction implements Action {
   }
 
   @Override
-  public void apply(ProfileAnalyzer profile) {
+  public void apply(ProfileFacade profile) {
     for (Action action : actions) {
       action.apply(profile);
     }

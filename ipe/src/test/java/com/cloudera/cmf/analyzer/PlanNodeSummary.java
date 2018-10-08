@@ -3,6 +3,9 @@ package com.cloudera.cmf.analyzer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import com.cloudera.cmf.printer.AttribBufFormatter;
+import com.cloudera.cmf.printer.AttribFormatter;
+
 public class PlanNodeSummary {
   // Operator          #Hosts   Avg Time   Max Time  #Rows  Est. #Rows   Peak Mem  Est. Peak Mem  Detail
   // |--19:EXCHANGE         2   12.135us   12.324us    154         154          0              0  HASH(a16.wshe_number,a16.ws...

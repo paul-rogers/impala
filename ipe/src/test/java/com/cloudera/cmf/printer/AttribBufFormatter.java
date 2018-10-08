@@ -1,4 +1,4 @@
-package com.cloudera.cmf.analyzer;
+package com.cloudera.cmf.printer;
 
 public class AttribBufFormatter extends AbstractAttribFormatter {
 

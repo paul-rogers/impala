@@ -9,7 +9,14 @@ import org.apache.impala.thrift.TCounter;
 import org.apache.impala.thrift.TRuntimeProfileNode;
 import org.apache.impala.thrift.TTimeSeriesCounter;
 
-import com.cloudera.cmf.analyzer.ProfileAnalyzer.ProfileNode;
+/**
+ * Development-time helper class to generate enums for profile
+ * node attributes and counters. Uses an actual profile as
+ * the source of truth, sorts nodes by type, verifies that
+ * all nodes of the same type have the same attributes, then
+ * generates enums. Note that some nodes have attributes that
+ * vary such as "Filter x ...".
+ */
 
 public class EnumBuilder {
 
@@ -104,6 +111,7 @@ public class EnumBuilder {
       printTimeSeriesCounters();
     }
 
+    @SuppressWarnings("unused")
     private void printAttribs() {
       if (! attribNames.isEmpty()) {
         System.out.println("-- Attribs --");
@@ -111,6 +119,7 @@ public class EnumBuilder {
       }
     }
 
+    @SuppressWarnings("unused")
     private void printCounters() {
       System.out.println("// Generated using EnumBuilder");
       System.out.println("public enum Counter {");
@@ -176,13 +185,12 @@ public class EnumBuilder {
       name = name.replaceAll("([a-z])([A-Z])", "$1_$2");
       return name;
     }
-
   }
 
-  private ProfileAnalyzer profile;
+  private ProfileFacade profile;
   Map<String,NodeType> nodeTypes = new HashMap<>();
 
-  public EnumBuilder(ProfileAnalyzer profile) {
+  public EnumBuilder(ProfileFacade profile) {
     this.profile = profile;
   }
 

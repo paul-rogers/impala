@@ -3,7 +3,7 @@ package com.cloudera.cmf.scanner;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.cloudera.cmf.analyzer.ProfileAnalyzer;
+import com.cloudera.cmf.analyzer.ProfileFacade;
 import com.cloudera.cmf.scanner.ProfileScanner.Predicate;
 
 public class AndPredicate implements Predicate {
@@ -16,7 +16,7 @@ public class AndPredicate implements Predicate {
   }
 
   @Override
-  public boolean accept(ProfileAnalyzer profile) {
+  public boolean accept(ProfileFacade profile) {
     for (Predicate pred : predicates) {
       if (! pred.accept(profile)) { return false; }
     }

@@ -1,4 +1,4 @@
-package com.cloudera.cmf.analyzer;
+package com.cloudera.cmf.printer;
 
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;

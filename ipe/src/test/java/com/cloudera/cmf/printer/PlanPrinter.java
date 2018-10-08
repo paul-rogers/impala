@@ -1,9 +1,11 @@
-package com.cloudera.cmf.analyzer;
+package com.cloudera.cmf.printer;
 
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.util.List;
 
+import com.cloudera.cmf.analyzer.ProfileFacade;
+import com.cloudera.cmf.analyzer.QueryPlan;
 import com.cloudera.cmf.analyzer.QueryPlan.PlanNode;
 
 public class PlanPrinter {
@@ -14,7 +16,7 @@ public class PlanPrinter {
   private int prevLevel;
   private boolean isLeaf;
 
-  public PlanPrinter(ProfileAnalyzer profile) {
+  public PlanPrinter(ProfileFacade profile) {
     this.plan = profile.plan();
   }
 

@@ -8,8 +8,8 @@ import org.apache.impala.thrift.TRuntimeProfileTree;
 import org.junit.Test;
 
 import com.cloudera.cmf.analyzer.EnumBuilder;
-import com.cloudera.cmf.analyzer.PlanPrinter;
-import com.cloudera.cmf.analyzer.ProfileAnalyzer;
+import com.cloudera.cmf.analyzer.ProfileFacade;
+import com.cloudera.cmf.printer.PlanPrinter;
 import com.cloudera.cmf.printer.ProfilePrinter;
 import com.cloudera.cmf.scanner.AndPredicate;
 import com.cloudera.cmf.scanner.CompoundAction;
@@ -119,7 +119,7 @@ public class TestBasics {
 
     QueryRecord qr = lr.next();
     TRuntimeProfileTree profile = qr.thriftProfile();
-    ProfileAnalyzer analyzer = new ProfileAnalyzer(profile);
+    ProfileFacade analyzer = new ProfileFacade(profile);
     EnumBuilder.NodeType.generateAttribs(analyzer.summary().node());
   }
 
@@ -170,7 +170,7 @@ public class TestBasics {
   public static class PrintPlanAction implements Action {
 
     @Override
-    public void apply(ProfileAnalyzer profile) {
+    public void apply(ProfileFacade profile) {
       profile.computePlanSummary();
       profile.parsePlanDetails();
       PlanPrinter printer = new PlanPrinter(profile);
@@ -215,7 +215,7 @@ public class TestBasics {
   public static class LoadExecAction implements Action {
 
     @Override
-    public void apply(ProfileAnalyzer profile) {
+    public void apply(ProfileFacade profile) {
       profile.dag().print();
     }
   }
@@ -241,7 +241,7 @@ public class TestBasics {
   public static class BuildEnumsAction implements Action {
 
     @Override
-    public void apply(ProfileAnalyzer profile) {
+    public void apply(ProfileFacade profile) {
       EnumBuilder builder = new EnumBuilder(profile);
       builder.build();
       builder.print();

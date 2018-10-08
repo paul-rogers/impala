@@ -1,7 +1,7 @@
 package com.cloudera.cmf.scanner;
 
-import com.cloudera.cmf.analyzer.ProfileAnalyzer;
-import com.cloudera.cmf.analyzer.ProfileAnalyzer.QueryType;
+import com.cloudera.cmf.analyzer.ProfileFacade;
+import com.cloudera.cmf.analyzer.ProfileFacade.QueryType;
 import com.cloudera.cmf.scanner.ProfileScanner.Predicate;
 
 public class StatementTypePredicate implements Predicate {
@@ -13,7 +13,7 @@ public class StatementTypePredicate implements Predicate {
   }
 
   @Override
-  public boolean accept(ProfileAnalyzer profile) {
+  public boolean accept(ProfileFacade profile) {
     return profile.summary().type() == type;
   }
 

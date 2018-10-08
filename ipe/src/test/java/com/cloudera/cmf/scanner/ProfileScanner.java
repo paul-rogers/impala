@@ -5,7 +5,7 @@ import java.io.IOException;
 
 import org.apache.impala.thrift.TRuntimeProfileTree;
 
-import com.cloudera.cmf.analyzer.ProfileAnalyzer;
+import com.cloudera.cmf.analyzer.ProfileFacade;
 import com.cloudera.cmf.scanner.LogReader.QueryRecord;
 import com.jolbox.thirdparty.com.google.common.base.Preconditions;
 
@@ -16,11 +16,11 @@ public class ProfileScanner {
   }
 
   public static interface Predicate {
-    boolean accept(ProfileAnalyzer profile);
+    boolean accept(ProfileFacade profile);
   }
 
   public static interface Action {
-    void apply(ProfileAnalyzer profile);
+    void apply(ProfileFacade profile);
   }
 
   public static interface Monitor {
@@ -30,12 +30,12 @@ public class ProfileScanner {
   public static class NullRule implements Predicate, Action, Monitor, FilePredicate {
 
     @Override
-    public boolean accept(ProfileAnalyzer profile) {
+    public boolean accept(ProfileFacade profile) {
       return false;
     }
 
     @Override
-    public void apply(ProfileAnalyzer profile) {
+    public void apply(ProfileFacade profile) {
     }
 
     @Override
@@ -148,7 +148,7 @@ public class ProfileScanner {
     @Override
     public void scan() {
       root.tallyStatement();
-      ProfileAnalyzer analyzer = new ProfileAnalyzer(profile,
+      ProfileFacade analyzer = new ProfileFacade(profile,
           queryId, label);
       boolean accept = root.predicate().accept(analyzer);
       logResult(analyzer, accept);
@@ -158,7 +158,7 @@ public class ProfileScanner {
       }
     }
 
-    private void logResult(ProfileAnalyzer analyzer, boolean accept) {
+    private void logResult(ProfileFacade analyzer, boolean accept) {
       String msg = String.format("%s - %s",
           analyzer.title(),
           accept ? "Accept" : "Skip");
