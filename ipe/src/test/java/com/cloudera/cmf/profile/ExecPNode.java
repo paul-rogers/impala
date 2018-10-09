@@ -53,7 +53,7 @@ public class ExecPNode extends ProfileNode {
     super(analyzer, index);
   }
 
-  public void expand() {
+  public void expand(ProfileFacade analyzer) {
     if (expanded) { return; }
     ProfileNode.NodeIndex index = new ProfileNode.NodeIndex(firstChild);
     for (int i = 0; i < childCount(); i++) {

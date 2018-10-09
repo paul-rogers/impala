@@ -147,21 +147,21 @@ public abstract class FragmentPNode extends ProfileNode {
     private OperatorPNode.CodeGenPNode codeGen;
     private OperatorPNode.DataStreamSenderPNode dataStreamSender;
 
-    public FragDetailsPNode(ProfileFacade analyzer, ProfileNode.NodeIndex index) {
+    public FragDetailsPNode(ProfileFacade analyzer, NodeIndex index) {
       super(analyzer, index.index++);
-      parseChildren(index);
+      parseChildren(analyzer, index);
     }
 
-    private void parseChildren(ProfileNode.NodeIndex index) {
+    private void parseChildren(ProfileFacade analyzer, NodeIndex index) {
       Preconditions.checkState(index.index == firstChild);
       for (int i = 0; i < childCount(); i++) {
         TRuntimeProfileNode profileNode = analyzer.node(index.index);
         String name = profileNode.getName();
-        parseChild(name, index);
+        parseChild(analyzer, name, index);
       }
     }
 
-    protected void parseChild(String name, ProfileNode.NodeIndex index) {
+    protected void parseChild(ProfileFacade analyzer, String name, NodeIndex index) {
       PNodeType nodeType = PNodeType.parse(name);
       switch (nodeType) {
       case BLOCK_MGR:

@@ -8,6 +8,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
+import org.apache.impala.thrift.TRuntimeProfileNode;
+
 import com.cloudera.cmf.printer.AttribFormatter;
 import com.cloudera.cmf.printer.AttribPrintFormatter;
 import com.cloudera.cmf.profile.FragmentPNode.CoordinatorPNode;
@@ -47,7 +49,7 @@ public class QueryDAG {
       this.fragmentId = fragmentId;
     }
 
-    public abstract FragmentPNode.FragDetailsPNode summary();
+    public abstract FragmentPNode.FragDetailsPNode averages();
     public int fragmentId() { return fragmentId; }
     public boolean isLeaf() { return children.isEmpty(); }
     public abstract FragmentSynNode parent();
@@ -103,7 +105,7 @@ public class QueryDAG {
     }
 
     @Override
-    public FragmentPNode.FragDetailsPNode summary() { return coord; }
+    public FragmentPNode.FragDetailsPNode averages() { return coord; }
     @Override
     public FragmentSynNode parent() { return null; }
     @Override
@@ -123,14 +125,14 @@ public class QueryDAG {
 
   public static class InternalFragSynNode extends FragmentSynNode {
 
-    private final FragmentPNode.FragSummaryPNode summaryNode;
+    private final FragmentPNode.FragSummaryPNode avgNode;
     private FragmentPNode.InstancesPNode detailsNode;
     private final Map<String, FragmentPNode.FragInstancePNode> details = new HashMap<>();
     private FragmentSynNode parent;
 
     public InternalFragSynNode(FragmentPNode.FragSummaryPNode summary) {
       super(summary.fragmentId());
-      summaryNode = summary;
+      avgNode = summary;
     }
 
     public void defineDetails(FragmentPNode.InstancesPNode fragDetails) {
@@ -146,7 +148,7 @@ public class QueryDAG {
     }
 
     @Override
-    public FragmentPNode.FragDetailsPNode summary() { return summaryNode; }
+    public FragDetailsPNode averages() { return avgNode; }
     @Override
     public FragmentSynNode parent() { return parent; }
     @Override
@@ -186,10 +188,11 @@ public class QueryDAG {
     private final int operatorId;
     private FragmentSynNode fragment;
     private final PlanNode planNode;
-    private OperatorPNode summaryNode;
+    private OperatorPNode avgNode;
     private final Map<String, OperatorPNode> details = new HashMap<>();
     private OperatorSynNode children[];
     private OperatorSynNode parent;
+    private TRuntimeProfileNode totals;
 
     public OperatorSynNode(PlanNode operator) {
       this.operatorId = operator.operatorId();
@@ -198,8 +201,8 @@ public class QueryDAG {
 
    public void setSummary(FragmentSynNode fragSyn, OperatorPNode operExec) {
       fragment = fragSyn;
-      Preconditions.checkState(summaryNode == null);
-      summaryNode = operExec;
+      Preconditions.checkState(avgNode == null);
+      avgNode = operExec;
     }
 
     public void addDetail(String serverId, OperatorPNode operExec) {
@@ -229,6 +232,24 @@ public class QueryDAG {
 
     public boolean isFragmentRoot() {
       return isRoot() || parent.fragmentId() != fragmentId();
+    }
+
+    public TRuntimeProfileNode totals() {
+      if (totals != null) { return totals; }
+      NodeAggregator agg = new NodeAggregator();
+      for (OperatorPNode node : details.values()) {
+        agg.add(node.node());
+      }
+      totals = agg.totals();
+      return totals;
+    }
+
+    public long avgCounter(String name) {
+      return avgNode.counter(name);
+    }
+
+    public long totalsCounter(String name) {
+      return ProfileNode.getCounter(totals(), name);
     }
 
     public static String idList(Collection<OperatorSynNode> ops) {
@@ -465,7 +486,7 @@ s   */
   private void gatherOperatorSummaries() {
     for (int i = 0; i < fragments.length; i++) {
       FragmentSynNode fragSyn = fragments[i];
-      for (OperatorPNode operExec : fragSyn.summary().operators()) {
+      for (OperatorPNode operExec : fragSyn.averages().operators()) {
         gatherOperatorSummary(fragSyn, operExec);
       }
     }

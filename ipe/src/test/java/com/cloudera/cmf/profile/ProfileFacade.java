@@ -251,7 +251,7 @@ public class ProfileFacade {
   }
 
   public void expandExecNodes() {
-    root.execNode().expand();
+    root.execNode().expand(this);
   }
 
   public ExecPNode exec() {

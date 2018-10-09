@@ -29,70 +29,86 @@ import com.google.common.base.Preconditions;
  */
 public abstract class OperatorPNode extends ProfileNode {
 
+  public enum OperType {
+    EXCHANGE,
+    AGG,
+    HASH_JOIN,
+    HDFS_SCAN
+  }
+
   /**
-     * Execution information for an Exchange operator.
-     */
-    public static class ExchangePNode extends OperatorPNode {
+   * Execution information for an Exchange operator.
+   */
+  public static class ExchangePNode extends OperatorPNode {
 
-      public static final String NAME_PREFIX = "EXCHANGE_NODE ";
+    public static final String NAME_PREFIX = "EXCHANGE_NODE ";
 
-      // Generated using EnumBuilder
-      public enum Counter {
-        BYTES_RECEIVED("BytesReceived", TUnit.BYTES),
-        CONVERT_ROW_BATCH_TIME("ConvertRowBatchTime", TUnit.TIME_NS),
-        DESERIALIZE_ROW_BATCH_TIMER("DeserializeRowBatchTimer", TUnit.TIME_NS),
-        FIRST_BATCH_ARRIVAL_WAIT_TIME("FirstBatchArrivalWaitTime", TUnit.TIME_NS),
-        INACTIVE_TOTAL_TIME("InactiveTotalTime", TUnit.TIME_NS),
-        PEAK_MEMORY_USAGE("PeakMemoryUsage", TUnit.BYTES),
-        ROWS_RETURNED("RowsReturned", TUnit.UNIT),
-        ROWS_RETURNED_RATE("RowsReturnedRate", TUnit.UNIT_PER_SECOND),
-        SENDERS_BLOCKED_TIMER("SendersBlockedTimer", TUnit.TIME_NS),
-        SENDERS_BLOCKED_TOTAL_TIMER("SendersBlockedTotalTimer(*)", TUnit.TIME_NS),
-        TOTAL_TIME("TotalTime", TUnit.TIME_NS);
+    // Generated using EnumBuilder
+    public enum Counter {
+      BYTES_RECEIVED("BytesReceived", TUnit.BYTES),
+      CONVERT_ROW_BATCH_TIME("ConvertRowBatchTime", TUnit.TIME_NS),
+      DESERIALIZE_ROW_BATCH_TIMER("DeserializeRowBatchTimer", TUnit.TIME_NS),
+      FIRST_BATCH_ARRIVAL_WAIT_TIME("FirstBatchArrivalWaitTime", TUnit.TIME_NS),
+      INACTIVE_TOTAL_TIME("InactiveTotalTime", TUnit.TIME_NS),
+      PEAK_MEMORY_USAGE("PeakMemoryUsage", TUnit.BYTES),
+      ROWS_RETURNED("RowsReturned", TUnit.UNIT),
+      ROWS_RETURNED_RATE("RowsReturnedRate", TUnit.UNIT_PER_SECOND),
+      SENDERS_BLOCKED_TIMER("SendersBlockedTimer", TUnit.TIME_NS),
+      SENDERS_BLOCKED_TOTAL_TIMER("SendersBlockedTotalTimer(*)", TUnit.TIME_NS),
+      TOTAL_TIME("TotalTime", TUnit.TIME_NS);
 
-        private final String key;
-        private TUnit units;
+      private final String key;
+      private TUnit units;
 
-        private Counter(String key, TUnit units) {
-          this.key = key;
-          this.units = units;
-        }
-
-        public String key() { return key; }
-        public TUnit units() { return units; }
+      private Counter(String key, TUnit units) {
+        this.key = key;
+        this.units = units;
       }
 
-   // Generated using EnumBuilder
-      public enum TimeSeries {
-        BYTES_RECEIVED("BytesReceived", TUnit.BYTES);
-
-        private final String key;
-        private TUnit units;
-
-        private TimeSeries(String key, TUnit units) {
-          this.key = key;
-          this.units = units;
-        }
-
-        public String key() { return key; }
-        public TUnit units() { return units; }
-      }
-
-      public ExchangePNode(ProfileFacade analyzer, ProfileNode.NodeIndex index) {
-        super(analyzer, index);
-      }
-
-      @Override
-      public PNodeType nodeType() { return PNodeType.EXCHANGE_OP; }
-
-      public long counter(Counter counter) {
-        return counter(counter.key());
-      }
-
-      public TTimeSeriesCounter timeSeries(TimeSeries counter) {
-        return timeSeries(counter.key());
-      }
+      public String key() { return key; }
+      public TUnit units() { return units; }
     }
+
+    // Generated using EnumBuilder
+    public enum TimeSeries {
+      BYTES_RECEIVED("BytesReceived", TUnit.BYTES);
+
+      private final String key;
+      private TUnit units;
+
+      private TimeSeries(String key, TUnit units) {
+        this.key = key;
+        this.units = units;
+      }
+
+      public String key() { return key; }
+      public TUnit units() { return units; }
+    }
+
+    public ExchangePNode(TRuntimeProfileNode node) {
+      super(node);
+    }
+
+    public ExchangePNode(ProfileFacade analyzer, ProfileNode.NodeIndex index) {
+      super(analyzer, index);
+    }
+
+    @Override
+    public PNodeType nodeType() { return PNodeType.EXCHANGE_OP; }
+
+    public long counter(Counter counter) {
+      return counter(counter.key());
+    }
+
+    public TTimeSeriesCounter timeSeries(TimeSeries counter) {
+      return timeSeries(counter.key());
+    }
+
+    @Override
+    public OperatorPNode newInstance(TRuntimeProfileNode node) {
+      return new ExchangePNode(node);
+    }
+  }
 
   /**
    * Facade for AGGREGATION nodes, both the STREAMING and FINALIZE
@@ -182,6 +198,10 @@ public abstract class OperatorPNode extends ProfileNode {
       public TUnit units() { return units; }
     }
 
+    public AggPNode(TRuntimeProfileNode node) {
+      super(node);
+    }
+
     public AggPNode(ProfileFacade analyzer, ProfileNode.NodeIndex index) {
       super(analyzer, index);
     }
@@ -199,6 +219,11 @@ public abstract class OperatorPNode extends ProfileNode {
 
     public long counter(StreamingCounter counter) {
       return counter(counter.key());
+    }
+
+    @Override
+    public OperatorPNode newInstance(TRuntimeProfileNode node) {
+      return new AggPNode(node);
     }
   }
 
@@ -262,6 +287,10 @@ public abstract class OperatorPNode extends ProfileNode {
       public TUnit units() { return units; }
     }
 
+    public HashJoinPNode(TRuntimeProfileNode node) {
+      super(node);
+    }
+
     public HashJoinPNode(ProfileFacade analyzer, ProfileNode.NodeIndex index) {
       super(analyzer, index);
     }
@@ -275,6 +304,11 @@ public abstract class OperatorPNode extends ProfileNode {
 
     public long counter(Counter counter) {
       return counter(counter.key());
+    }
+
+    @Override
+    public OperatorPNode newInstance(TRuntimeProfileNode node) {
+      return new HashJoinPNode(node);
     }
   }
 
@@ -304,8 +338,10 @@ public abstract class OperatorPNode extends ProfileNode {
 
     // Generated using EnumBuilder
     public enum Counter {
-      AVERAGE_HDFS_READ_THREAD_CONCURRENCY("AverageHdfsReadThreadConcurrency", TUnit.DOUBLE_VALUE),
-      AVERAGE_SCANNER_THREAD_CONCURRENCY("AverageScannerThreadConcurrency", TUnit.DOUBLE_VALUE),
+      AVERAGE_HDFS_READ_THREAD_CONCURRENCY(
+          "AverageHdfsReadThreadConcurrency", TUnit.DOUBLE_VALUE),
+      AVERAGE_SCANNER_THREAD_CONCURRENCY(
+          "AverageScannerThreadConcurrency", TUnit.DOUBLE_VALUE),
       BYTES_READ("BytesRead", TUnit.BYTES),
       BYTES_READ_DATA_NODE_CACHE("BytesReadDataNodeCache", TUnit.BYTES),
       BYTES_READ_LOCAL("BytesReadLocal", TUnit.BYTES),
@@ -320,17 +356,21 @@ public abstract class OperatorPNode extends ProfileNode {
       NUM_ROW_GROUPS("NumRowGroups", TUnit.UNIT),
       NUM_SCANNER_THREADS_STARTED("NumScannerThreadsStarted", TUnit.UNIT),
       PEAK_MEMORY_USAGE("PeakMemoryUsage", TUnit.BYTES),
-      PER_READ_THREAD_RAW_HDFS_THROUGHPUT("PerReadThreadRawHdfsThroughput", TUnit.BYTES_PER_SECOND),
+      PER_READ_THREAD_RAW_HDFS_THROUGHPUT(
+          "PerReadThreadRawHdfsThroughput", TUnit.BYTES_PER_SECOND),
       REMOTE_SCAN_RANGES("RemoteScanRanges", TUnit.UNIT),
       ROWS_READ("RowsRead", TUnit.UNIT),
       ROWS_RETURNED("RowsReturned", TUnit.UNIT),
       ROWS_RETURNED_RATE("RowsReturnedRate", TUnit.UNIT_PER_SECOND),
       SCAN_RANGES_COMPLETE("ScanRangesComplete", TUnit.UNIT),
-      SCANNER_THREADS_INVOLUNTARY_CONTEXT_SWITCHES("ScannerThreadsInvoluntaryContextSwitches", TUnit.UNIT),
+      SCANNER_THREADS_INVOLUNTARY_CONTEXT_SWITCHES(
+          "ScannerThreadsInvoluntaryContextSwitches", TUnit.UNIT),
       SCANNER_THREADS_SYS_TIME("ScannerThreadsSysTime", TUnit.TIME_NS),
-      SCANNER_THREADS_TOTAL_WALL_CLOCK_TIME("ScannerThreadsTotalWallClockTime", TUnit.TIME_NS),
+      SCANNER_THREADS_TOTAL_WALL_CLOCK_TIME(
+          "ScannerThreadsTotalWallClockTime", TUnit.TIME_NS),
       SCANNER_THREADS_USER_TIME("ScannerThreadsUserTime", TUnit.TIME_NS),
-      SCANNER_THREADS_VOLUNTARY_CONTEXT_SWITCHES("ScannerThreadsVoluntaryContextSwitches", TUnit.UNIT),
+      SCANNER_THREADS_VOLUNTARY_CONTEXT_SWITCHES(
+          "ScannerThreadsVoluntaryContextSwitches", TUnit.UNIT),
       TOTAL_RAW_HDFS_READ_TIME("TotalRawHdfsReadTime(*)", TUnit.TIME_NS),
       TOTAL_READ_THROUGHPUT("TotalReadThroughput", TUnit.BYTES_PER_SECOND),
       TOTAL_TIME("TotalTime", TUnit.TIME_NS);
@@ -363,6 +403,10 @@ public abstract class OperatorPNode extends ProfileNode {
       public TUnit units() { return units; }
     }
 
+    public HdfsScanPNode(TRuntimeProfileNode node) {
+      super(node);
+    }
+
     public HdfsScanPNode(ProfileFacade analyzer, ProfileNode.NodeIndex index) {
       super(analyzer, index);
     }
@@ -380,6 +424,11 @@ public abstract class OperatorPNode extends ProfileNode {
 
     public TTimeSeriesCounter timeSeries(TimeSeries counter) {
       return timeSeries(counter.key());
+    }
+
+    @Override
+    public OperatorPNode newInstance(TRuntimeProfileNode node) {
+      return new HdfsScanPNode(node);
     }
   }
 
@@ -571,6 +620,12 @@ public abstract class OperatorPNode extends ProfileNode {
   private List<OperatorPNode> children = new ArrayList<>();
   private final List<OperatorPNode.FilterPNode> filters = new ArrayList<>();
 
+  public OperatorPNode(TRuntimeProfileNode node) {
+    super(node);
+    operatorIndex = -1;
+    operatorName = "Unknown";
+  }
+
   public OperatorPNode(ProfileFacade analyzer, ProfileNode.NodeIndex index) {
     super(analyzer, index.index++);
     Pattern p = Pattern.compile("(.*)_NODE \\(id=(\\d+)\\)");
@@ -622,4 +677,6 @@ public abstract class OperatorPNode extends ProfileNode {
     children.addAll(filters);
     return children;
   }
+
+  public abstract OperatorPNode newInstance(TRuntimeProfileNode node);
 }

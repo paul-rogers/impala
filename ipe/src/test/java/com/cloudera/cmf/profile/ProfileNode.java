@@ -26,13 +26,17 @@ public abstract class ProfileNode {
     }
   }
 
-  protected final ProfileFacade analyzer;
   protected final TRuntimeProfileNode node;
   protected final int index;
-  protected int firstChild;
+  protected final int firstChild;
+
+  public ProfileNode(TRuntimeProfileNode node) {
+    this.node = node;
+    index = -1;
+    firstChild = -1;
+  }
 
   public ProfileNode(ProfileFacade analyzer, int index) {
-    this.analyzer = analyzer;
     this.index = index;
     node = analyzer.node(index);
     firstChild = index + 1;
@@ -57,6 +61,10 @@ public abstract class ProfileNode {
   }
 
   public long counter(String name) {
+    return getCounter(node, name);
+  }
+
+  public static long getCounter(TRuntimeProfileNode node, String name) {
     // TODO: Cache counters in a map?
     for (TCounter counter : node.getCounters()) {
       if (counter.getName().equals(name)) {
@@ -67,10 +75,6 @@ public abstract class ProfileNode {
   }
 
   public TEventSequence events(String name) {
-    return getEvent(node, name);
-  }
-
-  public static TEventSequence getEvent(TRuntimeProfileNode node, String name) {
     // Used in only one node, only two sequences.
     // Linear search is fine.
     for (TEventSequence event : node.getEvent_sequences()) {
