@@ -6,15 +6,13 @@ import java.util.List;
 import org.apache.impala.thrift.TRuntimeProfileNode;
 
 import com.cloudera.cmf.printer.AttribFormatter;
-import com.cloudera.cmf.printer.AttribPrintFormatter;
 import com.cloudera.cmf.profile.PNodeType;
 import com.cloudera.cmf.profile.ParseUtils;
 import com.cloudera.cmf.profile.ParseUtils.FragmentInstance;
-
 import com.cloudera.cmf.profile.ProfileFacade;
 import com.cloudera.cmf.scanner.ProfileScanner.Action;
 
-public class ProfileThriftNodeScanner {
+public class ProfileThriftNodeScanner implements Action {
 
   public enum Level {
     ALL,
@@ -29,11 +27,31 @@ public class ProfileThriftNodeScanner {
   }
 
   public interface Rule {
-    void reset(Context context);
+    RollUp startGroup();
     Level level();
     PNodeType target();
-    void apply(Context context);
-    void finish(Context context);
+    void apply(Context context, RollUp profileRollup);
+    void finishGroup(AttribFormatter fmt, RollUp rollup);
+  }
+
+  public static class NullRollUp implements RollUp {
+
+    @Override
+    public void add(RollUp detail) { }
+  }
+
+  public static class CounterRollUp implements RollUp {
+
+    private int count;
+
+    @Override
+    public void add(RollUp detail) {
+      count += ((CounterRollUp) detail).count;
+    }
+
+    public void add(int n) { count += n; }
+    public void incr() { count++; }
+    public int count() { return count; }
   }
 
   public static abstract class AbstractRule implements Rule {
@@ -42,36 +60,34 @@ public class ProfileThriftNodeScanner {
     protected PNodeType target;
 
     @Override
-    public void reset(Context context) { }
+    public RollUp startGroup() {
+      return new NullRollUp();
+    }
+
     @Override
     public Level level() { return level; }
     @Override
     public PNodeType target() { return target; }
+
     @Override
-    public void finish(Context context) { }
+    public void finishGroup(AttribFormatter fmt, RollUp rollup) { }
   }
 
-  public static class ThriftNodeScanAction implements Action {
+  public static abstract class SimpleRule extends AbstractRule {
 
-    private final ProfileThriftNodeScanner scanner;
-
-    public ThriftNodeScanAction(ProfileThriftNodeScanner scanner) {
-      this.scanner = scanner;
-    }
-
-    public ThriftNodeScanAction() {
-      this(new ProfileThriftNodeScanner());
+    @Override
+    public RollUp startGroup() {
+      return new CounterRollUp();
     }
 
     @Override
-    public void apply(ProfileFacade profile) {
-      scanner.apply(profile);
+    public void apply(Context context, RollUp rollup) {
+      if (apply(context)) {
+        ((CounterRollUp) rollup).incr();
+      }
     }
 
-    public ThriftNodeScanAction add(Rule rule) {
-      scanner.add(rule);
-      return this;
-    }
+    public abstract boolean apply(Context context);
   }
 
   public static class Context {
@@ -83,6 +99,7 @@ public class ProfileThriftNodeScanner {
     protected PNodeType nodeType;
     protected int fragmentId;
     protected FragmentInstance instanceId;
+    protected RollUp totals[];
 
     public Context(ProfileFacade profile, AttribFormatter fmt) {
       this.profile = profile;
@@ -127,14 +144,11 @@ public class ProfileThriftNodeScanner {
     }
   }
 
-  protected final AttribFormatter fmt;
+  protected AttribFormatter fmt;
   public List<Rule> rules = new ArrayList<>();
 
-  public ProfileThriftNodeScanner() {
-    this(new AttribPrintFormatter());
-  }
-
-  public ProfileThriftNodeScanner(AttribFormatter fmt) {
+  @Override
+  public void bindFormatter(AttribFormatter fmt) {
     this.fmt = fmt;
   }
 
@@ -143,15 +157,19 @@ public class ProfileThriftNodeScanner {
     return this;
   }
 
+  @Override
   public void apply(ProfileFacade profile) {
     Context context = new Context(profile, fmt);
-    for (Rule rule : rules) {
-      rule.reset(context);
+    context.totals = new RollUp[rules.size()];
+    for (int i = 0; i < rules.size(); i++) {
+      context.totals[i] = rules.get(i).startGroup();
     }
     visit(context);
-    for (Rule rule : rules) {
-      rule.finish(context);
+    fmt.startGroup("Summary");
+    for (int i = 0; i < rules.size(); i++) {
+      rules.get(i).finishGroup(fmt, context.totals[i]);
     }
+    fmt.endGroup();
   }
 
   private void visit(Context context) {
@@ -184,8 +202,8 @@ public class ProfileThriftNodeScanner {
   }
 
   private void visitNode(Context context) {
-    for (Rule rule : rules) {
-      applyRule(context, rule);
+    for (int i = 0; i < rules.size(); i++) {
+      applyRule(context, rules.get(i), context.totals[i]);
     }
     int childCount = context.node.getNum_children();
     for (int i = 0; i < childCount; i++) {
@@ -193,7 +211,7 @@ public class ProfileThriftNodeScanner {
     }
   }
 
-  private void applyRule(Context context, Rule rule) {
+  private void applyRule(Context context, Rule rule, RollUp totals) {
     switch (rule.level()) {
     case ALL:
       break;
@@ -212,7 +230,7 @@ public class ProfileThriftNodeScanner {
       return;
     }
 
-    rule.apply(context);
+    rule.apply(context, totals);
   }
 
 }

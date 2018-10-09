@@ -580,7 +580,7 @@ s   */
     format(fmt);
   }
 
-  private void format(AttribFormatter fmt) {
+  public void format(AttribFormatter fmt) {
     fmt.startGroup("DAG Synthesys");
     fmt.attrib("Coordinator", rootFragment.fragmentId());
     fmt.attrib("Root Operator", rootOperator.operatorId());

@@ -1,12 +1,15 @@
 package com.cloudera.cmf;
 
 import java.io.File;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.PrintWriter;
 
 import org.apache.impala.thrift.TRuntimeProfileTree;
 import org.junit.Test;
 
+import com.cloudera.cmf.printer.AttribPrintFormatter;
 import com.cloudera.cmf.printer.PlanPrinter;
 import com.cloudera.cmf.printer.ProfilePrinter;
 import com.cloudera.cmf.profile.EnumBuilder;
@@ -14,11 +17,11 @@ import com.cloudera.cmf.profile.ProfileFacade;
 import com.cloudera.cmf.scanner.AndPredicate;
 import com.cloudera.cmf.scanner.CompoundAction;
 import com.cloudera.cmf.scanner.LogReader;
-import com.cloudera.cmf.scanner.ProfileScanner;
 import com.cloudera.cmf.scanner.LogReader.QueryRecord;
 import com.cloudera.cmf.scanner.PrintStmtAction;
-import com.cloudera.cmf.scanner.ProfileScanner.Action;
-import com.cloudera.cmf.scanner.ProfileThriftNodeScanner.ThriftNodeScanAction;
+import com.cloudera.cmf.scanner.ProfileScanner;
+import com.cloudera.cmf.scanner.ProfileScanner.AbstractAction;
+import com.cloudera.cmf.scanner.ProfileThriftNodeScanner;
 import com.cloudera.cmf.scanner.StatementStatusPredicate;
 import com.cloudera.cmf.scanner.StatementTypePredicate;
 import com.cloudera.cmf.scanner.ThriftNodeRules.DisabledCodeGenRule;
@@ -109,9 +112,11 @@ public class TestBasics {
     QueryRecord qr = lr.next();
     TRuntimeProfileTree profile = qr.thriftProfile();
     File dest = new File("/home/progers", "query.txt");
-    ProfilePrinter printer = new ProfilePrinter(profile, dest);
-    printer.convert();
-    printer.close();
+    try (PrintWriter out = new PrintWriter(new FileWriter(dest))) {
+      ProfilePrinter printer = new ProfilePrinter(profile,
+          new AttribPrintFormatter(out));
+      printer.convert();
+    }
   }
 
   @Test
@@ -132,7 +137,7 @@ public class TestBasics {
         .toConsole();
     scanner.scan();
     System.out.print("Scan count: ");
-    System.out.println(scanner.scanCount());
+    System.out.println(scanner.profileCount());
     System.out.print("Accept count: ");
     System.out.println(scanner.acceptCount());
   }
@@ -148,7 +153,7 @@ public class TestBasics {
         ;
     scanner.scan();
     System.out.print("Scan count: ");
-    System.out.println(scanner.scanCount());
+    System.out.println(scanner.profileCount());
     System.out.print("Accept count: ");
     System.out.println(scanner.acceptCount());
   }
@@ -164,12 +169,12 @@ public class TestBasics {
     System.out.print("File count: ");
     System.out.println(scanner.fileCount());
     System.out.print("Profile count: ");
-    System.out.println(scanner.scanCount());
+    System.out.println(scanner.profileCount());
     System.out.print("Accept count: ");
     System.out.println(scanner.acceptCount());
   }
 
-  public static class PrintPlanAction implements Action {
+  public static class PrintPlanAction extends AbstractAction {
 
     @Override
     public void apply(ProfileFacade profile) {
@@ -214,11 +219,11 @@ public class TestBasics {
     scanner.scan();
   }
 
-  public static class LoadExecAction implements Action {
+  public static class LoadExecAction extends AbstractAction {
 
     @Override
     public void apply(ProfileFacade profile) {
-      profile.dag().print();
+      profile.dag().format(fmt);
     }
   }
 
@@ -240,7 +245,7 @@ public class TestBasics {
     scanner.scan();
   }
 
-  public static class BuildEnumsAction implements Action {
+  public static class BuildEnumsAction extends AbstractAction {
 
     @Override
     public void apply(ProfileFacade profile) {
@@ -281,7 +286,7 @@ public class TestBasics {
         .toConsole()
         .action(new CompoundAction()
 //            .add(new PrintStmtAction())
-            .add(new ThriftNodeScanAction()
+            .add(new ProfileThriftNodeScanner()
                 .add(new DisabledCodeGenRule())))
         ;
     scanner.scan();

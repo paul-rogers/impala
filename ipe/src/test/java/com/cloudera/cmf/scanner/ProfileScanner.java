@@ -5,6 +5,8 @@ import java.io.IOException;
 
 import org.apache.impala.thrift.TRuntimeProfileTree;
 
+import com.cloudera.cmf.printer.AttribFormatter;
+import com.cloudera.cmf.printer.AttribPrintFormatter;
 import com.cloudera.cmf.profile.ProfileFacade;
 import com.cloudera.cmf.scanner.LogReader.QueryRecord;
 import com.jolbox.thirdparty.com.google.common.base.Preconditions;
@@ -20,14 +22,21 @@ public class ProfileScanner {
   }
 
   public static interface Action {
+    void bindFormatter(AttribFormatter fmt);
     void apply(ProfileFacade profile);
   }
 
-  public static interface Monitor {
-    void log(String msg);
+  public abstract static class AbstractAction implements Action {
+
+    protected AttribFormatter fmt;
+
+    @Override
+    public void bindFormatter(AttribFormatter fmt) {
+      this.fmt = fmt;
+    }
   }
 
-  public static class NullRule implements Predicate, Action, Monitor, FilePredicate {
+  public static class NullRule implements Predicate, Action, FilePredicate {
 
     @Override
     public boolean accept(ProfileFacade profile) {
@@ -39,21 +48,12 @@ public class ProfileScanner {
     }
 
     @Override
-    public void log(String msg) {
-    }
-
-    @Override
     public boolean accept(File file) {
       return ! file.isDirectory();
     }
-  }
-
-  public static class StdOutMonitor implements Monitor {
 
     @Override
-    public void log(String msg) {
-      System.out.println(msg);
-    }
+    public void bindFormatter(AttribFormatter fmt) { }
   }
 
   public static abstract class BaseScanner {
@@ -111,6 +111,7 @@ public class ProfileScanner {
 
     @Override
     public void scan() throws IOException {
+      root.formatter().startGroup(logFile.getName());
       root.tallyFile();
       LogReader lr = new LogReader(logFile);
       lr.skip(root.skipCount());
@@ -128,6 +129,7 @@ public class ProfileScanner {
         queryScanner.scan();
       }
       lr.close();
+      root.formatter().endGroup();
     }
   }
 
@@ -147,22 +149,19 @@ public class ProfileScanner {
 
     @Override
     public void scan() {
-      root.tallyStatement();
+      root.tallyProfile();
       ProfileFacade analyzer = new ProfileFacade(profile,
           queryId, label);
       boolean accept = root.predicate().accept(analyzer);
-      logResult(analyzer, accept);
+      String msg = String.format("%s - %s",
+          analyzer.title(),
+          accept ? "Accept" : "Skip");
+      root.formatter().startGroup(msg);
       if (accept) {
         root.tallyAccept();
         root.action().apply(analyzer);
       }
-    }
-
-    private void logResult(ProfileFacade analyzer, boolean accept) {
-      String msg = String.format("%s - %s",
-          analyzer.title(),
-          accept ? "Accept" : "Skip");
-      root.monitor().log(msg);
+      root.formatter().endGroup();
     }
   }
 
@@ -179,20 +178,20 @@ public class ProfileScanner {
   private BaseScanner scanner;
   private Predicate predicate;
   private Action action;
-  private Monitor monitor;
+  private AttribFormatter fmt;
   private FilePredicate filePredicate;
   private int dirCount;
   private int fileCount;
   private int skipCount;
   private int scanLimit = Integer.MAX_VALUE;
-  private int scanCount;
+  private int profileCount;
   private int acceptCount;
 
   public ProfileScanner() {
     NullRule nullRule = new NullRule();
     predicate = nullRule;
     action = nullRule;
-    monitor = nullRule;
+    fmt = new AttribPrintFormatter();
     filePredicate = nullRule;
     scanner = new NullScanner(this);
   }
@@ -223,14 +222,15 @@ public class ProfileScanner {
     return this;
   }
 
-  public ProfileScanner monitor(Monitor monitor) {
-    this.monitor = monitor;
+  public ProfileScanner formatter(AttribFormatter formatter) {
+    this.fmt = formatter;
     return this;
   }
 
   public ProfileScanner toConsole() {
-    return monitor(new StdOutMonitor());
+    return formatter(new AttribPrintFormatter());
   }
+
 
   public ProfileScanner skip(int skip) {
     skipCount = skip;
@@ -243,27 +243,31 @@ public class ProfileScanner {
   }
 
   public void scan() throws IOException {
+    if (fmt == null) {
+      fmt = new AttribPrintFormatter();
+    }
+    action.bindFormatter(fmt);
     dirCount = 0;
     fileCount = 0;
-    scanCount = 0;
+    profileCount = 0;
     acceptCount = 0;
     scanner.scan();
   }
 
   public int dirCount() { return dirCount; }
   public int fileCount() { return fileCount; }
-  public int scanCount() { return scanCount; }
+  public int profileCount() { return profileCount; }
   public int acceptCount() { return acceptCount; }
 
   public int limit() { return scanLimit; }
   public int skipCount() { return skipCount; }
   protected void tallyDir() { dirCount++; }
   protected void tallyFile() { fileCount++; }
-  protected void tallyStatement() { scanCount++; }
+  protected void tallyProfile() { profileCount++; }
   protected void tallyAccept() { acceptCount++; }
   protected Predicate predicate() { return predicate; }
   protected Action action() { return action; }
-  protected Monitor monitor() { return monitor; }
+  public AttribFormatter formatter() { return fmt; }
   protected FilePredicate filePredicate() { return filePredicate; }
 
   protected boolean shouldContinue() {

@@ -1,12 +1,12 @@
 package com.cloudera.cmf.scanner;
 
 import com.cloudera.cmf.profile.ProfileFacade;
-import com.cloudera.cmf.scanner.ProfileScanner.Action;
+import com.cloudera.cmf.scanner.ProfileScanner.AbstractAction;
 
-public class PrintStmtAction implements Action {
+public class PrintStmtAction extends AbstractAction {
 
   @Override
   public void apply(ProfileFacade profile) {
-    System.out.println(profile.stmt());
+    fmt.attrib("Statement", profile.stmt());
   }
 }

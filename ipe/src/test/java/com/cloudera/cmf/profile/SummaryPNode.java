@@ -1,5 +1,12 @@
 package com.cloudera.cmf.profile;
 
+import java.text.DateFormat;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
+
 import org.apache.impala.thrift.TEventSequence;
 
 import com.cloudera.cmf.profile.ProfileFacade.QueryType;
@@ -18,6 +25,7 @@ public class SummaryPNode extends ProfileNode {
   public static String FINISHED_STATE = "FINISHED";
   public static String EXCEPTION_STATE = "EXCEPTION";
   public static String OK_STATUS = "OK";
+
 
   public enum Attrib {
 
@@ -71,6 +79,9 @@ public class SummaryPNode extends ProfileNode {
     public String key() { return key; }
   }
 
+  private long startTimestamp;
+  private long endTimestamp;
+
   public SummaryPNode(ProfileFacade analyzer, int index) {
     super(analyzer, index);
   }
@@ -91,6 +102,26 @@ public class SummaryPNode extends ProfileNode {
       return SummaryState.OK;
     }
     return SummaryState.FAILED;
+  }
+
+  public long durationMs() {
+    return endTimestamp() - startTimestamp();
+  }
+
+  public long startTimestamp() {
+    if (startTimestamp == 0) {
+      startTimestamp = ParseUtils.parseStartEndTimestamp(
+          attrib(Attrib.START_TIME));
+    }
+    return startTimestamp;
+  }
+
+  public long endTimestamp() {
+    if (endTimestamp == 0) {
+      endTimestamp = ParseUtils.parseStartEndTimestamp(
+          attrib(Attrib.END_TIME));
+    }
+    return endTimestamp;
   }
 
   public String attrib(SummaryPNode.Attrib attrib) {

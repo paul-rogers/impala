@@ -1,5 +1,7 @@
 package com.cloudera.cmf.printer;
 
+import java.io.PrintWriter;
+
 public class AttribBufFormatter extends AbstractAttribFormatter {
 
   private final StringBuilder buf = new StringBuilder();

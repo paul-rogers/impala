@@ -1,18 +1,26 @@
 package com.cloudera.cmf.profile;
 
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import com.cloudera.cmf.profile.SummaryPNode.Attrib;
 import com.google.common.base.Preconditions;
 
 public class ParseUtils {
 
+  public static long NS_PER_SEC = 1_000_000_000;
+  public static long MS_PER_SEC = 1000;
   public static long US_PER_MS = 1000;
   public static long US_PER_SEC = US_PER_MS * 1000;
   public static long US_PER_MIN = US_PER_SEC * 60;
   public static long US_PER_HOUR = US_PER_MIN * 60;
+  public static DateTimeFormatter START_END_FORMAT =
+      DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSSX");
 
   public static class FragmentInstance {
     private final String fragmentGuid;
@@ -177,5 +185,23 @@ public class ParseUtils {
     Matcher m = p.matcher(name);
     Preconditions.checkState(m.matches());
     return Integer.parseInt(m.group(1));
+  }
+
+  public static long parseStartEndTimestamp(String value) {
+    return LocalDateTime.parse(value, START_END_FORMAT)
+        .toInstant(ZoneOffset.UTC).toEpochMilli();
+
+  }
+
+  public static String formatMS(long ms) {
+    return String.format("%,.3f s", (double) ms / MS_PER_SEC);
+  }
+
+  public static String formatUS(long us) {
+    return String.format("%,.3f s", (double) us / US_PER_SEC);
+  }
+
+  public static String formatNS(long ns) {
+    return String.format("%,.3f s", (double) ns / NS_PER_SEC);
   }
 }

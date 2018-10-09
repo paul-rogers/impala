@@ -3,6 +3,7 @@ package com.cloudera.cmf.scanner;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.cloudera.cmf.printer.AttribFormatter;
 import com.cloudera.cmf.profile.ProfileFacade;
 import com.cloudera.cmf.scanner.ProfileScanner.Action;
 
@@ -19,6 +20,13 @@ public class CompoundAction implements Action {
   public void apply(ProfileFacade profile) {
     for (Action action : actions) {
       action.apply(profile);
+    }
+  }
+
+  @Override
+  public void bindFormatter(AttribFormatter fmt) {
+    for (Action action : actions) {
+      action.bindFormatter(fmt);
     }
   }
 }
