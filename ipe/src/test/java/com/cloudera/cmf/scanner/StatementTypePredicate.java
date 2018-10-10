@@ -14,7 +14,7 @@ public class StatementTypePredicate implements Predicate {
 
   @Override
   public boolean accept(ProfileFacade profile) {
-    return profile.summary().type() == type;
+    return profile.type() == type;
   }
 
   public static Predicate selectOnly() {

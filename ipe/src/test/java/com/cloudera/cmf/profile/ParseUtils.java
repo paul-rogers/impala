@@ -8,7 +8,6 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import com.cloudera.cmf.profile.SummaryPNode.Attrib;
 import com.google.common.base.Preconditions;
 
 public class ParseUtils {
@@ -179,18 +178,18 @@ public class ParseUtils {
 
   // Averaged Fragment F02
   // Fragment F03
+  // Coordinator F04
 
   public static int parseFragmentId(String name) {
-    Pattern p = Pattern.compile(".*Fragment F(\\d+)");
+    Pattern p = Pattern.compile(" F(\\d+)$");
     Matcher m = p.matcher(name);
-    Preconditions.checkState(m.matches());
+    Preconditions.checkState(m.find());
     return Integer.parseInt(m.group(1));
   }
 
   public static long parseStartEndTimestamp(String value) {
     return LocalDateTime.parse(value, START_END_FORMAT)
         .toInstant(ZoneOffset.UTC).toEpochMilli();
-
   }
 
   public static String formatMS(long ms) {

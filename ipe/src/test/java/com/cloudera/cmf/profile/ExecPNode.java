@@ -3,93 +3,51 @@ package com.cloudera.cmf.profile;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.apache.impala.thrift.TRuntimeProfileNode;
-import org.apache.impala.thrift.TUnit;
+import com.cloudera.cmf.profile.AbstractFragPNode.FragInstancesPNode;
+import com.cloudera.cmf.profile.AbstractFragPNode.FragmentPNode;
 
 public class ExecPNode extends ProfileNode {
 
-  // Generated using EnumBuilder
-  public enum Attrib {
-    NUMBER_OF_FILTERS("Number of filters"),
-    FILTER_ROUTING_TABLE("Filter routing table"),
-    FRAGMENT_START_LATENCIES("Fragment start latencies"),
-    FINAL_FILTER_TABLE("Final filter table"),
-    PER_NODE_PEAK_MEMORY_USAGE("Per Node Peak Memory Usage");
-
-    private final String key;
-
-    private Attrib(String key) {
-      this.key = key;
-    }
-
-    public String key() { return key; }
-  }
-
-  // Generated using EnumBuilder
-  public enum Counter {
-    FILTERS_RECEIVED("FiltersReceived", TUnit.UNIT),
-    FINALIZATION_TIMER("FinalizationTimer", TUnit.TIME_NS),
-    INACTIVE_TOTAL_TIME("InactiveTotalTime", TUnit.TIME_NS),
-    TOTAL_TIME("TotalTime", TUnit.TIME_NS);
-
-    private final String key;
-    private TUnit units;
-
-    private Counter(String key, TUnit units) {
-      this.key = key;
-      this.units = units;
-    }
-
-    public String key() { return key; }
-    public TUnit units() { return units; }
-  }
-
   public boolean expanded;
-  private FragmentPNode.CoordinatorPNode coordinator;
-  private final List<FragmentPNode.FragSummaryPNode> summaries = new ArrayList<>();
-  private final List<FragmentPNode.InstancesPNode> details = new ArrayList<>();
+  private FragmentPNode coordinator;
+  private final List<FragmentPNode> summaries = new ArrayList<>();
+  private final List<FragInstancesPNode> details = new ArrayList<>();
 
-  public ExecPNode(ProfileFacade analyzer, int index) {
-    super(analyzer, index);
+  public ExecPNode(NodeIterator nodeIndex) {
+    super(nodeIndex, PNodeType.EXEC);
   }
 
   public void expand(ProfileFacade analyzer) {
     if (expanded) { return; }
-    ProfileNode.NodeIndex index = new ProfileNode.NodeIndex(firstChild);
+    NodeIterator nodeIndex = new ProfileNode.NodeIterator(analyzer.profile(), index + 1);
     for (int i = 0; i < childCount(); i++) {
-      TRuntimeProfileNode profileNode = analyzer.node(index.index);
-      String name = profileNode.getName();
-      if (name.startsWith(FragmentPNode.CoordinatorPNode.PREFIX)) {
-        coordinator = new FragmentPNode.CoordinatorPNode(analyzer, index);
-      } else  if (name.startsWith(FragmentPNode.InstancesPNode.NAME_PREFIX)) {
-        details.add(new FragmentPNode.InstancesPNode(analyzer, index));
-      } else if (name.startsWith(FragmentPNode.FragSummaryPNode.PREFIX)) {
-        summaries.add(new FragmentPNode.FragSummaryPNode(analyzer, index));
-      } else {
+      PNodeType childType = PNodeType.parse(nodeIndex.node().getName());
+      switch (childType) {
+      case COORD:
+        coordinator = new FragmentPNode(nodeIndex, childType);
+        break;
+      case FRAG_SUMMARY:
+        summaries.add(new FragmentPNode(nodeIndex, childType));
+        break;
+      case FRAG_DETAIL:
+        details.add(new FragInstancesPNode(nodeIndex));
+        break;
+      default:
         throw new IllegalStateException("Exec node type");
       }
     }
     expanded = true;
   }
 
-  public FragmentPNode.CoordinatorPNode coordinator() { return coordinator; }
-  public List<FragmentPNode.FragSummaryPNode> summaries() { return summaries; }
-  public List<FragmentPNode.InstancesPNode> details() { return details; }
+  public FragmentPNode coordinator() { return coordinator; }
+  public List<FragmentPNode> summaries() { return summaries; }
+  public List<FragInstancesPNode> details() { return details; }
 
   @Override
   public String genericName() { return "Execution Profile"; }
 
   @Override
   public PNodeType nodeType() { return PNodeType.EXEC; }
-
-  public String attrib(Attrib attrib) {
-    return attrib(attrib.key());
-  }
-
-
-  public long counter(Counter counter) {
-    return counter(counter.key());
-  }
 
   @Override
   public List<ProfileNode> childNodes() {

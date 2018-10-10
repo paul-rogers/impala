@@ -150,16 +150,16 @@ public class ProfileScanner {
     @Override
     public void scan() {
       root.tallyProfile();
-      ProfileFacade analyzer = new ProfileFacade(profile,
+      ProfileFacade facade = new ProfileFacade(profile,
           queryId, label);
-      boolean accept = root.predicate().accept(analyzer);
+      boolean accept = root.predicate().accept(facade);
       String msg = String.format("%s - %s",
-          analyzer.title(),
+          facade.title(),
           accept ? "Accept" : "Skip");
       root.formatter().startGroup(msg);
       if (accept) {
         root.tallyAccept();
-        root.action().apply(analyzer);
+        root.action().apply(facade);
       }
       root.formatter().endGroup();
     }

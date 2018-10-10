@@ -12,11 +12,8 @@ import org.apache.impala.thrift.TRuntimeProfileNode;
 
 import com.cloudera.cmf.printer.AttribFormatter;
 import com.cloudera.cmf.printer.AttribPrintFormatter;
-import com.cloudera.cmf.profile.FragmentPNode.CoordinatorPNode;
-import com.cloudera.cmf.profile.FragmentPNode.FragDetailsPNode;
-import com.cloudera.cmf.profile.FragmentPNode.FragInstancePNode;
-import com.cloudera.cmf.profile.FragmentPNode.FragSummaryPNode;
-import com.cloudera.cmf.profile.FragmentPNode.InstancesPNode;
+import com.cloudera.cmf.profile.AbstractFragPNode.FragmentPNode;
+import com.cloudera.cmf.profile.AbstractFragPNode.FragInstancesPNode;
 import com.cloudera.cmf.profile.QueryPlan.PlanNode;
 import com.jolbox.thirdparty.com.google.common.base.Preconditions;
 
@@ -49,7 +46,7 @@ public class QueryDAG {
       this.fragmentId = fragmentId;
     }
 
-    public abstract FragmentPNode.FragDetailsPNode averages();
+    public abstract AbstractFragPNode.FragmentPNode averages();
     public int fragmentId() { return fragmentId; }
     public boolean isLeaf() { return children.isEmpty(); }
     public abstract FragmentSynNode parent();
@@ -95,17 +92,17 @@ public class QueryDAG {
 
   public static class RootFragSynNode extends FragmentSynNode {
 
-    private final FragmentPNode.CoordinatorPNode coord;
+    private final FragmentPNode coord;
     private String serverId;
 
-    public RootFragSynNode(FragmentPNode.CoordinatorPNode coord, String serverId) {
+    public RootFragSynNode(FragmentPNode coord, String serverId) {
       super(coord.fragmentId());
       this.coord = coord;
       this.serverId = serverId;
     }
 
     @Override
-    public FragmentPNode.FragDetailsPNode averages() { return coord; }
+    public AbstractFragPNode.FragmentPNode averages() { return coord; }
     @Override
     public FragmentSynNode parent() { return null; }
     @Override
@@ -125,30 +122,30 @@ public class QueryDAG {
 
   public static class InternalFragSynNode extends FragmentSynNode {
 
-    private final FragmentPNode.FragSummaryPNode avgNode;
-    private FragmentPNode.InstancesPNode detailsNode;
-    private final Map<String, FragmentPNode.FragInstancePNode> details = new HashMap<>();
+    private final FragmentPNode avgNode;
+    private FragInstancesPNode detailsNode;
+    private final Map<String, FragmentPNode> details = new HashMap<>();
     private FragmentSynNode parent;
 
-    public InternalFragSynNode(FragmentPNode.FragSummaryPNode summary) {
+    public InternalFragSynNode(FragmentPNode summary) {
       super(summary.fragmentId());
       avgNode = summary;
     }
 
-    public void defineDetails(FragmentPNode.InstancesPNode fragDetails) {
+    public void defineDetails(AbstractFragPNode.FragInstancesPNode fragDetails) {
       detailsNode = fragDetails;
-      for (FragmentPNode.FragInstancePNode hostDetail : fragDetails.hostNodes()) {
+      for (FragmentPNode hostDetail : fragDetails.hostNodes()) {
         Preconditions.checkState(! details.containsKey(hostDetail.serverId()));
         details.put(hostDetail.serverId(), hostDetail);
       }
     }
 
-    public Map<String, FragmentPNode.FragInstancePNode> details() {
+    public Map<String, FragmentPNode> details() {
       return details;
     }
 
     @Override
-    public FragDetailsPNode averages() { return avgNode; }
+    public FragmentPNode averages() { return avgNode; }
     @Override
     public FragmentSynNode parent() { return parent; }
     @Override
@@ -249,7 +246,7 @@ public class QueryDAG {
     }
 
     public long totalsCounter(String name) {
-      return ProfileNode.getCounter(totals(), name);
+      return Attrib.counter(totals(), name);
     }
 
     public static String idList(Collection<OperatorSynNode> ops) {
@@ -407,10 +404,10 @@ s   */
    * @param coordinator the coordinator fragment node, the one
    * labeled "Coordinator Fragment Fxx"
    */
-  public void setCoordinator(FragmentPNode.CoordinatorPNode coordinator) {
+  public void setCoordinator(FragmentPNode coordinator) {
     fragments = new FragmentSynNode[coordinator.fragmentId() + 1];
     rootFragment = new RootFragSynNode(coordinator,
-        profile.summary().attrib(SummaryPNode.Attrib.COORDINATOR));
+        profile.summary().attrib(Attrib.SummaryAttrib.COORDINATOR));
     fragments[coordinator.fragmentId()] = rootFragment;
   }
 
@@ -420,8 +417,8 @@ s   */
    *
    * @param summaries fragment summary nodes
    */
-  public void defineFrags(List<FragmentPNode.FragSummaryPNode> summaries) {
-    for (FragmentPNode.FragSummaryPNode frag : summaries) {
+  public void defineFrags(List<FragmentPNode> summaries) {
+    for (FragmentPNode frag : summaries) {
       fragments[frag.fragmentId()] = new InternalFragSynNode(frag);
     }
   }
@@ -434,8 +431,8 @@ s   */
    * @param details fragment details exec node which contains
    * a child for each server on which the fragment ran
    */
-  public void defineFragDetails(List<FragmentPNode.InstancesPNode> details) {
-    for (FragmentPNode.InstancesPNode fragDetails : details) {
+  public void defineFragDetails(List<AbstractFragPNode.FragInstancesPNode> details) {
+    for (AbstractFragPNode.FragInstancesPNode fragDetails : details) {
       ((InternalFragSynNode) fragments[fragDetails.fragmentId()])
           .defineDetails(fragDetails);
     }
@@ -455,7 +452,7 @@ s   */
       FragmentSynNode fragSyn = fragments[i];
       if (fragSyn.isRoot()) { continue; }
       InternalFragSynNode internalSyn = (InternalFragSynNode) fragSyn;
-      for (Entry<String, FragmentPNode.FragInstancePNode> entry : internalSyn.details().entrySet()) {
+      for (Entry<String, FragmentPNode> entry : internalSyn.details().entrySet()) {
         defineServer(entry.getKey(), fragSyn);
       }
     }
@@ -525,7 +522,7 @@ s   */
       FragmentSynNode fragSyn = fragments[i];
       if (fragSyn.isRoot()) { continue; }
       InternalFragSynNode internalSyn = (InternalFragSynNode) fragSyn;
-      for (Entry<String, FragmentPNode.FragInstancePNode> entry : internalSyn.details().entrySet()) {
+      for (Entry<String, FragmentPNode> entry : internalSyn.details().entrySet()) {
         for (OperatorPNode operExec : entry.getValue().operators()) {
           gatherOperatorDetails(entry.getKey(), operExec);
         }

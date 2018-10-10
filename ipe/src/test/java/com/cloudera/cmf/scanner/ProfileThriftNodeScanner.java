@@ -10,6 +10,7 @@ import com.cloudera.cmf.profile.PNodeType;
 import com.cloudera.cmf.profile.ParseUtils;
 import com.cloudera.cmf.profile.ParseUtils.FragmentInstance;
 import com.cloudera.cmf.profile.ProfileFacade;
+import com.cloudera.cmf.profile.ProfileNode.NodeIterator;
 import com.cloudera.cmf.scanner.ProfileScanner.Action;
 
 public class ProfileThriftNodeScanner implements Action {
@@ -94,7 +95,7 @@ public class ProfileThriftNodeScanner implements Action {
     protected final AttribFormatter fmt;
     protected final ProfileFacade profile;
     protected State state;
-    protected int posn;
+    protected NodeIterator nodeIndex;
     protected TRuntimeProfileNode node;
     protected PNodeType nodeType;
     protected int fragmentId;
@@ -109,7 +110,7 @@ public class ProfileThriftNodeScanner implements Action {
 
     public ProfileFacade profile() { return profile; }
     public State state() { return state; }
-    public int posn() { return posn - 1; }
+    public int posn() { return nodeIndex.index() - 1; }
     public TRuntimeProfileNode node() { return node; }
     public PNodeType nodeType() { return nodeType; }
     public int fragentId() { return fragmentId; }
@@ -160,6 +161,7 @@ public class ProfileThriftNodeScanner implements Action {
   @Override
   public void apply(ProfileFacade profile) {
     Context context = new Context(profile, fmt);
+    context.nodeIndex = new NodeIterator(profile.profile(), 0);
     context.totals = new RollUp[rules.size()];
     for (int i = 0; i < rules.size(); i++) {
       context.totals[i] = rules.get(i).startGroup();
@@ -173,7 +175,7 @@ public class ProfileThriftNodeScanner implements Action {
   }
 
   private void visit(Context context) {
-    context.node = context.profile.node(context.posn++);
+    context.node = context.nodeIndex.next();
     String nodeName = context.node.getName();
     context.nodeType = PNodeType.parse(nodeName);
     switch (context.nodeType) {

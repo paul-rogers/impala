@@ -3,9 +3,9 @@ package com.cloudera.cmf.profile;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import org.apache.impala.thrift.TRuntimeProfileNode;
 import org.apache.impala.thrift.TRuntimeProfileTree;
 
+import com.cloudera.cmf.profile.ProfileNode.NodeIterator;
 import com.google.common.base.Preconditions;
 
 /**
@@ -43,25 +43,42 @@ import com.google.common.base.Preconditions;
  * <li>Server ("ImpalaServer") (opt)</li>
  * <li>Execution ("Execution Profile ...") (opt)
  *   <ul>
- *   <li>Fragment
- *     <ul>
- *     <li>Fragment</li>
+ *   <li>Coordinator</li>
+ *   <li>Averaged Fragment</li>
+ *   <li>...</li>
+ *   <li>Fragment</li><ul>
+ *     <li>Instance</li>
  *     <li>...</li>
  *     </ul></li>
- *   <li>Fragment</li>
  *   <li>...</li>
  *   </ul></li>
+ * </ul>
+ *
+ * Coordinator, Averaged Fragment and Instance nodes have a similar
+ * substructure:
+ *
+ * <ul>
+ *   <li>CodeGen</li>
+ *   <li>DataStreamSender</li>
+ *   <li>BlockMgr</li>
+ *   <li><i>Operator</i></ul>
+ *     <li><i>Operator</i><li>
+ *     <li>...</li>
+ *     <li>Filter</li>
+ *     </ul></li>
+ *   <li>...</li>
  * </ul>
  *
  * The server and execution nodes appear only if the statement succeeded.
  *
  * <h4>Attributes and Counters</h4>
  *
- * Nodes provide attributes (called "info strings") and counters. Very
- * few nodes have attributes. For those that do, the node facade classes
- * define enums to identify the attributes available. Since attributes
- * tend to have rather long names, the enums provide an easy way to
- * ensure the correct name is used.
+ * Attribute and counter names are defined in the {@link Attrib} class.
+ * The classes and enums there provide a structured way to know which
+ * names are used by which nodes.
+ * <p>
+ * Nodes provide attributes (called "info strings"). Very
+ * few nodes have attributes.
  * <p>
  * Execution nodes have counters. Enums exist for each of these, and the
  * enum provides the units used for the counter (the same information
@@ -72,10 +89,14 @@ import com.google.common.base.Preconditions;
  * (<code>TSummaryStatsCounter</code), but it appears that they
  * are not actually used in the profile.
  * <p>
- * Each node defines an event sequence, but this attribute is used
- * in only one node: the summary node.
+ * Only the summary node defines an event sequence.
  */
 public class ProfileFacade {
+
+
+  public static String FINISHED_STATE = "FINISHED";
+  public static String EXCEPTION_STATE = "EXCEPTION";
+  public static String OK_STATUS = "OK";
 
   public enum QueryType {
 
@@ -129,61 +150,17 @@ public class ProfileFacade {
     }
   }
 
-  public static class RootPNode extends ProfileNode {
-
-    public static String IMPALA_SERVER_NODE = "ImpalaServer";
-    public static String EXEC_PROFILE_NODE = "Execution Profile";
-
-    private final SummaryPNode summaryNode;
-    private ServerPNode serverNode;
-    private ExecPNode execNode;
-    public String queryId;
-
-    public RootPNode(ProfileFacade analyzer) {
-      super(analyzer, 0);
-      Preconditions.checkState(childCount() == 1 || childCount() == 3);
-      summaryNode = new SummaryPNode(analyzer, 1);
-      if (childCount() == 3) {
-        serverNode = new ServerPNode(analyzer, 2);
-        execNode = new ExecPNode(analyzer, 3);
-      }
-      Pattern p = Pattern.compile("\\(id=([^)]+)\\)");
-      Matcher m = p.matcher(name());
-      if (m.find()) {
-        queryId = m.group(1);
-      }
-    }
-
-    public SummaryPNode summary() { return summaryNode; }
-    public ServerPNode serverNode() { return serverNode; }
-    public ExecPNode execNode() { return execNode; }
-    public String queryId() { return queryId; }
-
-    @Override
-    public PNodeType nodeType() { return PNodeType.ROOT; }
-  }
-
-  /**
-   * Facade for the <code>ImpalaServer</code> node.
-   */
-  public static class ServerPNode extends ProfileNode {
-
-    public ServerPNode(ProfileFacade analyzer, int index) {
-      super(analyzer, index);
-      Preconditions.checkState(childCount() == 0);
-    }
-
-    @Override
-    public PNodeType nodeType() { return PNodeType.SERVER; }
-  }
   private final String queryId;
   private final String label;
   private final TRuntimeProfileTree profile;
-  private final RootPNode root;
-  private final SummaryPNode summary;
+  private final ProfileNode rootNode;
+  private final ProfileNode summaryNode;
+  private ProfileNode serverNode;
+  private ExecPNode execNode;
   private QueryPlan plan;
   private QueryDAG dag;
-
+  private long startTimestamp;
+  private long endTimestamp;
 
   public ProfileFacade(TRuntimeProfileTree profile) {
     this(profile, null, null);
@@ -191,21 +168,41 @@ public class ProfileFacade {
 
   public ProfileFacade(TRuntimeProfileTree profile,
       String queryId, String label) {
-    this.queryId = queryId;
     this.label = label;
     this.profile = profile;
-    root = new RootPNode(this);
-    summary = root.summary();
+    NodeIterator nodeIndex = new NodeIterator(profile, 0);
+    rootNode = new ProfileNode(nodeIndex, PNodeType.ROOT);
+    summaryNode = new ProfileNode(nodeIndex, PNodeType.SUMMARY);
+    if (rootNode.childCount() == 3) {
+      serverNode = new ProfileNode(nodeIndex, PNodeType.SERVER);
+      execNode = new ExecPNode(nodeIndex);
+    } else {
+      serverNode = null;
+      execNode = null;
+    }
+    Pattern p = Pattern.compile("\\(id=([^)]+)\\)");
+    Matcher m = p.matcher(rootNode.name());
+    Preconditions.checkState(m.find());
+    this.queryId = m.group(1);
     Preconditions.checkArgument(queryId == null ||
-        queryId.equals(root.queryId()));
+        queryId.equals(this.queryId));
   }
 
-  public TRuntimeProfileNode node(int i) {
-    return profile.nodes.get(i);
+  public TRuntimeProfileTree profile() {
+    return profile;
   }
 
   public String queryId() {
-    return queryId == null ? root.queryId() : queryId;
+    return queryId;
+  }
+
+  public QueryType type() {
+    try {
+      return QueryType.typeFor(
+          summaryNode.attrib(Attrib.SummaryAttrib.QUERY_TYPE));
+    } catch (Exception e) {
+      return null;
+    }
   }
 
   public String label() { return label; }
@@ -218,25 +215,61 @@ public class ProfileFacade {
         .append(": ");
     }
     buf
-      .append(summary.type().name())
+      .append(type().name())
       .append(" (")
-      .append(summary.summaryState().name())
+      .append(summaryState().name())
       .append(")")
       .append(" - ID = ")
       .append(queryId());
     return buf.toString();
   }
 
-  public RootPNode root() { return root; }
-  public SummaryPNode summary() { return summary; }
+  public SummaryState summaryState() {
+    String state = summaryNode.attrib(Attrib.SummaryAttrib.QUERY_STATE);
+    if (state.equals(EXCEPTION_STATE)) {
+      return SummaryState.FAILED;
+    }
+    if (! state.equals(FINISHED_STATE)) {
+      return SummaryState.OTHER;
+    }
+    String status = summaryNode.attrib(Attrib.SummaryAttrib.QUERY_STATUS);
+    if (status.equals(OK_STATUS)) {
+      return SummaryState.OK;
+    }
+    return SummaryState.FAILED;
+  }
+
+  public long durationMs() {
+    return endTimestamp() - startTimestamp();
+  }
+
+  public long startTimestamp() {
+    if (startTimestamp == 0) {
+      startTimestamp = ParseUtils.parseStartEndTimestamp(
+          summaryNode.attrib(Attrib.SummaryAttrib.START_TIME));
+    }
+    return startTimestamp;
+  }
+
+  public long endTimestamp() {
+    if (endTimestamp == 0) {
+      endTimestamp = ParseUtils.parseStartEndTimestamp(
+          summaryNode.attrib(Attrib.SummaryAttrib.END_TIME));
+    }
+    return endTimestamp;
+  }
+
+  public ProfileNode root() { return rootNode; }
+  public ProfileNode summary() { return summaryNode; }
+  public ProfileNode server() { return serverNode; }
 
   public String stmt() {
-    return summary.attrib(SummaryPNode.Attrib.SQL_STATEMENT);
+    return summaryNode.attrib(Attrib.SummaryAttrib.SQL_STATEMENT);
   }
 
   public QueryPlan plan() {
     if (plan == null) {
-      plan = new QueryPlan(summary);
+      plan = new QueryPlan(this);
     }
     return plan;
   }
@@ -251,12 +284,12 @@ public class ProfileFacade {
   }
 
   public void expandExecNodes() {
-    root.execNode().expand(this);
+    execNode.expand(this);
   }
 
   public ExecPNode exec() {
     expandExecNodes();
-    return root.execNode();
+    return execNode;
   }
 
   public void buildDag() {

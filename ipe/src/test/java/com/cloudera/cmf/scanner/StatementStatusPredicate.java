@@ -14,7 +14,7 @@ public class StatementStatusPredicate implements Predicate {
 
   @Override
   public boolean accept(ProfileFacade profile) {
-    return profile.summary().summaryState() == state;
+    return profile.summaryState() == state;
   }
 
   public static Predicate completedOnly() {

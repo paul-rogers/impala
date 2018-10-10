@@ -631,7 +631,7 @@ public class QueryPlan {
     }
   }
 
-  private final SummaryPNode query;
+  private final ProfileFacade profile;
   private final String textPlan;
   private PlanNode[] nodes;
   private List<String> details = new ArrayList<>();
@@ -642,9 +642,9 @@ public class QueryPlan {
   private boolean parsedTail;
   private boolean planDetailsParsed;
 
-  public QueryPlan(SummaryPNode query) {
-    this.query = query;
-    textPlan = query.attrib(SummaryPNode.Attrib.PLAN);
+  public QueryPlan(ProfileFacade query) {
+    this.profile = query;
+    textPlan = query.summary().attrib(Attrib.SummaryAttrib.PLAN);
     try {
       buildPlan();
     } catch (IOException e) {
@@ -731,7 +731,8 @@ public class QueryPlan {
     if (hasSummary) { return; }
     try {
       BufferedReader in = new BufferedReader(
-          new StringReader(query.attrib(SummaryPNode.Attrib.EXEC_SUMMARY)));
+          new StringReader(profile.summary().attrib(
+              Attrib.SummaryAttrib.EXEC_SUMMARY)));
       String line = in.readLine();
       line = in.readLine();
       line = in.readLine();
