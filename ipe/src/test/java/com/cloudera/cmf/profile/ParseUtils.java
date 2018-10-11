@@ -8,6 +8,9 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import org.apache.impala.thrift.TCounter;
+import org.apache.impala.thrift.TUnit;
+
 import com.google.common.base.Preconditions;
 
 public class ParseUtils {
@@ -122,6 +125,10 @@ public class ParseUtils {
     return String.format("%,.0f", value);
   }
 
+  public static String format(long value) {
+    return String.format("%,d", value);
+  }
+
   public static String[] parseExprs(String exprList) {
     List<String> exprs = new ArrayList<>();
     int posn = 0;
@@ -202,5 +209,13 @@ public class ParseUtils {
 
   public static String formatNS(long ns) {
     return String.format("%,.3f s", (double) ns / NS_PER_SEC);
+  }
+
+  public static double getDoubleCounter(TCounter counter) {
+    if (counter.getUnit() == TUnit.DOUBLE_VALUE) {
+      return Double.longBitsToDouble(counter.value);
+    } else {
+      return counter.value;
+    }
   }
 }

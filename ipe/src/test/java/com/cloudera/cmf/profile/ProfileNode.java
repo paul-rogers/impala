@@ -1,7 +1,9 @@
 package com.cloudera.cmf.profile;
 
+import java.util.ArrayList;
 import java.util.List;
 
+import org.apache.impala.thrift.TCounter;
 import org.apache.impala.thrift.TEventSequence;
 import org.apache.impala.thrift.TRuntimeProfileNode;
 import org.apache.impala.thrift.TRuntimeProfileTree;
@@ -103,7 +105,8 @@ public class ProfileNode {
 
   public static TRuntimeProfileNode copyNode(TRuntimeProfileNode source) {
     TRuntimeProfileNode node = new TRuntimeProfileNode();
-    node.name = source.name;
+    node.setName(source.name);
+    node.setCounters(new ArrayList<TCounter>());
     return node;
   }
 }

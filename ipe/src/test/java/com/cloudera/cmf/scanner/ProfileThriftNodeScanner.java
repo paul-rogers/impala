@@ -179,7 +179,7 @@ public class ProfileThriftNodeScanner implements Action {
     String nodeName = context.node.getName();
     context.nodeType = PNodeType.parse(nodeName);
     switch (context.nodeType) {
-    case FRAG_SUMMARY:
+    case FRAG_AVERAGE:
       context.state = State.SUMMARY;
       context.fragmentId = ParseUtils.parseFragmentId(nodeName);
       visitNode(context);

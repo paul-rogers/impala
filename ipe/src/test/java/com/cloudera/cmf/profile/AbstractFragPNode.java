@@ -94,7 +94,7 @@ public abstract class AbstractFragPNode extends ProfileNode {
       case COORD:
         fragmentType = FragmentType.COORDINATOR;
         break;
-      case FRAG_SUMMARY:
+      case FRAG_AVERAGE:
         fragmentType = FragmentType.AVERAGED;
         break;
       default:
@@ -116,7 +116,6 @@ public abstract class AbstractFragPNode extends ProfileNode {
         TRuntimeProfileNode profileNode = nodeIndex.node();
         String name = profileNode.getName();
         parseChild(nodeIndex, name);
-        nodeIndex.incr();
       }
     }
 

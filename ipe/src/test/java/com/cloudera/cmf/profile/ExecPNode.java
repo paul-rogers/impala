@@ -26,7 +26,7 @@ public class ExecPNode extends ProfileNode {
       case COORD:
         coordinator = new FragmentPNode(nodeIndex, childType);
         break;
-      case FRAG_SUMMARY:
+      case FRAG_AVERAGE:
         summaries.add(new FragmentPNode(nodeIndex, childType));
         break;
       case FRAG_DETAIL:

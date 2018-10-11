@@ -4,6 +4,7 @@ import java.util.List;
 
 import org.apache.impala.thrift.TCounter;
 import org.apache.impala.thrift.TRuntimeProfileNode;
+import org.apache.impala.thrift.TUnit;
 
 import com.google.common.base.Preconditions;
 
@@ -11,11 +12,16 @@ public class NodeAggregator {
 
   private TRuntimeProfileNode totals;
 
+  public NodeAggregator(TRuntimeProfileNode node) {
+    this.totals = node;
+  }
+
   public void add(TRuntimeProfileNode node) {
-    if (totals == null) {
-      buildTotals(node);
-    }
     int n = totals.getCountersSize();
+    if (n == 0) {
+      buildTotals(node);
+      n = totals.getCountersSize();
+    }
     Preconditions.checkState(n == node.getCountersSize());
     List<TCounter> sums = totals.getCounters();
     List<TCounter> details = node.getCounters();
@@ -23,18 +29,24 @@ public class NodeAggregator {
       TCounter sum = sums.get(i);
       TCounter detail = details.get(i);
       Preconditions.checkState(sum.getName().equals(detail.getName()));
-      sum.value += sum.value;
+      if (detail.getUnit() == TUnit.DOUBLE_VALUE) {
+        sum.value = Double.doubleToLongBits(
+                      Double.longBitsToDouble(sum.value) +
+                      Double.longBitsToDouble(detail.value));
+      } else {
+        sum.value += detail.value;
+      }
     }
   }
 
   private void buildTotals(TRuntimeProfileNode node) {
-    totals = new TRuntimeProfileNode();
     List<TCounter> source = node.getCounters();
     List<TCounter> dest = totals.getCounters();
     for (TCounter orig : source) {
       TCounter total = new TCounter();
-      total.name = orig.name;
-      total.unit = orig.unit;
+      total.setName(orig.name);
+      total.setUnit(orig.unit);
+      total.setValue(0);
       dest.add(total);
     }
   }

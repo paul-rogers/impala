@@ -39,6 +39,7 @@ public class OperatorPNode extends ProfileNode {
 
   private final String operatorName;
   private final int operatorIndex;
+  private final OperType operType;
   private List<OperatorPNode> children = new ArrayList<>();
   private final List<ProfileNode> filters = new ArrayList<>();
 
@@ -46,6 +47,7 @@ public class OperatorPNode extends ProfileNode {
     super(copyNode(copyFrom.node()), copyFrom.nodeType());
     operatorName = copyFrom.operatorName;
     operatorIndex = copyFrom.operatorIndex;
+    operType = copyFrom.operType;
   }
 
   public OperatorPNode(NodeIterator nodeIndex, PNodeType nodeType) {
@@ -55,6 +57,7 @@ public class OperatorPNode extends ProfileNode {
     Preconditions.checkState(m.matches());
     operatorName = m.group(1);
     operatorIndex = Integer.parseInt(m.group(2));
+    operType = nodeType.operType();
     for (int i = 0; i < childCount(); i++) {
       TRuntimeProfileNode profileNode = nodeIndex.node();
       String name = profileNode.getName();
@@ -68,13 +71,8 @@ public class OperatorPNode extends ProfileNode {
   }
 
   public int operatorId() { return operatorIndex; }
-
-  public List<OperatorPNode> children() {
-    return children;
-  }
-
-  @Override
-  public String genericName() { return operatorName; }
+  public OperType operType() { return operType; }
+  public List<OperatorPNode> children() { return children; }
 
   @Override
   public List<ProfileNode> childNodes() {

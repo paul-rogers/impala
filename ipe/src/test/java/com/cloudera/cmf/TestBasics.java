@@ -15,7 +15,9 @@ import com.cloudera.cmf.printer.ProfilePrinter;
 import com.cloudera.cmf.profile.EnumBuilder;
 import com.cloudera.cmf.profile.ProfileFacade;
 import com.cloudera.cmf.scanner.AndPredicate;
+import com.cloudera.cmf.scanner.CheckCardinalityAction;
 import com.cloudera.cmf.scanner.CompoundAction;
+import com.cloudera.cmf.scanner.FragmentAverageVerifierAction;
 import com.cloudera.cmf.scanner.LogReader;
 import com.cloudera.cmf.scanner.LogReader.QueryRecord;
 import com.cloudera.cmf.scanner.PrintStmtAction;
@@ -274,6 +276,24 @@ public class TestBasics {
   }
 
   @Test
+  public void testAverages() throws IOException {
+    ProfileScanner scanner = new ProfileScanner()
+        .scanFile(INPUT_FILE)
+        .predicate(
+            new AndPredicate()
+              .add(StatementTypePredicate.selectOnly())
+              .add(StatementStatusPredicate.completedOnly()))
+        .limit(1)
+        .skip(51)
+        .toConsole()
+        .action(new CompoundAction()
+//            .add(new PrintStmtAction())
+            .add(new FragmentAverageVerifierAction()))
+        ;
+    scanner.scan();
+  }
+
+  @Test
   public void testThriftNodeScanner() throws IOException {
     ProfileScanner scanner = new ProfileScanner()
         .scanFile(INPUT_FILE)
@@ -288,6 +308,24 @@ public class TestBasics {
 //            .add(new PrintStmtAction())
             .add(new ProfileThriftNodeScanner()
                 .add(new DisabledCodeGenRule())))
+        ;
+    scanner.scan();
+  }
+
+  @Test
+  public void testCardinality() throws IOException {
+    ProfileScanner scanner = new ProfileScanner()
+        .scanFile(INPUT_FILE)
+        .predicate(
+            new AndPredicate()
+              .add(StatementTypePredicate.selectOnly())
+              .add(StatementStatusPredicate.completedOnly()))
+        .limit(1)
+        .skip(51)
+        .toConsole()
+        .action(new CompoundAction()
+//            .add(new PrintStmtAction())
+            .add(new CheckCardinalityAction()))
         ;
     scanner.scan();
   }

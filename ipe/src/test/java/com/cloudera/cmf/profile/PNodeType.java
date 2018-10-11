@@ -9,7 +9,7 @@ public enum PNodeType {
   SERVER("ImpalaServer"),
   EXEC("Execution Profile "),
   COORD("Coordinator Fragment "),
-  FRAG_SUMMARY("Averaged Fragment "),
+  FRAG_AVERAGE("Averaged Fragment "),
   FRAG_DETAIL("Fragment "),
   FRAG_INSTANCE("Instance "),
   EXCHANGE_OP("EXCHANGE_NODE "),

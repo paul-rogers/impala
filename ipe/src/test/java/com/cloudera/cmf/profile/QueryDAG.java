@@ -13,6 +13,7 @@ import org.apache.impala.thrift.TRuntimeProfileNode;
 import com.cloudera.cmf.printer.AttribFormatter;
 import com.cloudera.cmf.printer.AttribPrintFormatter;
 import com.cloudera.cmf.profile.AbstractFragPNode.FragmentPNode;
+import com.cloudera.cmf.profile.OperatorPNode.OperType;
 import com.cloudera.cmf.profile.AbstractFragPNode.FragInstancesPNode;
 import com.cloudera.cmf.profile.QueryPlan.PlanNode;
 import com.jolbox.thirdparty.com.google.common.base.Preconditions;
@@ -101,8 +102,9 @@ public class QueryDAG {
       this.serverId = serverId;
     }
 
+    public FragmentPNode coord() { return coord; }
     @Override
-    public AbstractFragPNode.FragmentPNode averages() { return coord; }
+    public FragmentPNode averages() { return coord; }
     @Override
     public FragmentSynNode parent() { return null; }
     @Override
@@ -189,7 +191,7 @@ public class QueryDAG {
     private final Map<String, OperatorPNode> details = new HashMap<>();
     private OperatorSynNode children[];
     private OperatorSynNode parent;
-    private TRuntimeProfileNode totals;
+    private OperatorPNode totals;
 
     public OperatorSynNode(PlanNode operator) {
       this.operatorId = operator.operatorId();
@@ -215,6 +217,7 @@ public class QueryDAG {
     }
 
     public int operatorId() { return operatorId; }
+    public String title() { return planNode.title(); }
     public PlanNode planNode() { return planNode; }
     public boolean isLeaf() { return children == null; }
     public boolean isRoot() { return parent == null; }
@@ -222,6 +225,10 @@ public class QueryDAG {
     public int fragmentId() { return fragment.fragmentId(); }
     public FragmentSynNode fragment() { return fragment; }
     public OperatorSynNode parent() { return parent; }
+    public OperatorPNode avgNode() { return avgNode; }
+    public Collection<OperatorPNode> details() { return details.values(); }
+    public int instanceCount() { return details.size(); }
+    public OperType opType() { return avgNode.operType(); }
 
     public int childCount() {
       return children == null ? 0 : children.length;
@@ -231,13 +238,13 @@ public class QueryDAG {
       return isRoot() || parent.fragmentId() != fragmentId();
     }
 
-    public TRuntimeProfileNode totals() {
+    public OperatorPNode totals() {
       if (totals != null) { return totals; }
-      NodeAggregator agg = new NodeAggregator();
+      totals = new OperatorPNode(avgNode);
+      NodeAggregator agg = new NodeAggregator(totals.node());
       for (OperatorPNode node : details.values()) {
         agg.add(node.node());
       }
-      totals = agg.totals();
       return totals;
     }
 
@@ -246,7 +253,36 @@ public class QueryDAG {
     }
 
     public long totalsCounter(String name) {
-      return Attrib.counter(totals(), name);
+      return totals().counter(name);
+    }
+
+    public long total(Attrib.Counter counter) {
+      return totals().counter(counter);
+    }
+
+    public long estTotal(Attrib.Counter counter) {
+      return avgNode.counter(counter) * instanceCount();
+    }
+
+    public OperatorSynNode child() {
+      Preconditions.checkState(childCount() == 1);
+      return children[0];
+    }
+
+    /**
+     * Left child, which is the build side of a hash join.
+     */
+    public OperatorSynNode leftChild() {
+      Preconditions.checkState(childCount() == 2);
+      return children[0];
+    }
+
+    /**
+     * Right child, which is the probe side of a hash join.
+     */
+    public OperatorSynNode rightChild() {
+      Preconditions.checkState(childCount() == 2);
+      return children[1];
     }
 
     public static String idList(Collection<OperatorSynNode> ops) {
@@ -308,6 +344,14 @@ public class QueryDAG {
         child.formatDag(fmt);
       }
       if (! first) { fmt.endGroup(); }
+    }
+
+    public String fileFormat() {
+      if (opType() != OperType.HDFS_SCAN) { return "N/A"; }
+      String format = details().iterator().next().attrib(Attrib.HdfsScanAttrib.FILE_FORMATS);
+      int posn = format.indexOf("/");
+      if (posn == -1) { return "Unknown"; }
+      return format.substring(0, posn);
     }
   }
 
@@ -379,6 +423,10 @@ s   */
 
     analyzeDag();
   }
+
+  public OperatorSynNode[] operators() { return operators; }
+  public OperatorSynNode rootOperator() { return rootOperator; }
+  public RootFragSynNode rootFragment() { return rootFragment; }
 
   /**
    * Synthesizes the DAG from the structure within the query
