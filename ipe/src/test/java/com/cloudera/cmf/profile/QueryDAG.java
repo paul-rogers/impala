@@ -198,7 +198,7 @@ public class QueryDAG {
       planNode = operator;
     }
 
-   public void setSummary(FragmentSynNode fragSyn, OperatorPNode operExec) {
+    public void setSummary(FragmentSynNode fragSyn, OperatorPNode operExec) {
       fragment = fragSyn;
       Preconditions.checkState(avgNode == null);
       avgNode = operExec;
@@ -228,7 +228,9 @@ public class QueryDAG {
     public OperatorPNode avgNode() { return avgNode; }
     public Collection<OperatorPNode> details() { return details.values(); }
     public int instanceCount() { return details.size(); }
-    public OperType opType() { return avgNode.operType(); }
+    public OperType opType() {
+      return avgNode == null ? OperType.ROOT : avgNode.operType();
+    }
 
     public int childCount() {
       return children == null ? 0 : children.length;
@@ -260,8 +262,23 @@ public class QueryDAG {
       return totals().counter(counter);
     }
 
+    /**
+     * Estimate the total for a counter. For performance, uses the
+     * average multiplied by the instance count, if the average is
+     * large enough that the resulting error doesn't matter. Else,
+     * uses the actual totals. Also uses the actual totals if they
+     * were already computed.
+     *
+     * @param counter
+     * @return
+     */
     public long estTotal(Attrib.Counter counter) {
-      return avgNode.counter(counter) * instanceCount();
+      int n = instanceCount();
+      if (totals == null) {
+        long avg = avgNode.counter(counter);
+        if (avg > 2) { return avg * n; }
+      }
+      return totals().counter(counter);
     }
 
     public OperatorSynNode child() {
@@ -534,6 +551,13 @@ s   */
       for (OperatorPNode operExec : fragSyn.averages().operators()) {
         gatherOperatorSummary(fragSyn, operExec);
       }
+    }
+
+    // Special case the "fake" root operator for versions
+    // earlier than 2.9.0
+    PlanNode rootNode = profile.plan().root();
+    if (rootNode.fragment() == null) {
+      operators[rootNode.operatorId()].setSummary(rootFragment, null);
     }
   }
 

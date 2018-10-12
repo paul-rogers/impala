@@ -85,6 +85,8 @@ public abstract class AbstractFragPNode extends ProfileNode {
     private ProfileNode dataStreamSender;
     // TODO: This is probably the root operator
     private final List<OperatorPNode> operators = new ArrayList<>();
+    // Version 2.9.0 and later
+    private ProfileNode timing;
 
     public FragmentPNode(NodeIterator nodeIndex, PNodeType nodeType) {
       super(nodeIndex, nodeType,
@@ -126,10 +128,13 @@ public abstract class AbstractFragPNode extends ProfileNode {
         blockMgr = new ProfileNode(nodeIndex, nodeType);
         break;
       case CODE_GEN:
-         codeGen = new ProfileNode(nodeIndex, nodeType);
-         break;
+        codeGen = new ProfileNode(nodeIndex, nodeType);
+        break;
       case SENDER:
         dataStreamSender = new ProfileNode(nodeIndex, nodeType);
+        break;
+      case FRAG_TIMING:
+        timing = new ProfileNode(nodeIndex, nodeType);
         break;
       default:
         operators.add(new OperatorPNode(nodeIndex, nodeType));
@@ -137,8 +142,11 @@ public abstract class AbstractFragPNode extends ProfileNode {
     }
 
     public List<OperatorPNode> operators() { return operators; }
-
     public FragmentType fragmentType() { return fragmentType; }
+    public ProfileNode codeGen() { return codeGen; }
+    public ProfileNode blockMgr() { return blockMgr; }
+    public ProfileNode sender() { return dataStreamSender; }
+    public ProfileNode timings() { return timing; }
 
     public String serverId() {
       return instanceId == null ? null : instanceId.serverId();

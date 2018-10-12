@@ -32,14 +32,17 @@ import com.cloudera.ipe.rules.ImpalaRuntimeProfile;
 public class TestBasics {
 
   public static File INPUT_DIR =
-      new File("/home/progers/data/189495");
-  public static File INPUT_FILE =
+      new File("/home/progers/data/ims_189495");
+  public static File INPUT_FILE_260 =
       new File(INPUT_DIR,
           "impala_profiles_default_1.log");
+  public static File INPUT_FILE_290 =
+      new File(INPUT_DIR,
+          "impala_profiles_default_40.log");
 
   @Test
   public void testFile() throws IOException {
-    LogReader lr = new LogReader(INPUT_FILE);
+    LogReader lr = new LogReader(INPUT_FILE_260);
     for (;;) {
       QueryRecord qr = lr.next();
       if (qr == null) {
@@ -71,14 +74,14 @@ public class TestBasics {
 
   @Test
   public void testCM() throws IOException {
-    LogReader lr = new LogReader(INPUT_FILE);
+    LogReader lr = new LogReader(INPUT_FILE_260);
     QueryRecord qr = lr.next();
     ImpalaRuntimeProfile profile = qr.profile();
     System.out.println(profile);
   }
 
   public void testContentToConsole(int skip) throws IOException {
-    LogReader lr = new LogReader(INPUT_FILE);
+    LogReader lr = new LogReader(INPUT_FILE_260);
     lr.skip(skip);
 
     QueryRecord qr = lr.next();
@@ -108,7 +111,7 @@ public class TestBasics {
   }
 
   public void testContentToFile(int skip) throws IOException {
-    LogReader lr = new LogReader(INPUT_FILE);
+    LogReader lr = new LogReader(INPUT_FILE_260);
     lr.skip(skip);
 
     QueryRecord qr = lr.next();
@@ -123,7 +126,7 @@ public class TestBasics {
 
   @Test
   public void genEnums() throws IOException {
-    LogReader lr = new LogReader(INPUT_FILE);
+    LogReader lr = new LogReader(INPUT_FILE_260);
     lr.skip(3);
 
     QueryRecord qr = lr.next();
@@ -135,7 +138,7 @@ public class TestBasics {
   @Test
   public void testScannerBasics() throws IOException {
     ProfileScanner scanner = new ProfileScanner()
-        .scanFile(INPUT_FILE)
+        .scanFile(INPUT_FILE_260)
         .toConsole();
     scanner.scan();
     System.out.print("Scan count: ");
@@ -147,7 +150,7 @@ public class TestBasics {
   @Test
   public void testScannerPredicate() throws IOException {
     ProfileScanner scanner = new ProfileScanner()
-        .scanFile(INPUT_FILE)
+        .scanFile(INPUT_FILE_260)
         .predicate(
             new AndPredicate()
               .add(StatementTypePredicate.selectOnly())
@@ -188,10 +191,19 @@ public class TestBasics {
     }
   }
 
+  public static class PrintProfileAction extends AbstractAction {
+
+    @Override
+    public void apply(ProfileFacade profile) {
+      ProfilePrinter printer = new ProfilePrinter(profile.profile());
+      printer.convert();
+    }
+  }
+
   @Test
   public void testPrintStmt() throws IOException {
     ProfileScanner scanner = new ProfileScanner()
-        .scanFile(INPUT_FILE)
+        .scanFile(INPUT_FILE_260)
         .predicate(
             new AndPredicate()
               .add(StatementTypePredicate.selectOnly())
@@ -204,9 +216,9 @@ public class TestBasics {
   }
 
   @Test
-  public void testPlan() throws IOException {
+  public void testPlan260() throws IOException {
     ProfileScanner scanner = new ProfileScanner()
-        .scanFile(INPUT_FILE)
+        .scanFile(INPUT_FILE_260)
         .predicate(
             new AndPredicate()
               .add(StatementTypePredicate.selectOnly())
@@ -216,6 +228,25 @@ public class TestBasics {
         .toConsole()
         .action(new CompoundAction()
 //            .add(new PrintStmtAction())
+            .add(new PrintPlanAction()))
+        ;
+    scanner.scan();
+  }
+
+  @Test
+  public void testPlan290() throws IOException {
+    ProfileScanner scanner = new ProfileScanner()
+        .scanFile(INPUT_FILE_290)
+        .predicate(
+            new AndPredicate()
+              .add(StatementTypePredicate.selectOnly())
+              .add(StatementStatusPredicate.completedOnly()))
+        .limit(1)
+        .skip(51)
+        .toConsole()
+        .action(new CompoundAction()
+//            .add(new PrintStmtAction())
+            .add(new PrintProfileAction())
             .add(new PrintPlanAction()))
         ;
     scanner.scan();
@@ -232,7 +263,7 @@ public class TestBasics {
   @Test
   public void testExec() throws IOException {
     ProfileScanner scanner = new ProfileScanner()
-        .scanFile(INPUT_FILE)
+        .scanFile(INPUT_FILE_260)
         .predicate(
             new AndPredicate()
               .add(StatementTypePredicate.selectOnly())
@@ -260,7 +291,7 @@ public class TestBasics {
   @Test
   public void testEnumBuilder() throws IOException {
     ProfileScanner scanner = new ProfileScanner()
-        .scanFile(INPUT_FILE)
+        .scanFile(INPUT_FILE_260)
         .predicate(
             new AndPredicate()
               .add(StatementTypePredicate.selectOnly())
@@ -278,7 +309,7 @@ public class TestBasics {
   @Test
   public void testAverages() throws IOException {
     ProfileScanner scanner = new ProfileScanner()
-        .scanFile(INPUT_FILE)
+        .scanFile(INPUT_FILE_260)
         .predicate(
             new AndPredicate()
               .add(StatementTypePredicate.selectOnly())
@@ -296,7 +327,7 @@ public class TestBasics {
   @Test
   public void testThriftNodeScanner() throws IOException {
     ProfileScanner scanner = new ProfileScanner()
-        .scanFile(INPUT_FILE)
+        .scanFile(INPUT_FILE_260)
         .predicate(
             new AndPredicate()
               .add(StatementTypePredicate.selectOnly())
@@ -315,7 +346,25 @@ public class TestBasics {
   @Test
   public void testCardinality() throws IOException {
     ProfileScanner scanner = new ProfileScanner()
-        .scanFile(INPUT_FILE)
+        .scanFile(INPUT_FILE_260)
+        .predicate(
+            new AndPredicate()
+              .add(StatementTypePredicate.selectOnly())
+              .add(StatementStatusPredicate.completedOnly()))
+        .limit(1)
+        .skip(51)
+        .toConsole()
+        .action(new CompoundAction()
+//            .add(new PrintStmtAction())
+            .add(new CheckCardinalityAction()))
+        ;
+    scanner.scan();
+  }
+
+  @Test
+  public void testCardinalityFull() throws IOException {
+    ProfileScanner scanner = new ProfileScanner()
+        .scanFile(INPUT_DIR)
         .predicate(
             new AndPredicate()
               .add(StatementTypePredicate.selectOnly())

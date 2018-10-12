@@ -161,6 +161,7 @@ public class ProfileFacade {
   private QueryDAG dag;
   private long startTimestamp;
   private long endTimestamp;
+  private String version;
 
   public ProfileFacade(TRuntimeProfileTree profile) {
     this(profile, null, null);
@@ -267,6 +268,20 @@ public class ProfileFacade {
     return summaryNode.attrib(Attrib.SummaryAttrib.SQL_STATEMENT);
   }
 
+  public String fullVersion() {
+    return summaryNode.attrib(Attrib.SummaryAttrib.IMPALA_VERSION);
+  }
+
+  public String version() {
+    if (version == null) {
+      Pattern p = Pattern.compile("impalad version ([0-9.]+)[- ].*");
+      Matcher m = p.matcher(fullVersion());
+      Preconditions.checkState(m.matches());
+      version = m.group(1);
+    }
+    return version;
+  }
+
   public QueryPlan plan() {
     if (plan == null) {
       plan = new QueryPlan(this);
@@ -275,8 +290,8 @@ public class ProfileFacade {
   }
 
   public void computePlanSummary() {
+    plan().parseDetails();
     plan().parseSummary();
-    plan().parseTail();
   }
 
   public void parsePlanDetails() {

@@ -19,7 +19,10 @@ public enum PNodeType {
   BLOCK_MGR("BlockMgr"),
   CODE_GEN("CodeGen"),
   SENDER("DataStreamSender "),
-  FILTER("Filter ");
+  FILTER("Filter "),
+  // Version 2.9.0 and later
+  FRAG_TIMING("Fragment Instance Lifecycle Timings"),
+  PLAN_ROOT("PLAN_ROOT_SINK");
 
   private final String namePrefix;
 
@@ -42,6 +45,8 @@ public enum PNodeType {
 
   public OperType operType() {
     switch (this) {
+    case PLAN_ROOT:
+      return OperType.ROOT;
     case EXCHANGE_OP:
       return OperType.EXCHANGE;
     case AGG_OP:

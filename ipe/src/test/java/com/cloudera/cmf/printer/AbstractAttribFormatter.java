@@ -1,7 +1,6 @@
 package com.cloudera.cmf.printer;
 
 import java.util.Collection;
-import java.util.List;
 
 import com.cloudera.cmf.profile.ParseUtils;
 import com.google.common.base.Joiner;
@@ -54,9 +53,12 @@ public abstract class AbstractAttribFormatter implements AttribFormatter {
 
   @Override
   public void attrib(String label, int[] value) {
-    attrib(label, Joiner.on(", ").join(Ints.asList(value)));
+    if (value == null || value.length == 0) {
+      attrib(label, "None");
+    } else {
+      attrib(label, Joiner.on(", ").join(Ints.asList(value)));
+    }
   }
-
 
   @Override
   public void usAttrib(String label, double value) {

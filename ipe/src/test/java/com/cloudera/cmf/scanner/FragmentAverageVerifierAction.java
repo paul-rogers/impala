@@ -30,7 +30,10 @@ public class FragmentAverageVerifierAction extends AbstractAction {
   }
 
   private void verifyOperator(OperatorSynNode opSyn) {
+    // Root is the fake PLAN_ROOT
     if (opSyn.isRoot()) { return; }
+    // Also ignore the EXCHANGE just under the root
+    if (opSyn.parent().planNode().isRoot()) { return; }
     OperatorPNode avgNode = opSyn.avgNode();
     int n = opSyn.instanceCount();
     OperatorPNode totals = opSyn.totals();

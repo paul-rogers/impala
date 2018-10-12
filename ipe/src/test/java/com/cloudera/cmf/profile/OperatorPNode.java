@@ -31,6 +31,7 @@ import com.google.common.base.Preconditions;
 public class OperatorPNode extends ProfileNode {
 
   public enum OperType {
+    ROOT,
     EXCHANGE,
     AGG,
     HASH_JOIN,
