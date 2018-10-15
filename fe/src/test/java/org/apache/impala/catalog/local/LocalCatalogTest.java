@@ -19,6 +19,7 @@ package org.apache.impala.catalog.local;
 
 import static org.junit.Assert.*;
 
+import java.io.File;
 import java.util.List;
 import java.util.Set;
 
@@ -127,6 +128,19 @@ public class LocalCatalogTest {
     // TODO(todd): once we support file descriptors in LocalCatalog,
     // run the full test.
     CatalogTest.checkAllTypesPartitioning(t, /*checkFileDescriptors=*/false);
+  }
+
+  @Test
+  public void testCachePruning() throws Exception {
+    FeFsTable t = (FeFsTable) catalog_.getTable("functional",  "alltypes");
+    // TODO(todd): once we support file descriptors in LocalCatalog,
+    // run the full test.
+    CatalogTest.checkAllTypesPartitioning(t, /*checkFileDescriptors=*/false);
+    System.gc();
+    File dumpFile = new File("/tmp/cache-prune-dump.hprof");
+    dumpFile.delete();
+    HeapDumper.dumpHeap(dumpFile);
+    // Here, would be good to analyze the output
   }
 
   /**

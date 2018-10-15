@@ -470,7 +470,6 @@ public class CatalogdMetaProvider implements MetaProvider {
     return req;
   }
 
-
   @Override
   public Database loadDb(final String dbName) throws TException {
     return loadWithCaching("database metadata for " + dbName,
@@ -605,7 +604,6 @@ public class CatalogdMetaProvider implements MetaProvider {
     return ret;
   }
 
-  @SuppressWarnings("unchecked")
   @Override
   public List<PartitionRef> loadPartitionList(final TableMetaRef table)
       throws TException {
@@ -1165,6 +1163,10 @@ public class CatalogdMetaProvider implements MetaProvider {
       this.fds_ = fds;
       this.partitionStats_ = partitionStats;
       this.hasIncrementalStats_ = hasIncrementalStats;
+
+      // The per-partition schema information is not used by Impala.
+      // Remove it to save memory.
+      msPartition_.getSd().unsetCols();
     }
 
     /**

@@ -54,6 +54,7 @@ import com.google.common.collect.Maps;
  * each catalog instance.
  */
 class LocalDb implements FeDb {
+  @SuppressWarnings("unused")
   private static final Logger LOG = LoggerFactory.getLogger(LocalDb.class);
 
   private final LocalCatalog catalog_;
