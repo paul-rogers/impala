@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
@@ -81,7 +82,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Objects;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Stopwatch;
 import com.google.common.base.Throwables;
@@ -1252,8 +1252,9 @@ public class CatalogdMetaProvider implements MetaProvider {
 
     @Override
     public int hashCode() {
-      return Objects.hashCode(dbName_, childName_, getClass());
+      return Objects.hash(dbName_, childName_, getClass());
     }
+
     @Override
     public boolean equals(Object obj) {
       if (obj == null || !obj.getClass().equals(getClass())) {
@@ -1308,7 +1309,7 @@ public class CatalogdMetaProvider implements MetaProvider {
 
     @Override
     public int hashCode() {
-      return Objects.hashCode(super.hashCode(), version_);
+      return super.hashCode() * 31 + Objects.hashCode(version_);
     }
 
     @Override
@@ -1336,7 +1337,7 @@ public class CatalogdMetaProvider implements MetaProvider {
 
     @Override
     public int hashCode() {
-      return Objects.hashCode(super.hashCode(), colName_);
+      return super.hashCode() * 31 + Objects.hashCode(colName_);
     }
 
     @Override
@@ -1381,7 +1382,7 @@ public class CatalogdMetaProvider implements MetaProvider {
 
     @Override
     public int hashCode() {
-      return Objects.hashCode(super.hashCode(), partId_);
+      return super.hashCode() * 31 + Objects.hashCode(partId_);
     }
 
     @Override
@@ -1416,7 +1417,7 @@ public class CatalogdMetaProvider implements MetaProvider {
 
     @Override
     public int hashCode() {
-      return Objects.hashCode(getClass(), dbName_, type_);
+      return Objects.hash(dbName_, type_);
     }
 
     @Override
