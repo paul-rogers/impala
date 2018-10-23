@@ -528,6 +528,30 @@ visible_functions = [
   [['if'], 'TIMESTAMP', ['BOOLEAN', 'TIMESTAMP', 'TIMESTAMP'], ''],
   [['if'], 'DECIMAL', ['BOOLEAN', 'DECIMAL', 'DECIMAL'], ''],
 
+  # Rewritten away in the FE
+  [['nvl2'], 'BOOLEAN', ['NULL', 'BOOLEAN', 'BOOLEAN'], ''],
+  [['nvl2'], 'TINYINT', ['NULL', 'TINYINT', 'TINYINT'], ''],
+  [['nvl2'], 'SMALLINT', ['NULL', 'SMALLINT', 'SMALLINT'], ''],
+  [['nvl2'], 'INT', ['NULL', 'INT', 'INT'], ''],
+  [['nvl2'], 'BIGINT', ['NULL', 'BIGINT', 'BIGINT'], ''],
+  [['nvl2'], 'FLOAT', ['NULL', 'FLOAT', 'FLOAT'], ''],
+  [['nvl2'], 'DOUBLE', ['NULL', 'DOUBLE', 'DOUBLE'], ''],
+  [['nvl2'], 'STRING', ['NULL', 'STRING', 'STRING'], ''],
+  [['nvl2'], 'TIMESTAMP', ['NULL', 'TIMESTAMP', 'TIMESTAMP'], ''],
+  [['nvl2'], 'DECIMAL', ['NULL', 'DECIMAL', 'DECIMAL'], ''],
+
+  # Rewritten away in the FE
+  [['nullif'], 'BOOLEAN', ['BOOLEAN', 'BOOLEAN'], ''],
+  [['nullif'], 'TINYINT', ['TINYINT', 'TINYINT'], ''],
+  [['nullif'], 'SMALLINT', ['SMALLINT', 'SMALLINT'], ''],
+  [['nullif'], 'INT', ['INT', 'INT'], ''],
+  [['nullif'], 'BIGINT', ['BIGINT', 'BIGINT'], ''],
+  [['nullif'], 'FLOAT', ['FLOAT', 'FLOAT'], ''],
+  [['nullif'], 'DOUBLE', ['DOUBLE', 'DOUBLE'], ''],
+  [['nullif'], 'STRING', ['STRING', 'STRING'], ''],
+  [['nullif'], 'TIMESTAMP', ['TIMESTAMP', 'TIMESTAMP'], ''],
+  [['nullif'], 'DECIMAL', ['DECIMAL', 'DECIMAL'], ''],
+
   [['zeroifnull'], 'TINYINT', ['TINYINT'], 'impala::ConditionalFunctions::ZeroIfNull'],
   [['zeroifnull'], 'SMALLINT', ['SMALLINT'], 'impala::ConditionalFunctions::ZeroIfNull'],
   [['zeroifnull'], 'INT', ['INT'], 'impala::ConditionalFunctions::ZeroIfNull'],
@@ -713,6 +737,8 @@ visible_functions = [
   [['shiftright'], 'BIGINT', ['BIGINT', 'INT'], 'impala::BitByteFunctions::ShiftRight'],
 ]
 
+# Fuctions implemented in the BE but not available to queries
+# (that is, not listed in the FE's scalar function registry.)
 invisible_functions = [
   [['months_add_interval'], 'TIMESTAMP', ['TIMESTAMP', 'INT'],
       '_ZN6impala18TimestampFunctions6AddSubILb1EN10impala_udf6IntValEN5boost9date_time15months_durationINS4_9gregorian21greg_durations_configEEELb0EEENS2_12TimestampValEPNS2_15FunctionContextERKSA_RKT0_'],

@@ -28,11 +28,11 @@ import org.apache.impala.analysis.CaseWhenClause;
 import org.apache.impala.analysis.CompoundPredicate;
 import org.apache.impala.analysis.Expr;
 import org.apache.impala.analysis.FunctionCallExpr;
+import org.apache.impala.analysis.IsNullPredicate;
 import org.apache.impala.analysis.NullLiteral;
 import org.apache.impala.common.AnalysisException;
 
 import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 
 /***
@@ -54,9 +54,6 @@ import com.google.common.collect.Lists;
  */
 public class SimplifyConditionalsRule implements ExprRewriteRule {
   public static ExprRewriteRule INSTANCE = new SimplifyConditionalsRule();
-
-  private static List<String> IFNULL_ALIASES = ImmutableList.of(
-      "ifnull", "isnull", "nvl");
 
   @Override
   public Expr apply(Expr expr, Analyzer analyzer) throws AnalysisException {
@@ -87,76 +84,109 @@ public class SimplifyConditionalsRule implements ExprRewriteRule {
   }
 
   /**
-   * Simplifies IF by returning the corresponding child if the condition has a constant
-   * TRUE, FALSE, or NULL (equivalent to FALSE) value.
+   * Transform SQL functions that require short-circuit evaluation
+   * into the equivelent <code>CASE</code> expressions. The BE does
+   * code gen for <CASE>, avoiding the need for ad-hoc implementations
+   * of each function.
    */
-  private Expr simplifyIfFunctionCallExpr(FunctionCallExpr expr) {
-    Preconditions.checkState(expr.getChildren().size() == 3);
-    if (expr.getChild(0) instanceof BoolLiteral) {
-      if (((BoolLiteral) expr.getChild(0)).getValue()) {
-        // IF(TRUE)
-        return expr.getChild(1);
-      } else {
-        // IF(FALSE)
-        return expr.getChild(2);
-      }
-    } else if (expr.getChild(0) instanceof NullLiteral) {
-      // IF(NULL)
-      return expr.getChild(2);
+  private Expr simplifyFunctionCallExpr(FunctionCallExpr expr) {
+    switch (expr.getFnName().getFunction()) {
+    case "if":
+      return rewriteIfFn(expr);
+    case "coalesce":
+      return rewriteCoalesceFn(expr);
+    case "isnull":
+    case "nvl":
+    case "ifnull":
+      return rewriteIfNullFn(expr);
+    case "nvl2":
+      return rewriteNvl2Fn(expr);
+    case "nullif":
+      return rewriteNullIfFn(expr);
+    default:
+      return expr;
     }
-    return expr;
   }
 
   /**
-   * Simplifies IFNULL if the condition is a literal, using the
-   * following transformations:
-   *   IFNULL(NULL, x) -> x
-   *   IFNULL(a, x) -> a, if a is a non-null literal
+   * Rewrites <code>IF(cond, thenExpr, elseExpr)</code>  &rarr;
+   * <code>CASE WHEN cond THEN thenExpr ELSE elseExpr END</code>.
+   * <p>
+   * Relies on <code>CASE</code> simplification to perform the
+   * following simplifications:
+   * <ul>
+   * <li><code>IF(TRUE, then, else)</code> &rarr; <code>then</code></li>
+   * <li><code>IF(FALSE|NULL, then, else)</code> &rarr; <code>else</code></li>
+   * </ul>
    */
-  private Expr simplifyIfNullFunctionCallExpr(FunctionCallExpr expr) {
+  private Expr rewriteIfFn(FunctionCallExpr expr) {
+    Preconditions.checkState(expr.getChildren().size() == 3);
+    return new CaseExpr(null, // CASE
+        Lists.newArrayList(
+            new CaseWhenClause( // WHEN cond THEN thenExpr
+                expr.getChild(0),
+                expr.getChild(1))),
+        expr.getChild(2)); // ELSE elseExpr END
+  }
+
+  /**
+   * Rewrites <code>IFNULL(a, x)</code>:
+   * <ul>
+   * <li><code>IFNULL(NULL, x)</code> &rarr; <code>x</code></li>
+   * <li><code>IFNULL(a, x)</code> &rarr; <code>a</code>, if a is a non-null literal</li>
+   * <li><code>IFNULL(a, x)</code> &rarr; <br>
+   * <code>CASE WHEN a IS NULL THEN x ELSE a END</code></li>
+   * </ul>
+   */
+  private Expr rewriteIfNullFn(FunctionCallExpr expr) {
     Preconditions.checkState(expr.getChildren().size() == 2);
     Expr child0 = expr.getChild(0);
     if (child0 instanceof NullLiteral) return expr.getChild(1);
     if (child0.isLiteral()) return child0;
-    return expr;
+
+    // Transform into a CASE expression
+    return new CaseExpr(null, // CASE
+        Lists.newArrayList(
+            new CaseWhenClause( // WHEN a IS NULL
+                new IsNullPredicate(expr.getChild(0), false),
+                expr.getChild(1))), // THEN x
+        expr.getChild(0)); // ELSE a END
   }
 
   /**
-   * Simplify COALESCE by skipping leading nulls and applying the following transformations:
-   * COALESCE(null, a, b) -> COALESCE(a, b);
-   * COALESCE(<literal>, a, b) -> <literal>, when literal is not NullLiteral;
+   * Rewrites <code>COALESCE(a, b, ...)</code> by skipping nulls and
+   * applying the following transformations:
+   * <ul>
+   * <li><code>COALESCE(null, a, b)</code> &rarr; <code>COALESCE(a, b)</code></li>
+   * <li><code>COALESCE(a, null, c)</code> &rarr; <code>COALESCE(a, c)</code></li>
+   * <li><code>COALESCE(<i>literal</i>, a, b)</code> &rarr;
+   * <code><i>literal</i></code>, when literal is not NullLiteral</code></li>
+   * <li><code>COALESCE(a, <i>literal</i>, b)</code> &rarr;
+   * <code>COALESCE(a, <i>literal</i>)</code> when literal is not NullLiteral;</li>
+   * <li><code>COALESCE(a, b)</code> &rarr; <br>
+   * <code>CASE WHEN a IS NOT NULL THEN a <br>
+   * WHEN b IS NOT NULL THEN b END</code></li>
+   * </ul>
    */
-  private Expr simplifyCoalesceFunctionCallExpr(FunctionCallExpr expr) {
-    int numChildren = expr.getChildren().size();
-    Expr result = NullLiteral.create(expr.getType());
-    for (int i = 0; i < numChildren; ++i) {
-      Expr childExpr = expr.getChildren().get(i);
-      // Skip leading nulls.
+  private Expr rewriteCoalesceFn(FunctionCallExpr expr) {
+    List<Expr> revised = new ArrayList<>();
+    for (Expr childExpr : expr.getChildren()) {
+      // Skip nulls.
       if (childExpr.isNullLiteral()) continue;
-      if ((i == numChildren - 1) || childExpr.isLiteral()) {
-        result = childExpr;
-      } else if (i == 0) {
-        result = expr;
-      } else {
-        List<Expr> newChildren = Lists.newArrayList(expr.getChildren().subList(i, numChildren));
-        result = new FunctionCallExpr(expr.getFnName(), newChildren);
-      }
-      break;
+      revised.add(childExpr);
+      if (childExpr.isLiteral()) break;
     }
-    return result;
-  }
+    if (revised.isEmpty()) { return NullLiteral.create(expr.getType()); }
+    if (revised.size() == 1) { return revised.get(0); }
 
-  private Expr simplifyFunctionCallExpr(FunctionCallExpr expr) {
-    String fnName = expr.getFnName().getFunction();
-
-    if (fnName.equals("if")) {
-      return simplifyIfFunctionCallExpr(expr);
-    } else if (fnName.equals("coalesce")) {
-      return simplifyCoalesceFunctionCallExpr(expr);
-    } else if (IFNULL_ALIASES.contains(fnName)) {
-      return simplifyIfNullFunctionCallExpr(expr);
+    List<CaseWhenClause> whenList = new ArrayList<>();
+    for (int i = 0; i < revised.size() - 1; i++) {
+      Expr childExpr = revised.get(i);
+      whenList.add(new CaseWhenClause(
+          new IsNullPredicate(childExpr, true), childExpr.clone()));
     }
-    return expr;
+    return new CaseExpr(null, whenList,
+        revised.get(revised.size() - 1));
   }
 
   /**
@@ -272,5 +302,53 @@ public class SimplifyConditionalsRule implements ExprRewriteRule {
       return elseExpr;
     }
     return new CaseExpr(caseExpr, newWhenClauses, elseExpr);
+  }
+
+  /**
+   * Rewrite of <code>nvl2(expr, ifNotNull, ifNull)</code>.
+   * <ul>
+   * <li><code>nvl2(null, x, y)</code> &rarr; <code>y</code></li>
+   * <li><code>nvl2(non_null_literal, x, y)</code> &rarr; <code>x</code></li>
+   * <li><code>nvl2(expr, x y)</code> &rarr; <br>
+   * <code>CASE WHEN expr IS NOT NULL THEN x ELSE y END</code></li>
+   * <ul>
+   */
+  private Expr rewriteNvl2Fn(FunctionCallExpr expr) {
+    List<Expr> plist = expr.getParams().exprs();
+    Expr head = plist.get(0);
+    Expr ifNotNull = plist.get(1);
+    Expr ifNull = plist.get(2);
+    if (head.isNullLiteral()) { return ifNull; }
+    if (head.isLiteral()) { return ifNotNull; }
+    return new CaseExpr(null, // CASE
+        Lists.newArrayList(
+          new CaseWhenClause( // WHEN
+            new IsNullPredicate(head, true), // EXPR IS NOT NULL
+            ifNotNull)), // THEN ifNotNull
+        ifNull); // ELSE isNull END
+  }
+
+  /**
+   * Rewrite of <code>nullif(x, y)</code>.
+   * <ul>
+   * <li><code>nullif(null, y)</code> &rarr; <code>NULL</code></li>
+   * <li><code>nullif(x, null)</code> &rarr; <code>NULL</code></li>
+   * <li><code>nullif(x y)</code> &rarr; <br>
+   * <code>CASE WHEN x IS DISTINCT FROM y THEN x END</code></li>
+   * <ul>
+   */
+  private Expr rewriteNullIfFn(FunctionCallExpr expr) {
+    List<Expr> plist = expr.getParams().exprs();
+    Expr head = plist.get(0);
+    if (head.isNullLiteral()) { return head; }
+    Expr tail = plist.get(1);
+    if (tail.isNullLiteral()) { return tail; }
+    return new CaseExpr(null, // CASE
+        Lists.newArrayList(
+          new CaseWhenClause( // WHEN
+            new BinaryPredicate(BinaryPredicate.Operator.DISTINCT_FROM, head,
+                tail), // x IS DISTINCT FROM y
+            head.clone())), // THEN x
+        null); // END (which defaults to NULL)
   }
 }

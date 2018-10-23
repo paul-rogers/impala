@@ -43,6 +43,8 @@ class ScalarExprEvaluator;
 class TupleRow;
 
 /// Conditional functions that can be expressed as UDFs
+/// DECODE(), IF(), IFNULL(), ISNULL(), NVL(), and COALESCE()
+/// are rewritten in the FE to use the CASE operator.
 class ConditionalFunctions {
  public:
   static TinyIntVal NullIfZero(FunctionContext* context, const TinyIntVal& val);
@@ -67,90 +69,6 @@ class ConditionalFunctions {
   static BooleanVal IsNotFalse(FunctionContext* ctx, const BooleanVal& val);
   static BooleanVal IsTrue(FunctionContext* ctx, const BooleanVal& val);
   static BooleanVal IsNotTrue(FunctionContext* ctx, const BooleanVal& val);
-};
-
-/// The following conditional functions require separate Expr classes to take advantage of
-/// short circuiting
-
-class IsNullExpr : public ScalarExpr {
- public:
-  virtual Status GetCodegendComputeFn(LlvmCodeGen* codegen, llvm::Function** fn)
-      override WARN_UNUSED_RESULT;
-  virtual std::string DebugString() const override {
-    return ScalarExpr::DebugString("IsNullExpr");
-  }
-
- protected:
-  friend class ScalarExpr;
-  friend class ScalarExprEvaluator;
-
-  IsNullExpr(const TExprNode& node) : ScalarExpr(node) { }
-  virtual BooleanVal GetBooleanVal(ScalarExprEvaluator*, const TupleRow*) const override;
-  virtual TinyIntVal GetTinyIntVal(ScalarExprEvaluator*, const TupleRow*) const override;
-  virtual SmallIntVal GetSmallIntVal(
-      ScalarExprEvaluator*, const TupleRow*) const override;
-  virtual IntVal GetIntVal(ScalarExprEvaluator*, const TupleRow*) const override;
-  virtual BigIntVal GetBigIntVal(ScalarExprEvaluator*, const TupleRow*) const override;
-  virtual FloatVal GetFloatVal(ScalarExprEvaluator*, const TupleRow*) const override;
-  virtual DoubleVal GetDoubleVal(ScalarExprEvaluator*, const TupleRow*) const override;
-  virtual StringVal GetStringVal(ScalarExprEvaluator*, const TupleRow*) const override;
-  virtual TimestampVal GetTimestampVal(
-      ScalarExprEvaluator*, const TupleRow*) const override;
-  virtual DecimalVal GetDecimalVal(ScalarExprEvaluator*, const TupleRow*) const override;
-};
-
-class IfExpr : public ScalarExpr {
- public:
-  virtual Status GetCodegendComputeFn(LlvmCodeGen* codegen, llvm::Function** fn)
-      override WARN_UNUSED_RESULT;
-  virtual std::string DebugString() const override {
-    return ScalarExpr::DebugString("IfExpr");
-  }
-
- protected:
-  friend class ScalarExpr;
-  friend class ScalarExprEvaluator;
-
-  IfExpr(const TExprNode& node) : ScalarExpr(node) { }
-  virtual BooleanVal GetBooleanVal(ScalarExprEvaluator*, const TupleRow*) const override;
-  virtual TinyIntVal GetTinyIntVal(ScalarExprEvaluator*, const TupleRow*) const override;
-  virtual SmallIntVal GetSmallIntVal(
-      ScalarExprEvaluator*, const TupleRow*) const override;
-  virtual IntVal GetIntVal(ScalarExprEvaluator*, const TupleRow*) const override;
-  virtual BigIntVal GetBigIntVal(ScalarExprEvaluator*, const TupleRow*) const override;
-  virtual FloatVal GetFloatVal(ScalarExprEvaluator*, const TupleRow*) const override;
-  virtual DoubleVal GetDoubleVal(ScalarExprEvaluator*, const TupleRow*) const override;
-  virtual StringVal GetStringVal(ScalarExprEvaluator*, const TupleRow*) const override;
-  virtual TimestampVal GetTimestampVal(
-      ScalarExprEvaluator*, const TupleRow*) const override;
-  virtual DecimalVal GetDecimalVal(ScalarExprEvaluator*, const TupleRow*) const override;
-};
-
-class CoalesceExpr : public ScalarExpr {
- public:
-  virtual Status GetCodegendComputeFn(LlvmCodeGen* codegen, llvm::Function** fn)
-      override WARN_UNUSED_RESULT;
-  virtual std::string DebugString() const override {
-    return ScalarExpr::DebugString("CoalesceExpr");
-  }
-
- protected:
-  friend class ScalarExpr;
-  friend class ScalarExprEvaluator;
-
-  CoalesceExpr(const TExprNode& node) : ScalarExpr(node) { }
-  virtual BooleanVal GetBooleanVal(ScalarExprEvaluator*, const TupleRow*) const override;
-  virtual TinyIntVal GetTinyIntVal(ScalarExprEvaluator*, const TupleRow*) const override;
-  virtual SmallIntVal GetSmallIntVal(
-      ScalarExprEvaluator*, const TupleRow*) const override;
-  virtual IntVal GetIntVal(ScalarExprEvaluator*, const TupleRow*) const override;
-  virtual BigIntVal GetBigIntVal(ScalarExprEvaluator*, const TupleRow*) const override;
-  virtual FloatVal GetFloatVal(ScalarExprEvaluator*, const TupleRow*) const override;
-  virtual DoubleVal GetDoubleVal(ScalarExprEvaluator*, const TupleRow*) const override;
-  virtual StringVal GetStringVal(ScalarExprEvaluator*, const TupleRow*) const override;
-  virtual TimestampVal GetTimestampVal(
-      ScalarExprEvaluator*, const TupleRow*) const override;
-  virtual DecimalVal GetDecimalVal(ScalarExprEvaluator*, const TupleRow*) const override;
 };
 
 }

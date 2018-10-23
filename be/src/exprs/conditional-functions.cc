@@ -24,12 +24,3 @@
 using namespace impala;
 using namespace impala_udf;
 
-#define CONDITIONAL_CODEGEN_FN(expr_class) \
-  Status expr_class::GetCodegendComputeFn(LlvmCodeGen* codegen, llvm::Function** fn) { \
-    return GetCodegendComputeFnWrapper(codegen, fn); \
-  }
-
-CONDITIONAL_CODEGEN_FN(IsNullExpr);
-CONDITIONAL_CODEGEN_FN(IfExpr);
-CONDITIONAL_CODEGEN_FN(CoalesceExpr);
-
