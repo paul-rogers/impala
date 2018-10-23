@@ -81,7 +81,7 @@ class TupleRow;
 /// ScalarExpr implements compute function, which given a row, performs the computation
 /// of an expr and produces scalar result. This function evaluates the necessary child
 /// arguments by calling their compute functions, then performs whatever computation is
-/// necessary on the arguments to generate the result. These compute functions have
+/// necessary on the arguments to generate the result.These compute functions have
 /// signature Get*Val(ScalarExprEvaluator*, const TupleRow*). One is implemented for each
 /// possible return type it supports (e.g. GetBooleanVal(), GetStringVal(), etc). The
 /// return type is a subclass of AnyVal (e.g. StringVal). One or more of these compute

@@ -1832,6 +1832,10 @@ public class AnalyzeExprsTest extends AnalyzerTest {
     // IGNORE NULLS may only be used with first_value/last_value
     AnalysisError("select lower('FOO' ignore nulls)",
         "Function LOWER does not accept the keyword IGNORE NULLS.");
+  }
+
+  @Test
+  public void testNvl2() {
 
     // NVL2() is converted to IF() before analysis.
     AnalyzesOk("select nvl2(1, 'not null', 'null')");
@@ -1850,6 +1854,10 @@ public class AnalyzeExprsTest extends AnalyzerTest {
     AnalysisError("select nvl2(now(), true)", "No matching function with signature: " +
         "if(BOOLEAN, BOOLEAN).");
     AnalysisError("select nvl2()", "No matching function with signature: if().");
+  }
+
+  @Test
+  public void testNullIf() {
 
     // IFNULL() is converted to IF() before analysis.
     AnalyzesOk("select nullif(1, 1)");
