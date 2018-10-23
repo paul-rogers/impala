@@ -49,6 +49,7 @@ public abstract class TreeNode<NodeType extends TreeNode<NodeType>> {
   public boolean hasChild(int i) { return children_.size() > i; }
   public void setChild(int index, NodeType n) { children_.set(index, n); }
   public ArrayList<NodeType> getChildren() { return children_; }
+  public int childCount() { return children_.size(); }
 
   /**
    * Return list of all nodes of the tree rooted at 'this', obtained

@@ -528,6 +528,43 @@ visible_functions = [
   [['if'], 'TIMESTAMP', ['BOOLEAN', 'TIMESTAMP', 'TIMESTAMP'], ''],
   [['if'], 'DECIMAL', ['BOOLEAN', 'DECIMAL', 'DECIMAL'], ''],
 
+  # Rewritten away in the FE
+  [['nvl2'], 'BOOLEAN', ['NULL', 'BOOLEAN', 'BOOLEAN'], ''],
+  [['nvl2'], 'TINYINT', ['NULL', 'TINYINT', 'TINYINT'], ''],
+  [['nvl2'], 'SMALLINT', ['NULL', 'SMALLINT', 'SMALLINT'], ''],
+  [['nvl2'], 'INT', ['NULL', 'INT', 'INT'], ''],
+  [['nvl2'], 'BIGINT', ['NULL', 'BIGINT', 'BIGINT'], ''],
+  [['nvl2'], 'FLOAT', ['NULL', 'FLOAT', 'FLOAT'], ''],
+  [['nvl2'], 'DOUBLE', ['NULL', 'DOUBLE', 'DOUBLE'], ''],
+  [['nvl2'], 'STRING', ['NULL', 'STRING', 'STRING'], ''],
+  [['nvl2'], 'TIMESTAMP', ['NULL', 'TIMESTAMP', 'TIMESTAMP'], ''],
+  [['nvl2'], 'DECIMAL', ['NULL', 'DECIMAL', 'DECIMAL'], ''],
+
+  # Rewritten away in the FE
+  [['nullif'], 'BOOLEAN', ['BOOLEAN', 'BOOLEAN'], ''],
+  [['nullif'], 'TINYINT', ['TINYINT', 'TINYINT'], ''],
+  [['nullif'], 'SMALLINT', ['SMALLINT', 'SMALLINT'], ''],
+  [['nullif'], 'INT', ['INT', 'INT'], ''],
+  [['nullif'], 'BIGINT', ['BIGINT', 'BIGINT'], ''],
+  [['nullif'], 'FLOAT', ['FLOAT', 'FLOAT'], ''],
+  [['nullif'], 'DOUBLE', ['DOUBLE', 'DOUBLE'], ''],
+  [['nullif'], 'STRING', ['STRING', 'STRING'], ''],
+  [['nullif'], 'TIMESTAMP', ['TIMESTAMP', 'TIMESTAMP'], ''],
+  [['nullif'], 'DECIMAL', ['DECIMAL', 'DECIMAL'], ''],
+
+  # Done using NULL to avoid the need for ^2 declarations.
+  # Type check handled after the rewrite to CASE.
+  [['decode'], 'BOOLEAN', ['NULL', 'NULL', 'BOOLEAN', 'NULL', '...'], ''],
+  [['decode'], 'TINYINT', ['NULL', 'NULL', 'TINYINT', 'NULL', '...'], ''],
+  [['decode'], 'SMALLINT', ['NULL', 'NULL', 'SMALLINT', 'NULL', '...'], ''],
+  [['decode'], 'INT', ['NULL', 'NULL', 'INT', 'NULL', '...'], ''],
+  [['decode'], 'BIGINT', ['NULL', 'NULL', 'BIGINT', 'NULL', '...'], ''],
+  [['decode'], 'FLOAT', ['NULL', 'NULL', 'FLOAT', 'NULL', '...'], ''],
+  [['decode'], 'DOUBLE', ['NULL', 'NULL', 'DOUBLE', 'NULL', '...'], ''],
+  [['decode'], 'STRING', ['NULL', 'NULL', 'STRING', 'NULL', '...'], ''],
+  [['decode'], 'TIMESTAMP', ['NULL', 'NULL', 'TIMESTAMP', 'NULL', '...'], ''],
+  [['decode'], 'DECIMAL', ['NULL', 'NULL', 'DECIMAL', 'NULL', '...'], ''],
+
   [['zeroifnull'], 'TINYINT', ['TINYINT'], 'impala::ConditionalFunctions::ZeroIfNull'],
   [['zeroifnull'], 'SMALLINT', ['SMALLINT'], 'impala::ConditionalFunctions::ZeroIfNull'],
   [['zeroifnull'], 'INT', ['INT'], 'impala::ConditionalFunctions::ZeroIfNull'],
@@ -713,6 +750,8 @@ visible_functions = [
   [['shiftright'], 'BIGINT', ['BIGINT', 'INT'], 'impala::BitByteFunctions::ShiftRight'],
 ]
 
+# Fuctions implemented in the BE but not available to queries
+# (that is, not listed in the FE's scalar function registry.)
 invisible_functions = [
   [['months_add_interval'], 'TIMESTAMP', ['TIMESTAMP', 'INT'],
       '_ZN6impala18TimestampFunctions6AddSubILb1EN10impala_udf6IntValEN5boost9date_time15months_durationINS4_9gregorian21greg_durations_configEEELb0EEENS2_12TimestampValEPNS2_15FunctionContextERKSA_RKT0_'],
@@ -746,4 +785,21 @@ invisible_functions = [
   [['notdistinct'], 'BOOLEAN', ['TIMESTAMP', 'TIMESTAMP'], 'impala::Operators::NotDistinct_TimestampVal_TimestampVal'],
   [['notdistinct'], 'BOOLEAN', ['CHAR', 'CHAR'], 'impala::Operators::NotDistinct_Char_Char'],
   [['notdistinct'], 'BOOLEAN', ['DECIMAL', 'DECIMAL'], 'impala::DecimalOperators::NotDistinct_DecimalVal_DecimalVal'],
+]
+
+# Functions available to queries, but not implemented in the BE.
+# These are listed in the FE's scalar function registry, but
+# are rewritten by the FE to a different form, hence not implemented
+# in the BE.
+fe_only_functions = [
+  [['nvl2'], 'NULL', ['BOOLEAN', 'BOOLEAN', 'BOOLEAN'], ''],
+  [['nvl2'], 'NULL', ['BOOLEAN', 'TINYINT', 'TINYINT'], ''],
+  [['nvl2'], 'NULL', ['BOOLEAN', 'SMALLINT', 'SMALLINT'], ''],
+  [['nvl2'], 'NULL', ['BOOLEAN', 'INT', 'INT'], ''],
+  [['nvl2'], 'NULL', ['BOOLEAN', 'BIGINT', 'BIGINT'], ''],
+  [['nvl2'], 'NULL', ['BOOLEAN', 'FLOAT', 'FLOAT'], ''],
+  [['nvl2'], 'NULL', ['BOOLEAN', 'DOUBLE', 'DOUBLE'], ''],
+  [['nvl2'], 'NULL', ['BOOLEAN', 'STRING', 'STRING'], ''],
+  [['nvl2'], 'NULL', ['BOOLEAN', 'TIMESTAMP', 'TIMESTAMP'], ''],
+  [['nvl2'], 'NULL', ['BOOLEAN', 'DECIMAL', 'DECIMAL'], ''],
 ]

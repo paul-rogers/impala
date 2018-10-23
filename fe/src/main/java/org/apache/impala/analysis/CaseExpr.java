@@ -32,47 +32,26 @@ import org.apache.impala.thrift.TExprNode;
 import org.apache.impala.thrift.TExprNodeType;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import com.google.common.base.Predicates;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
 /**
- * CASE and DECODE are represented using this class. The backend implementation is
- * always the "case" function. CASE always returns the THEN corresponding to the leftmost
+ * CASE is represented using this class.
+ * CASE always returns the THEN corresponding to the leftmost
  * WHEN that is TRUE, or the ELSE (or NULL if no ELSE is provided) if no WHEN is TRUE.
- *
- * The internal representation of
+ * <p>
+ * The internal representation of<pre><code>
  *   CASE [expr] WHEN expr THEN expr [WHEN expr THEN expr ...] [ELSE expr] END
+ * </code></pre>
  * Each When/Then is stored as two consecutive children (whenExpr, thenExpr). If a case
  * expr is given then it is the first child. If an else expr is given then it is the
  * last child.
+ * <p>
+ * In prior versions, this class directly represented the <code>decode()</code>
+ * function. However <code>decode()</code> is now handled as a conditional rewrite.
  *
- * The internal representation of
- *   DECODE(expr, key_expr, val_expr [, key_expr, val_expr ...] [, default_val_expr])
- * has a pair of children for each pair of key/val_expr and an additional child if the
- * default_val_expr was given. The first child represents the comparison of expr to
- * key_expr. Decode has three forms:
- *   1) DECODE(expr, null_literal, val_expr) -
- *       child[0] = IsNull(expr)
- *   2) DECODE(expr, non_null_literal, val_expr) -
- *       child[0] = Eq(expr, literal)
- *   3) DECODE(expr1, expr2, val_expr) -
- *       child[0] = Or(And(IsNull(expr1), IsNull(expr2)),  Eq(expr1, expr2))
- * The children representing val_expr (child[1]) and default_val_expr (child[2]) are
- * simply the exprs themselves.
- *
- * Example of equivalent CASE for DECODE(foo, 'bar', 1, col, 2, NULL, 3, 4):
- *   CASE
- *     WHEN foo = 'bar' THEN 1   -- no need for IS NULL check
- *     WHEN foo IS NULL AND col IS NULL OR foo = col THEN 2
- *     WHEN foo IS NULL THEN 3  -- no need for equality check
- *     ELSE 4
- *   END
  */
 public class CaseExpr extends Expr {
-
-  // Set if constructed from a DECODE, null otherwise.
-  private FunctionCallExpr decodeExpr_;
 
   private boolean hasCaseExpr_;
   private boolean hasElseExpr_;
@@ -96,76 +75,10 @@ public class CaseExpr extends Expr {
   }
 
   /**
-   * Constructs an equivalent CaseExpr representation.
-   *
-   * The DECODE behavior is basically the same as the hasCaseExpr_ version of CASE.
-   * Though there is one difference. NULLs are considered equal when comparing the
-   * argument to be decoded with the candidates. This differences is for compatibility
-   * with Oracle. http://docs.oracle.com/cd/B19306_01/server.102/b14200/functions040.htm.
-   * To account for the difference, the CASE representation will use the non-hasCaseExpr_
-   * version.
-   *
-   * The return type of DECODE differs from that of Oracle when the third argument is
-   * the NULL literal. In Oracle the return type is STRING. In Impala the return type is
-   * determined by the implicit casting rules (i.e. it's not necessarily a STRING). This
-   * is done so seemingly normal usages such as DECODE(int_col, tinyint_col, NULL,
-   * bigint_col) will avoid type check errors (STRING incompatible with BIGINT).
-   */
-  public CaseExpr(FunctionCallExpr decodeExpr) {
-    super();
-    decodeExpr_ = decodeExpr;
-    hasCaseExpr_ = false;
-
-    int childIdx = 0;
-    Expr encoded = null;
-    Expr encodedIsNull = null;
-    if (!decodeExpr.getChildren().isEmpty()) {
-      encoded = decodeExpr.getChild(childIdx++);
-      encodedIsNull = new IsNullPredicate(encoded, false);
-    }
-
-    // Add the key_expr/val_expr pairs
-    while (childIdx + 2 <= decodeExpr.getChildren().size()) {
-      Expr candidate = decodeExpr.getChild(childIdx++);
-      if (candidate.isLiteral()) {
-        if (candidate.isNullLiteral()) {
-          // An example case is DECODE(foo, NULL, bar), since NULLs are considered
-          // equal, this becomes CASE WHEN foo IS NULL THEN bar END.
-          children_.add(encodedIsNull.clone());
-        } else {
-          children_.add(new BinaryPredicate(
-              BinaryPredicate.Operator.EQ, encoded.clone(), candidate));
-        }
-      } else {
-        children_.add(new CompoundPredicate(CompoundPredicate.Operator.OR,
-            new CompoundPredicate(CompoundPredicate.Operator.AND,
-                encodedIsNull.clone(), new IsNullPredicate(candidate, false)),
-            new BinaryPredicate(BinaryPredicate.Operator.EQ, encoded.clone(),
-                candidate)));
-      }
-
-      // Add the value
-      children_.add(decodeExpr.getChild(childIdx++));
-    }
-
-    // Add the default value
-    if (childIdx < decodeExpr.getChildren().size()) {
-      hasElseExpr_ = true;
-      children_.add(decodeExpr.getChild(childIdx));
-    }
-
-    // Check that these exprs were cloned above, as reusing the same Expr object in
-    // different places can lead to bugs, eg. if the Expr has multiple parents, they may
-    // try to cast it to different types.
-    Preconditions.checkState(!contains(encoded) && !contains(encodedIsNull));
-  }
-
-  /**
    * Copy c'tor used in clone().
    */
   protected CaseExpr(CaseExpr other) {
     super(other);
-    decodeExpr_ = other.decodeExpr_;
     hasCaseExpr_ = other.hasCaseExpr_;
     hasElseExpr_ = other.hasElseExpr_;
   }
@@ -182,8 +95,9 @@ public class CaseExpr extends Expr {
       db.addBuiltin(ScalarFunction.createBuiltinOperator(
           "case", "", Lists.newArrayList(t), t));
       // Same for DECODE
-      db.addBuiltin(ScalarFunction.createBuiltinOperator(
-          "decode", "", Lists.newArrayList(t), t));
+      // Decode is special, and uses a custom class to handle
+      // the odd argument signature.
+      db.addBuiltin(new ScalarFunction.DecodeFunction(t));
     }
   }
 
@@ -192,13 +106,12 @@ public class CaseExpr extends Expr {
     if (!super.localEquals(that)) return false;
     CaseExpr expr = (CaseExpr)that;
     return hasCaseExpr_ == expr.hasCaseExpr_
-        && hasElseExpr_ == expr.hasElseExpr_
-        && isDecode() == expr.isDecode();
+        && hasElseExpr_ == expr.hasElseExpr_;
   }
 
   @Override
   public String toSqlImpl() {
-    return (decodeExpr_ == null) ? toCaseSql() : decodeExpr_.toSqlImpl();
+    return toCaseSql();
   }
 
   @VisibleForTesting
@@ -233,17 +146,6 @@ public class CaseExpr extends Expr {
 
   @Override
   protected void analyzeImpl(Analyzer analyzer) throws AnalysisException {
-    if (isDecode()) {
-      Preconditions.checkState(!hasCaseExpr_);
-      // decodeExpr_.analyze() would fail validating function existence. The complex
-      // vararg signature is currently unsupported.
-      FunctionCallExpr.validateScalarFnParams(decodeExpr_.getParams());
-      if (decodeExpr_.getChildren().size() < 3) {
-        throw new AnalysisException("DECODE in '" + toSql() + "' requires at least 3 "
-            + "arguments.");
-      }
-    }
-
     // Since we have no BE implementation of a CaseExpr with CHAR types,
     // we cast the CHAR-typed whenExprs and caseExprs to STRING,
     // TODO: This casting is not always correct and needs to be fixed, see IMPALA-1652.
@@ -432,8 +334,7 @@ public class CaseExpr extends Expr {
     }
   }
 
-  private boolean isCase() { return !isDecode(); }
-  private boolean isDecode() { return decodeExpr_ != null; }
+  private boolean isCase() { return true; }
   public boolean hasCaseExpr() { return hasCaseExpr_; }
   public boolean hasElseExpr() { return hasElseExpr_; }
 

@@ -43,6 +43,23 @@ import com.google.common.collect.Lists;
  * Internal representation of a scalar function.
  */
 public class ScalarFunction extends Function {
+
+  public static class DecodeFunction extends ScalarFunction {
+
+    public DecodeFunction(Type retType) {
+      super(new FunctionName(BuiltinsDb.NAME, "decode"),
+          Lists.newArrayList(Type.NULL, Type.NULL, retType), retType, true);
+    }
+
+    @Override
+    protected boolean isIndistinguishable(Function o) {
+      Type args[] = o.getArgs();
+      if (args.length < 3) { return false; }
+      if (args[2] != getArgs()[2]) { return false; }
+      return true;
+    }
+  }
+
   // The name inside the binary at location_ that contains this particular
   // function. e.g. org.example.MyUdf.class.
   private String symbolName_;

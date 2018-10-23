@@ -252,7 +252,7 @@ public class Function extends CatalogObjectImpl {
     return true;
   }
 
-  private boolean isIndistinguishable(Function o) {
+  protected boolean isIndistinguishable(Function o) {
     if (!o.name_.equals(name_)) return false;
     int minArgs = Math.min(o.argTypes_.length, this.argTypes_.length);
     // The first fully specified args must be identical.
