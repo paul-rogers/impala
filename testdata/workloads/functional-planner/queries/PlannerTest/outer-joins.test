@@ -1031,8 +1031,8 @@ where concat(t1.string_col, t2.string_col) = 'test1' and t3.string_col = 'test2'
 PLAN-ROOT SINK
 |
 04:HASH JOIN [LEFT OUTER JOIN]
-|  hash predicates: coalesce(t1.id, t2.id) = t3.id
-|  other join predicates: t1.bigint_col > 10, t2.bigint_col > 30, coalesce(t1.int_col, t2.int_col) = 2
+|  hash predicates: CASE WHEN t1.id IS NOT NULL THEN t1.id ELSE t2.id END = t3.id
+|  other join predicates: t1.bigint_col > 10, t2.bigint_col > 30, CASE WHEN t1.int_col IS NOT NULL THEN t1.int_col ELSE t2.int_col END = 2
 |  other predicates: t3.string_col = 'test2'
 |
 |--02:SCAN HDFS [functional.alltypestiny t3]

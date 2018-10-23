@@ -843,7 +843,7 @@ PLAN-ROOT SINK
 |
 03:HASH JOIN [LEFT OUTER JOIN]
 |  hash predicates: a.id = id
-|  other predicates: int_col = 17, isnull(id, 0) = 0
+|  other predicates: int_col = 17, CASE WHEN id IS NULL THEN 0 ELSE id END = 0
 |
 |--02:AGGREGATE [FINALIZE]
 |  |  group by: id, int_col
@@ -888,7 +888,7 @@ PLAN-ROOT SINK
 |
 00:SCAN HDFS [functional.alltypes a]
    partitions=24/24 files=24 size=478.45KB
-   predicates: isnull(a.id, 0) = 0
+   predicates: CASE WHEN a.id IS NULL THEN 0 ELSE a.id END = 0
 ====
 select a.id, b.id
 from
@@ -900,7 +900,7 @@ PLAN-ROOT SINK
 |
 03:HASH JOIN [RIGHT OUTER JOIN]
 |  hash predicates: id = a.id
-|  other predicates: int_col = 17, isnull(id, 0) = 0
+|  other predicates: int_col = 17, CASE WHEN id IS NULL THEN 0 ELSE id END = 0
 |  runtime filters: RF000 <- a.id
 |
 |--02:SCAN HDFS [functional.alltypes a]
@@ -931,7 +931,7 @@ PLAN-ROOT SINK
 |
 |--05:SCAN HDFS [functional.alltypes a]
 |     partitions=24/24 files=24 size=478.45KB
-|     predicates: isnull(a.id, 0) = 0
+|     predicates: CASE WHEN a.id IS NULL THEN 0 ELSE a.id END = 0
 |
 00:UNION
 |  pass-through-operands: all
@@ -1134,7 +1134,7 @@ PLAN-ROOT SINK
 |
 04:HASH JOIN [LEFT OUTER JOIN]
 |  hash predicates: t2.id = functional.alltypestiny.id, t2.int_col = functional.alltypestiny.int_col
-|  other predicates: functional.alltypestiny.tinyint_col + functional.alltypestiny.smallint_col + functional.alltypestiny.int_col > 10, ifnull(functional.alltypestiny.tinyint_col + functional.alltypestiny.bigint_col, 1) = 1
+|  other predicates: functional.alltypestiny.tinyint_col + functional.alltypestiny.smallint_col + functional.alltypestiny.int_col > 10, CASE WHEN functional.alltypestiny.tinyint_col + functional.alltypestiny.bigint_col IS NULL THEN 1 ELSE functional.alltypestiny.tinyint_col + functional.alltypestiny.bigint_col END = 1
 |
 |--02:SCAN HDFS [functional.alltypestiny]
 |     partitions=4/4 files=4 size=460B
@@ -1142,7 +1142,7 @@ PLAN-ROOT SINK
 |
 03:HASH JOIN [LEFT OUTER JOIN]
 |  hash predicates: t1.id = t2.id, t1.int_col = t2.int_col
-|  other predicates: t2.tinyint_col = t2.smallint_col, ifnull(t2.tinyint_col + t2.bigint_col, 1) = 1
+|  other predicates: t2.tinyint_col = t2.smallint_col, CASE WHEN t2.tinyint_col + t2.bigint_col IS NULL THEN 1 ELSE t2.tinyint_col + t2.bigint_col END = 1
 |
 |--01:SCAN HDFS [functional.alltypessmall t2]
 |     partitions=4/4 files=4 size=6.32KB

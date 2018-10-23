@@ -766,8 +766,8 @@ where v.a = v.b and v.b = v.c and v.c = v.d and v.a = v.c and v.a = v.d
 PLAN-ROOT SINK
 |
 01:AGGREGATE [FINALIZE]
-|  group by: tinyint_col, smallint_col, int_col + int_col, coalesce(bigint_col, year)
-|  having: int_col + int_col = coalesce(bigint_col, year), smallint_col = int_col + int_col
+|  group by: tinyint_col, smallint_col, int_col + int_col, CASE WHEN bigint_col IS NOT NULL THEN bigint_col ELSE year END
+|  having: int_col + int_col = CASE WHEN bigint_col IS NOT NULL THEN bigint_col ELSE year END, smallint_col = int_col + int_col
 |
 00:SCAN HDFS [functional.alltypes]
    partitions=24/24 files=24 size=478.45KB

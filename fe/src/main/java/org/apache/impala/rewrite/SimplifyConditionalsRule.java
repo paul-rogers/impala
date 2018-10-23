@@ -27,13 +27,8 @@ import org.apache.impala.analysis.CaseExpr;
 import org.apache.impala.analysis.CaseWhenClause;
 import org.apache.impala.analysis.CompoundPredicate;
 import org.apache.impala.analysis.Expr;
-import org.apache.impala.analysis.FunctionCallExpr;
 import org.apache.impala.analysis.NullLiteral;
 import org.apache.impala.common.AnalysisException;
-
-import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Lists;
 
 /***
  * This rule simplifies conditional functions with constant conditions. It relies on
@@ -51,21 +46,20 @@ import com.google.common.collect.Lists;
  * and nonnullvalue don't need special handling as the fold constants rule
  * will handle them.  nullif and nvl2 are converted to an if in FunctionCallExpr,
  * and therefore don't need handling here.
+ *
+ * We can't eliminate aggregates as this may change the meaning of the
+ * query, for example:
+ * 'select if (true, 0, sum(id)) from alltypes' != 'select 0 from alltypes'
  */
 public class SimplifyConditionalsRule implements ExprRewriteRule {
   public static ExprRewriteRule INSTANCE = new SimplifyConditionalsRule();
-
-  private static List<String> IFNULL_ALIASES = ImmutableList.of(
-      "ifnull", "isnull", "nvl");
 
   @Override
   public Expr apply(Expr expr, Analyzer analyzer) throws AnalysisException {
     if (!expr.isAnalyzed()) return expr;
 
     Expr simplified;
-    if (expr instanceof FunctionCallExpr) {
-      simplified = simplifyFunctionCallExpr((FunctionCallExpr) expr);
-    } else if (expr instanceof CompoundPredicate) {
+    if (expr instanceof CompoundPredicate) {
       simplified = simplifyCompoundPredicate((CompoundPredicate) expr);
     } else if (expr instanceof CaseExpr) {
       simplified = simplifyCaseExpr((CaseExpr) expr, analyzer);
@@ -84,79 +78,6 @@ public class SimplifyConditionalsRule implements ExprRewriteRule {
       }
     }
     return simplified;
-  }
-
-  /**
-   * Simplifies IF by returning the corresponding child if the condition has a constant
-   * TRUE, FALSE, or NULL (equivalent to FALSE) value.
-   */
-  private Expr simplifyIfFunctionCallExpr(FunctionCallExpr expr) {
-    Preconditions.checkState(expr.getChildren().size() == 3);
-    if (expr.getChild(0) instanceof BoolLiteral) {
-      if (((BoolLiteral) expr.getChild(0)).getValue()) {
-        // IF(TRUE)
-        return expr.getChild(1);
-      } else {
-        // IF(FALSE)
-        return expr.getChild(2);
-      }
-    } else if (expr.getChild(0) instanceof NullLiteral) {
-      // IF(NULL)
-      return expr.getChild(2);
-    }
-    return expr;
-  }
-
-  /**
-   * Simplifies IFNULL if the condition is a literal, using the
-   * following transformations:
-   *   IFNULL(NULL, x) -> x
-   *   IFNULL(a, x) -> a, if a is a non-null literal
-   */
-  private Expr simplifyIfNullFunctionCallExpr(FunctionCallExpr expr) {
-    Preconditions.checkState(expr.getChildren().size() == 2);
-    Expr child0 = expr.getChild(0);
-    if (child0 instanceof NullLiteral) return expr.getChild(1);
-    if (child0.isLiteral()) return child0;
-    return expr;
-  }
-
-  /**
-   * Simplify COALESCE by skipping leading nulls and applying the following transformations:
-   * COALESCE(null, a, b) -> COALESCE(a, b);
-   * COALESCE(<literal>, a, b) -> <literal>, when literal is not NullLiteral;
-   */
-  private Expr simplifyCoalesceFunctionCallExpr(FunctionCallExpr expr) {
-    int numChildren = expr.getChildren().size();
-    Expr result = NullLiteral.create(expr.getType());
-    for (int i = 0; i < numChildren; ++i) {
-      Expr childExpr = expr.getChildren().get(i);
-      // Skip leading nulls.
-      if (childExpr.isNullLiteral()) continue;
-      if ((i == numChildren - 1) || childExpr.isLiteral()) {
-        result = childExpr;
-      } else if (i == 0) {
-        result = expr;
-      } else {
-        List<Expr> newChildren = Lists.newArrayList(expr.getChildren().subList(i, numChildren));
-        result = new FunctionCallExpr(expr.getFnName(), newChildren);
-      }
-      break;
-    }
-    return result;
-  }
-
-  private Expr simplifyFunctionCallExpr(FunctionCallExpr expr) {
-    String fnName = expr.getFnName().getFunction();
-
-    if (fnName.equals("if")) {
-      return simplifyIfFunctionCallExpr(expr);
-    } else if (fnName.equals("coalesce")) {
-      return simplifyCoalesceFunctionCallExpr(expr);
-    } else if (IFNULL_ALIASES.contains(fnName)) {
-      return simplifyIfNullFunctionCallExpr(expr);
-    }
-    return expr;
   }
 
   /**

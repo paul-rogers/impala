@@ -2077,12 +2077,12 @@ on (t1.id = t2.a + 100)
 PLAN-ROOT SINK
 |
 08:ANALYTIC
-|  functions: avg(if(TupleIsNull(), NULL, coalesce(id + bigint_col, 40)))
-|  order by: if(TupleIsNull(), NULL, coalesce(bigint_col, 30)) ASC
+|  functions: avg(if(TupleIsNull(), NULL, CASE WHEN id + bigint_col IS NOT NULL THEN id + bigint_col ELSE 40 END))
+|  order by: if(TupleIsNull(), NULL, CASE WHEN bigint_col IS NOT NULL THEN bigint_col ELSE 30 END) ASC
 |  window: RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
 |
 07:SORT
-|  order by: if(TupleIsNull(), NULL, coalesce(bigint_col, 30)) ASC
+|  order by: if(TupleIsNull(), NULL, CASE WHEN bigint_col IS NOT NULL THEN bigint_col ELSE 30 END) ASC
 |
 06:ANALYTIC
 |  functions: count(1)
@@ -2139,15 +2139,15 @@ PLAN-ROOT SINK
 |
 07:AGGREGATE [FINALIZE]
 |  output: avg(sum(t1.id)), sum(avg(g)), count(id)
-|  group by: if(TupleIsNull(), NULL, coalesce(int_col, 20))
+|  group by: if(TupleIsNull(), NULL, CASE WHEN int_col IS NOT NULL THEN int_col ELSE 20 END)
 |
 06:ANALYTIC
-|  functions: avg(if(TupleIsNull(), NULL, coalesce(id + bigint_col, 40)))
-|  order by: if(TupleIsNull(), NULL, coalesce(bigint_col, 30)) ASC
+|  functions: avg(if(TupleIsNull(), NULL, CASE WHEN id + bigint_col IS NOT NULL THEN id + bigint_col ELSE 40 END))
+|  order by: if(TupleIsNull(), NULL, CASE WHEN bigint_col IS NOT NULL THEN bigint_col ELSE 30 END) ASC
 |  window: RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
 |
 05:SORT
-|  order by: if(TupleIsNull(), NULL, coalesce(bigint_col, 30)) ASC
+|  order by: if(TupleIsNull(), NULL, CASE WHEN bigint_col IS NOT NULL THEN bigint_col ELSE 30 END) ASC
 |
 04:ANALYTIC
 |  functions: sum(id)
@@ -2210,7 +2210,7 @@ PLAN-ROOT SINK
 |  hash predicates: id = id
 |
 |--13:ANALYTIC
-|  |  functions: sum(if(TupleIsNull(), NULL, ifnull(int_col, 1)))
+|  |  functions: sum(if(TupleIsNull(), NULL, CASE WHEN int_col IS NULL THEN 1 ELSE int_col END))
 |  |  order by: id ASC
 |  |  window: RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
 |  |
@@ -2235,7 +2235,7 @@ PLAN-ROOT SINK
 |     partitions=4/4 files=4 size=460B
 |
 06:ANALYTIC
-|  functions: sum(if(TupleIsNull(), NULL, ifnull(int_col, 1)))
+|  functions: sum(if(TupleIsNull(), NULL, CASE WHEN int_col IS NULL THEN 1 ELSE int_col END))
 |  partition by: a.id
 |
 05:SORT
@@ -2279,7 +2279,7 @@ PLAN-ROOT SINK
 |  |
 |  |--01:SCAN HDFS [functional.alltypestiny t1]
 |  |     partitions=4/4 files=4 size=460B
-|  |     predicates: ifnull(t1.int_col, 10) < 10
+|  |     predicates: CASE WHEN t1.int_col IS NULL THEN 10 ELSE t1.int_col END < 10
 |  |
 |  02:SCAN HDFS [functional.alltypestiny t2]
 |     partitions=4/4 files=4 size=460B

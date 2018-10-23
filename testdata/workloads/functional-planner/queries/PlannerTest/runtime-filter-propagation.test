@@ -1187,7 +1187,7 @@ PLAN-ROOT SINK
 |  group by: t1.int_col
 |
 04:HASH JOIN [RIGHT OUTER JOIN]
-|  hash predicates: if(TupleIsNull(), NULL, coalesce(int_col, 384)) = t1.month
+|  hash predicates: if(TupleIsNull(), NULL, CASE WHEN int_col IS NOT NULL THEN int_col ELSE 384 END) = t1.month
 |  runtime filters: RF000 <- t1.month
 |
 |--00:SCAN HDFS [functional.alltypestiny t1]
@@ -1199,11 +1199,11 @@ PLAN-ROOT SINK
 |
 |--01:SCAN HDFS [functional.alltypes]
 |     partitions=24/24 files=24 size=478.45KB
-|     runtime filters: RF000 -> coalesce(functional.alltypes.int_col, 384)
+|     runtime filters: RF000 -> CASE WHEN functional.alltypes.int_col IS NOT NULL THEN functional.alltypes.int_col ELSE 384 END
 |
 02:SCAN HDFS [functional.alltypesagg]
    partitions=11/11 files=11 size=814.73KB
-   runtime filters: RF000 -> coalesce(int_col, 384), RF002 -> int_col
+   runtime filters: RF000 -> CASE WHEN int_col IS NOT NULL THEN int_col ELSE 384 END, RF002 -> int_col
 ====
 # IMPALA-4076: Test pruning the least selective runtime filters to obey
 # MAX_NUM_RUNTIME_FILTERS in the presence of zero-cardinality plan nodes. This query was
@@ -1444,9 +1444,9 @@ where l_orderkey = 965 and l_extendedprice * l_tax = p_retailprice;
 PLAN-ROOT SINK
 |
 02:HASH JOIN [RIGHT OUTER JOIN]
-|  hash predicates: p_partkey = if(l_orderkey % 2 = 0, NULL, l_partkey)
+|  hash predicates: p_partkey = CASE WHEN l_orderkey % 2 = 0 THEN NULL ELSE l_partkey END
 |  other predicates: p_retailprice = l_extendedprice * l_tax
-|  runtime filters: RF000 <- if(l_orderkey % 2 = 0, NULL, l_partkey), RF001 <- l_extendedprice * l_tax
+|  runtime filters: RF000 <- CASE WHEN l_orderkey % 2 = 0 THEN NULL ELSE l_partkey END, RF001 <- l_extendedprice * l_tax
 |
 |--00:SCAN HDFS [tpch_parquet.lineitem]
 |     partitions=1/1 files=3 size=193.71MB
@@ -1466,7 +1466,7 @@ where coalesce(t2.id + 10, 100) in (select 100);
 PLAN-ROOT SINK
 |
 04:HASH JOIN [LEFT SEMI JOIN]
-|  hash predicates: coalesce(t2.id + 10, 100) = `$a$1`.`$c$1`
+|  hash predicates: CASE WHEN t2.id + 10 IS NOT NULL THEN t2.id + 10 ELSE 100 END = `$a$1`.`$c$1`
 |
 |--02:UNION
 |     constant-operands=1
@@ -1489,7 +1489,7 @@ where coalesce(v.id + 10, 100) in (select 100);
 PLAN-ROOT SINK
 |
 04:HASH JOIN [LEFT SEMI JOIN]
-|  hash predicates: coalesce(t2.id + 10, 100) = `$a$1`.`$c$1`
+|  hash predicates: CASE WHEN t2.id + 10 IS NOT NULL THEN t2.id + 10 ELSE 100 END = `$a$1`.`$c$1`
 |
 |--02:UNION
 |     constant-operands=1
@@ -1516,7 +1516,7 @@ where coalesce(t2.id + 10, 100) in (select 100)
 PLAN-ROOT SINK
 |
 06:HASH JOIN [LEFT SEMI JOIN]
-|  hash predicates: coalesce(t2.id + 10, 100) = `$a$1`.`$c$1`
+|  hash predicates: CASE WHEN t2.id + 10 IS NOT NULL THEN t2.id + 10 ELSE 100 END = `$a$1`.`$c$1`
 |
 |--03:UNION
 |     constant-operands=1

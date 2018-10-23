@@ -1463,7 +1463,7 @@ PLAN-ROOT SINK
 |  |  |--07:SINGULAR ROW SRC
 |  |  |
 |  |  08:UNNEST [c.f12]
-|  |     predicates: coalesce(key, CAST(f21 AS STRING)) = 'test3'
+|  |     predicates: CASE WHEN key IS NOT NULL THEN key ELSE CAST(f21 AS STRING) END = 'test3'
 |  |
 |  05:UNNEST [t.complex_nested_struct_col.f2 c]
 |

@@ -19,13 +19,10 @@ package org.apache.impala.analysis;
 
 import java.util.List;
 
-import org.apache.impala.common.AnalysisException;
-import org.apache.impala.common.FrontendTestBase;
 import org.apache.impala.common.ImpalaException;
 import org.apache.impala.rewrite.BetweenToCompoundRule;
 import org.apache.impala.rewrite.EqualityDisjunctsToInRule;
 import org.apache.impala.rewrite.ExprRewriteRule;
-import org.apache.impala.rewrite.ExprRewriter;
 import org.apache.impala.rewrite.ExtractCommonConjunctRule;
 import org.apache.impala.rewrite.FoldConstantsRule;
 import org.apache.impala.rewrite.NormalizeBinaryPredicatesRule;
@@ -34,122 +31,14 @@ import org.apache.impala.rewrite.NormalizeExprsRule;
 import org.apache.impala.rewrite.RemoveRedundantStringCast;
 import org.apache.impala.rewrite.SimplifyConditionalsRule;
 import org.apache.impala.rewrite.SimplifyDistinctFromRule;
-import org.junit.Assert;
 import org.junit.Test;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 
 /**
  * Tests ExprRewriteRules.
  */
-public class ExprRewriteRulesTest extends FrontendTestBase {
-
-  /** Wraps an ExprRewriteRule to count how many times it's been applied. */
-  private static class CountingRewriteRuleWrapper implements ExprRewriteRule {
-    int rewrites;
-    ExprRewriteRule wrapped;
-
-    CountingRewriteRuleWrapper(ExprRewriteRule wrapped) {
-      this.wrapped = wrapped;
-    }
-
-    public Expr apply(Expr expr, Analyzer analyzer) throws AnalysisException {
-      Expr ret = wrapped.apply(expr, analyzer);
-      if (expr != ret) rewrites++;
-      return ret;
-    }
-  }
-
-  public Expr RewritesOk(String exprStr, ExprRewriteRule rule, String expectedExprStr)
-      throws ImpalaException {
-    return RewritesOk("functional.alltypessmall", exprStr, rule, expectedExprStr);
-  }
-
-  public Expr RewritesOk(String tableName, String exprStr, ExprRewriteRule rule, String expectedExprStr)
-      throws ImpalaException {
-    return RewritesOk(tableName, exprStr, Lists.newArrayList(rule), expectedExprStr);
-  }
-
-  public Expr RewritesOk(String exprStr, List<ExprRewriteRule> rules, String expectedExprStr)
-      throws ImpalaException {
-    return RewritesOk("functional.alltypessmall", exprStr, rules, expectedExprStr);
-  }
-
-  public Expr RewritesOk(String tableName, String exprStr, List<ExprRewriteRule> rules,
-      String expectedExprStr) throws ImpalaException {
-    String stmtStr = "select " + exprStr + " from " + tableName;
-    // Analyze without rewrites since that's what we want to test here.
-    SelectStmt stmt = (SelectStmt) ParsesOk(stmtStr);
-    AnalyzesOkNoRewrite(stmt);
-    Expr origExpr = stmt.getSelectList().getItems().get(0).getExpr();
-    Expr rewrittenExpr =
-        verifyExprEquivalence(origExpr, expectedExprStr, rules, stmt.getAnalyzer());
-    return rewrittenExpr;
-  }
-
-  public Expr RewritesOkWhereExpr(String exprStr, ExprRewriteRule rule, String expectedExprStr)
-      throws ImpalaException {
-    return RewritesOkWhereExpr("functional.alltypessmall", exprStr, rule, expectedExprStr);
-  }
-
-  public Expr RewritesOkWhereExpr(String tableName, String exprStr, ExprRewriteRule rule, String expectedExprStr)
-      throws ImpalaException {
-    return RewritesOkWhereExpr(tableName, exprStr, Lists.newArrayList(rule), expectedExprStr);
-  }
-
-  public Expr RewritesOkWhereExpr(String tableName, String exprStr, List<ExprRewriteRule> rules,
-      String expectedExprStr) throws ImpalaException {
-    String stmtStr = "select count(1)  from " + tableName + " where " + exprStr;
-    // Analyze without rewrites since that's what we want to test here.
-    SelectStmt stmt = (SelectStmt) ParsesOk(stmtStr);
-    AnalyzesOkNoRewrite(stmt);
-    Expr origExpr = stmt.getWhereClause();
-    Expr rewrittenExpr =
-        verifyExprEquivalence(origExpr, expectedExprStr, rules, stmt.getAnalyzer());
-    return rewrittenExpr;
-  }
-
-  private Expr verifyExprEquivalence(Expr origExpr, String expectedExprStr,
-      List<ExprRewriteRule> rules, Analyzer analyzer) throws AnalysisException {
-    String origSql = origExpr.toSql();
-
-    List<ExprRewriteRule> wrappedRules = Lists.newArrayList();
-    for (ExprRewriteRule r : rules) {
-      wrappedRules.add(new CountingRewriteRuleWrapper(r));
-    }
-    ExprRewriter rewriter = new ExprRewriter(wrappedRules);
-
-    Expr rewrittenExpr = rewriter.rewrite(origExpr, analyzer);
-    String rewrittenSql = rewrittenExpr.toSql();
-    boolean expectChange = expectedExprStr != null;
-    if (expectedExprStr != null) {
-      assertEquals(expectedExprStr, rewrittenSql);
-      // Asserts that all specified rules fired at least once. This makes sure that the
-      // rules being tested are, in fact, being executed. A common mistake is to write
-      // an expression that's re-written by the constant folder before getting to the
-      // rule that is intended for the test.
-      for (ExprRewriteRule r : wrappedRules) {
-        CountingRewriteRuleWrapper w = (CountingRewriteRuleWrapper) r;
-        Assert.assertTrue("Rule " + w.wrapped.toString() + " didn't fire.",
-          w.rewrites > 0);
-      }
-    } else {
-      assertEquals(origSql, rewrittenSql);
-    }
-    Assert.assertEquals(expectChange, rewriter.changed());
-    return rewrittenExpr;
-  }
-
-
-  /**
-   * Helper for prettier error messages than what JUnit.Assert provides.
-   */
-  private void assertEquals(String expected, String actual) {
-    if (!actual.equals(expected)) {
-      Assert.fail(String.format("\nActual: %s\nExpected: %s\n", actual, expected));
-    }
-  }
+public class ExprRewriteRulesTest extends BaseRewriteRulesTest {
 
   @Test
   public void TestBetweenToCompoundRule() throws ImpalaException {
@@ -317,25 +206,6 @@ public class ExprRewriteRulesTest extends FrontendTestBase {
   public void TestSimplifyConditionalsRule() throws ImpalaException {
     ExprRewriteRule rule = SimplifyConditionalsRule.INSTANCE;
 
-    // IF
-    RewritesOk("if(true, id, id+1)", rule, "id");
-    RewritesOk("if(false, id, id+1)", rule, "id + 1");
-    RewritesOk("if(null, id, id+1)", rule, "id + 1");
-    RewritesOk("if(id = 0, true, false)", rule, null);
-
-    // IFNULL and its aliases
-    for (String f : ImmutableList.of("ifnull", "isnull", "nvl")) {
-      RewritesOk(f + "(null, id)", rule, "id");
-      RewritesOk(f + "(null, null)", rule, "NULL");
-      RewritesOk(f + "(id, id + 1)", rule, null);
-
-      RewritesOk(f + "(1, 2)", rule, "1");
-      RewritesOk(f + "(0, id)", rule, "0");
-      // non literal constants shouldn't be simplified by the rule
-      RewritesOk(f + "(1 + 1, id)", rule, null);
-      RewritesOk(f + "(NULL + 1, id)", rule, null);
-    }
-
     // CompoundPredicate
     RewritesOk("false || id = 0", rule, "id = 0");
     RewritesOk("true || id = 0", rule, "TRUE");
@@ -417,39 +287,10 @@ public class ExprRewriteRulesTest extends FrontendTestBase {
 
     // IMPALA-5125: Exprs containing aggregates should not be rewritten if the rewrite
     // eliminates all aggregates.
-    RewritesOk("if(true, 0, sum(id))", rule, null);
-    RewritesOk("if(false, max(id), min(id))", rule, "min(id)");
     RewritesOk("true || sum(id) = 0", rule, null);
-    RewritesOk("ifnull(null, max(id))", rule, "max(id)");
-    RewritesOk("ifnull(1, max(id))", rule, null);
     RewritesOk("case when true then 0 when false then sum(id) end", rule, null);
     RewritesOk(
         "case when true then count(id) when false then sum(id) end", rule, "count(id)");
-
-    // IMPALA-5016: Simplify COALESCE function
-    // Test skipping leading nulls.
-    RewritesOk("coalesce(null, id, year)", rule, "coalesce(id, year)");
-    RewritesOk("coalesce(null, 1, id)", rule, "1");
-    RewritesOk("coalesce(null, null, id)", rule, "id");
-    // If the leading parameter is a non-NULL constant, rewrite to that constant.
-    RewritesOk("coalesce(1, id, year)", rule, "1");
-    // If COALESCE has only one parameter, rewrite to the parameter.
-    RewritesOk("coalesce(id)", rule, "id");
-    // If all parameters are NULL, rewrite to NULL.
-    RewritesOk("coalesce(null, null)", rule, "NULL");
-    // Do not rewrite non-literal constant exprs, rely on constant folding.
-    RewritesOk("coalesce(null is null, id)", rule, null);
-    RewritesOk("coalesce(10 + null, id)", rule, null);
-    // Combine COALESCE rule with FoldConstantsRule.
-    RewritesOk("coalesce(1 + 2, id, year)", rules, "3");
-    RewritesOk("coalesce(null is null, bool_col)", rules, "TRUE");
-    RewritesOk("coalesce(10 + null, id, year)", rules, "coalesce(id, year)");
-    // Don't rewrite based on nullability of slots. TODO (IMPALA-5753).
-    RewritesOk("coalesce(year, id)", rule, null);
-    RewritesOk("functional_kudu.alltypessmall", "coalesce(id, year)", rule, null);
-    // IMPALA-7419: coalesce that gets simplified and contains an aggregate
-    RewritesOk("coalesce(null, min(distinct tinyint_col), 42)", rule,
-        "coalesce(min(tinyint_col), 42)");
   }
 
   @Test
@@ -576,15 +417,6 @@ public class ExprRewriteRulesTest extends FrontendTestBase {
     // Verify nothing happens
     RewritesOk("bool_col IS NOT DISTINCT FROM int_col", rule, null);
     RewritesOk("bool_col IS DISTINCT FROM int_col", rule, null);
-
-    // IF with distinct and distinct from
-    List<ExprRewriteRule> rules = Lists.newArrayList(
-        SimplifyConditionalsRule.INSTANCE,
-        SimplifyDistinctFromRule.INSTANCE);
-    RewritesOk("if(bool_col is distinct from bool_col, 1, 2)", rules, "2");
-    RewritesOk("if(bool_col is not distinct from bool_col, 1, 2)", rules, "1");
-    RewritesOk("if(bool_col <=> bool_col, 1, 2)", rules, "1");
-    RewritesOk("if(bool_col <=> NULL, 1, 2)", rules, null);
   }
 
   @Test
@@ -675,24 +507,5 @@ public class ExprRewriteRulesTest extends FrontendTestBase {
     RewritesOk("functional.decimal_tiny", "cast(c1 as string) = 'NULL'",
         comboRules, null);
     RewritesOk("cast(timestamp_col as string) = 'NULL'", comboRules, null);
-  }
-
-  /**
-   * NULLIF gets converted to an IF, and has cases where
-   * it can be further simplified via SimplifyDistinctFromRule.
-   */
-  @Test
-  public void TestNullif() throws ImpalaException {
-    List<ExprRewriteRule> rules = Lists.newArrayList(
-        SimplifyConditionalsRule.INSTANCE,
-        SimplifyDistinctFromRule.INSTANCE);
-
-    // nullif: converted to if and simplified
-    RewritesOk("nullif(bool_col, bool_col)", rules, "NULL");
-
-    // works because the expression tree is identical;
-    // more complicated things like nullif(int_col + 1, 1 + int_col)
-    // are not simplified
-    RewritesOk("nullif(1 + int_col, 1 + int_col)", rules, "NULL");
   }
 }

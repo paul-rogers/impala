@@ -8,7 +8,7 @@ from (select * from functional.alltypestiny) t1
 PLAN-ROOT SINK
 |
 04:NESTED LOOP JOIN [INNER JOIN]
-|  predicates: t3.id = coalesce(functional.alltypestiny.id, t3.id)
+|  predicates: t3.id = CASE WHEN functional.alltypestiny.id IS NOT NULL THEN functional.alltypestiny.id ELSE t3.id END
 |
 |--02:SCAN HDFS [functional.alltypestiny t3]
 |     partitions=4/4 files=4 size=460B
