@@ -164,17 +164,6 @@ Status ScalarExpr::CreateNode(
     case TExprNodeType::FUNCTION_CALL:
       if (!texpr_node.__isset.fn) {
         return Status("Function not set in thrift node");
-      }
-      // Special-case functions that have their own Expr classes
-      // TODO: is there a better way to do this?
-      if (texpr_node.fn.name.function_name == "if") {
-        *expr = pool->Add(new IfExpr(texpr_node));
-      } else if (texpr_node.fn.name.function_name == "isnull" ||
-                 texpr_node.fn.name.function_name == "ifnull" ||
-                 texpr_node.fn.name.function_name == "nvl") {
-        *expr = pool->Add(new IsNullExpr(texpr_node));
-      } else if (texpr_node.fn.name.function_name == "coalesce") {
-        *expr = pool->Add(new CoalesceExpr(texpr_node));
       } else if (texpr_node.fn.binary_type == TFunctionBinaryType::JAVA) {
         *expr = pool->Add(new HiveUdfCall(texpr_node));
       } else {

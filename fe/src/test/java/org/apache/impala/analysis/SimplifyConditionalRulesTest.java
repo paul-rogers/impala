@@ -31,7 +31,8 @@ public class SimplifyConditionalRulesTest extends BaseRewriteRulesTest {
     RewritesOk("if(true, id, id+1)", rule, "id");
     RewritesOk("if(false, id, id+1)", rule, "id + 1");
     RewritesOk("if(null, id, id+1)", rule, "id + 1");
-    RewritesOk("if(id = 0, true, false)", rule, null);
+    RewritesOk("if(id = 0, true, false)", rule,
+        "CASE WHEN id = 0 THEN TRUE ELSE FALSE END");
   }
 
   /**
