@@ -73,15 +73,26 @@ public abstract class BaseRewriteRulesTest extends FrontendTestBase {
     return RewritesOk("functional.alltypessmall", exprStr, rules, expectedExprStr);
   }
 
+  public Expr verifyPartialRewrite(String exprStr, List<ExprRewriteRule> rules, String expectedExprStr)
+      throws ImpalaException {
+    return verifyRewrites("functional.alltypessmall", exprStr, rules, expectedExprStr, false);
+  }
+
   public Expr RewritesOk(String tableName, String exprStr, List<ExprRewriteRule> rules,
       String expectedExprStr) throws ImpalaException {
+    return verifyRewrites(tableName, exprStr, rules, expectedExprStr, true);
+  }
+
+  private Expr verifyRewrites(String tableName, String exprStr, List<ExprRewriteRule> rules,
+      String expectedExprStr, boolean requireFire) throws ImpalaException {
     String stmtStr = "select " + exprStr + " from " + tableName;
     // Analyze without rewrites since that's what we want to test here.
     SelectStmt stmt = (SelectStmt) ParsesOk(stmtStr);
     AnalyzesOkNoRewrite(stmt);
     Expr origExpr = stmt.getSelectList().getItems().get(0).getExpr();
     Expr rewrittenExpr =
-        verifyExprEquivalence(origExpr, expectedExprStr, rules, stmt.getAnalyzer());
+        verifyExprEquivalence(origExpr, expectedExprStr, rules,
+            stmt.getAnalyzer(), requireFire);
     return rewrittenExpr;
   }
 
@@ -108,7 +119,15 @@ public abstract class BaseRewriteRulesTest extends FrontendTestBase {
   }
 
   private Expr verifyExprEquivalence(Expr origExpr, String expectedExprStr,
-      List<ExprRewriteRule> rules, Analyzer analyzer) throws AnalysisException {
+      List<ExprRewriteRule> rules, Analyzer analyzer
+      ) throws AnalysisException {
+    return verifyExprEquivalence(origExpr, expectedExprStr,
+        rules, analyzer, true);
+  }
+
+  private Expr verifyExprEquivalence(Expr origExpr, String expectedExprStr,
+      List<ExprRewriteRule> rules, Analyzer analyzer,
+      boolean requireFire) throws AnalysisException {
     String origSql = origExpr.toSql();
 
     List<ExprRewriteRule> wrappedRules = Lists.newArrayList();
@@ -122,14 +141,16 @@ public abstract class BaseRewriteRulesTest extends FrontendTestBase {
     boolean expectChange = expectedExprStr != null;
     if (expectedExprStr != null) {
       assertEquals(expectedExprStr, rewrittenSql);
-      // Asserts that all specified rules fired at least once. This makes sure that the
-      // rules being tested are, in fact, being executed. A common mistake is to write
-      // an expression that's re-written by the constant folder before getting to the
-      // rule that is intended for the test.
-      for (ExprRewriteRule r : wrappedRules) {
-        CountingRewriteRuleWrapper w = (CountingRewriteRuleWrapper) r;
-        Assert.assertTrue("Rule " + w.wrapped.toString() + " didn't fire.",
-          w.rewrites > 0);
+      if (requireFire) {
+        // Asserts that all specified rules fired at least once. This makes sure that the
+        // rules being tested are, in fact, being executed. A common mistake is to write
+        // an expression that's re-written by the constant folder before getting to the
+        // rule that is intended for the test.
+        for (ExprRewriteRule r : wrappedRules) {
+          CountingRewriteRuleWrapper w = (CountingRewriteRuleWrapper) r;
+          Assert.assertTrue("Rule " + w.wrapped.toString() + " didn't fire.",
+            w.rewrites > 0);
+        }
       }
     } else {
       assertEquals(origSql, rewrittenSql);

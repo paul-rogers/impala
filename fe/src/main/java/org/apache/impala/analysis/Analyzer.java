@@ -67,6 +67,7 @@ import org.apache.impala.rewrite.NormalizeBinaryPredicatesRule;
 import org.apache.impala.rewrite.NormalizeCountStarRule;
 import org.apache.impala.rewrite.NormalizeExprsRule;
 import org.apache.impala.rewrite.RemoveRedundantStringCast;
+import org.apache.impala.rewrite.RewriteConditionalFnsRule;
 import org.apache.impala.rewrite.SimplifyConditionalsRule;
 import org.apache.impala.rewrite.SimplifyDistinctFromRule;
 import org.apache.impala.service.FeSupport;
@@ -328,6 +329,9 @@ public class Analyzer {
         rules.add(FoldConstantsRule.INSTANCE);
         rules.add(NormalizeExprsRule.INSTANCE);
         rules.add(ExtractCommonConjunctRule.INSTANCE);
+        // Relies on FoldConstantsRule adn NormalizeExprsRule,
+        // Relies on SimplifyConditionalsRule coming later.
+        rules.add(RewriteConditionalFnsRule.INSTANCE);
         // Relies on FoldConstantsRule and NormalizeExprsRule.
         rules.add(SimplifyConditionalsRule.INSTANCE);
         rules.add(EqualityDisjunctsToInRule.INSTANCE);
@@ -1757,6 +1761,7 @@ public class Analyzer {
    * among slots in ignoreSlots are assumed to have already been enforced.
    * TODO: Consider optimizing for the cheapest minimum set of predicates.
    */
+  @SuppressWarnings("unchecked")
   public <T extends Expr> void createEquivConjuncts(TupleId tid, List<T> conjuncts,
       Set<SlotId> ignoreSlots) {
     // Maps from a slot id to its set of equivalent slots. Used to track equivalences
@@ -1930,6 +1935,7 @@ public class Analyzer {
     return globalState_.descTbl.getSlotDesc(slotId).getParent().getId();
   }
 
+  @SuppressWarnings({ "unchecked", "rawtypes" })
   public void registerValueTransfer(SlotId id1, SlotId id2) {
     globalState_.registeredValueTransfers.add(new Pair(id1, id2));
   }
