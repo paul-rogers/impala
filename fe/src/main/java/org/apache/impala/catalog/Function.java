@@ -206,7 +206,7 @@ public class Function extends CatalogObjectImpl {
    * be implicitly castable to the matching argument in this. If strict is true,
    * only consider conversions where there is no loss of precision.
    */
-  private boolean isSuperTypeOf(Function other, boolean strict) {
+  protected boolean isSuperTypeOf(Function other, boolean strict) {
     if (!other.name_.equals(name_)) return false;
     if (!this.hasVarArgs_ && other.argTypes_.length != this.argTypes_.length) {
       return false;
@@ -252,7 +252,7 @@ public class Function extends CatalogObjectImpl {
     return true;
   }
 
-  private boolean isIndistinguishable(Function o) {
+  protected boolean isIndistinguishable(Function o) {
     if (!o.name_.equals(name_)) return false;
     int minArgs = Math.min(o.argTypes_.length, this.argTypes_.length);
     // The first fully specified args must be identical.

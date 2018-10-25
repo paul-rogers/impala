@@ -31,6 +31,7 @@ import org.apache.impala.analysis.InPredicate;
 import org.apache.impala.analysis.IsNullPredicate;
 import org.apache.impala.analysis.LikePredicate;
 import org.apache.impala.builtins.ScalarBuiltins;
+import org.apache.impala.rewrite.RewriteConditionalFnsRule;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
@@ -85,6 +86,7 @@ public class BuiltinsDb extends Db {
     BinaryPredicate.initBuiltins(this);
     CastExpr.initBuiltins(this);
     CaseExpr.initBuiltins(this);
+    RewriteConditionalFnsRule.initBuiltins(this);
     CompoundPredicate.initBuiltins(this);
     InPredicate.initBuiltins(this);
     IsNullPredicate.initBuiltins(this);

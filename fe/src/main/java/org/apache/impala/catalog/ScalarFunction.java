@@ -43,6 +43,38 @@ import com.google.common.collect.Lists;
  * Internal representation of a scalar function.
  */
 public class ScalarFunction extends Function {
+
+  /**
+   * Special case for
+   * <code>nvl2(type1 expr, type2 ifNotNull, type2 ifNull)</code>.
+   * Type check on the second and third arguments, since that drives the
+   * return type. Accept any type for the first. This works because
+   * <code>nvl2()</code> is rewritten to use <code>CASE</code>.
+   */
+  public static class Nvl2Function extends ScalarFunction {
+
+    public Nvl2Function(Type retType) {
+      super(new FunctionName(BuiltinsDb.NAME, "nvl2"),
+          Lists.newArrayList(Type.NULL, retType, retType), retType, true);
+    }
+
+    @Override
+    protected boolean isIndistinguishable(Function o) {
+      return
+          o.getArgs()[1].matchesType(this.getArgs()[1]) &&
+          o.getArgs()[2].matchesType(this.getArgs()[2]);
+    }
+
+    @Override
+    protected boolean isSuperTypeOf(Function other, boolean strict) {
+      return
+          Type.isImplicitlyCastable(
+              other.getArgs()[1], this.getArgs()[1], strict, strict) &&
+          Type.isImplicitlyCastable(
+              other.getArgs()[2], this.getArgs()[2], strict, strict);
+    }
+  }
+
   // The name inside the binary at location_ that contains this particular
   // function. e.g. org.example.MyUdf.class.
   private String symbolName_;

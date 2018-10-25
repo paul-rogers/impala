@@ -29,6 +29,7 @@ import org.apache.impala.rewrite.NormalizeBinaryPredicatesRule;
 import org.apache.impala.rewrite.NormalizeCountStarRule;
 import org.apache.impala.rewrite.NormalizeExprsRule;
 import org.apache.impala.rewrite.RemoveRedundantStringCast;
+import org.apache.impala.rewrite.RewriteConditionalFnsRule;
 import org.apache.impala.rewrite.SimplifyConditionalsRule;
 import org.apache.impala.rewrite.SimplifyDistinctFromRule;
 import org.junit.Test;
@@ -59,6 +60,7 @@ public class ExprRewriteRulesTest extends BaseRewriteRulesTest {
     RewritesOk("50.0 not between null and 5000", rule,
         "50.0 < NULL OR 50.0 > 5000");
 
+    // See RewriteConditionalFnsRuleTest for compound between tests
     // Nested BETWEEN predicates.
     RewritesOk(
         "int_col between if(tinyint_col between 1 and 2, 10, 20) " +
@@ -329,12 +331,22 @@ public class ExprRewriteRulesTest extends BaseRewriteRulesTest {
 
     // IF with distinct and distinct from
     List<ExprRewriteRule> rules = Lists.newArrayList(
+        RewriteConditionalFnsRule.INSTANCE,
         SimplifyConditionalsRule.INSTANCE,
         SimplifyDistinctFromRule.INSTANCE);
     RewritesOk("if(bool_col is distinct from bool_col, 1, 2)", rules, "2");
     RewritesOk("if(bool_col is not distinct from bool_col, 1, 2)", rules, "1");
     RewritesOk("if(bool_col <=> bool_col, 1, 2)", rules, "1");
-    RewritesOk("if(bool_col <=> NULL, 1, 2)", rules, null);
+    rules = Lists.newArrayList(
+        RewriteConditionalFnsRule.INSTANCE,
+        SimplifyDistinctFromRule.INSTANCE);
+    RewritesOk("if(bool_col <=> NULL, 1, 2)", rules,
+        "CASE WHEN bool_col IS NULL THEN 1 ELSE 2 END");
+    RewritesOk("if(bool_col is distinct from NULL, 1, 2)", rules,
+        "CASE WHEN bool_col IS NOT NULL THEN 1 ELSE 2 END");
+
+    // Should not be simplified if contains aggregates
+    RewritesOk("sum(id) IS DISTINCT FROM sum(id)", rule, null);
   }
 
   @Test
@@ -434,6 +446,7 @@ public class ExprRewriteRulesTest extends BaseRewriteRulesTest {
   @Test
   public void TestNullif() throws ImpalaException {
     List<ExprRewriteRule> rules = Lists.newArrayList(
+        RewriteConditionalFnsRule.INSTANCE,
         SimplifyConditionalsRule.INSTANCE,
         SimplifyDistinctFromRule.INSTANCE);
 

@@ -28,6 +28,10 @@ import org.apache.impala.analysis.Expr;
 import org.apache.impala.analysis.FunctionCallExpr;
 import org.apache.impala.analysis.IsNullPredicate;
 import org.apache.impala.analysis.NullLiteral;
+import org.apache.impala.catalog.Db;
+import org.apache.impala.catalog.PrimitiveType;
+import org.apache.impala.catalog.ScalarFunction;
+import org.apache.impala.catalog.Type;
 import org.apache.impala.common.AnalysisException;
 
 import com.google.common.base.Preconditions;
@@ -60,7 +64,7 @@ public class RewriteConditionalFnsRule  implements ExprRewriteRule {
 
   @Override
   public Expr apply(Expr expr, Analyzer analyzer) throws AnalysisException {
-    if (!expr.isAnalyzed()) return expr;
+    assert expr.isAnalyzed();
 
     // Rewrite conditional functions to use CASE. The result becomes
     // the original expression since there is no implementation for the
@@ -122,7 +126,9 @@ public class RewriteConditionalFnsRule  implements ExprRewriteRule {
   }
 
   /**
-   * Rewrites <code>IFNULL(a, x)</code>:
+   * Rewrites <code>IFNULL(a, x)</code>, which is an alias
+   * for <code>ISNULL(a, x)</code> and
+   * <code>NVL(a, x)</code>.
    * <ul>
    * <li><code>IFNULL(NULL, x)</code> &rarr; <code>x</code></li>
    * <li><code>IFNULL(a, x)</code> &rarr; <code>a</code>, if a is a non-null literal</li>
@@ -179,6 +185,9 @@ public class RewriteConditionalFnsRule  implements ExprRewriteRule {
     if (revised.isEmpty()) { return NullLiteral.create(expr.getType()); }
     if (revised.size() == 1) { return revised.get(0); }
 
+    // Iterate over all values but the last to put these
+    // into WHERE clauses. The last value goes into the ELSE
+    // clause.
     List<CaseWhenClause> whenList = new ArrayList<>();
     for (int i = 0; i < revised.size() - 1; i++) {
       Expr childExpr = revised.get(i);
@@ -204,27 +213,35 @@ public class RewriteConditionalFnsRule  implements ExprRewriteRule {
     Expr head = plist.get(0);
     Expr ifNotNull = plist.get(1);
     Expr ifNull = plist.get(2);
-    if (head.isNullLiteral() &&
-        (ifNull.isAggregate() || ! ifNotNull.isAggregate())) {
-      return ifNull;
+
+    // nvl2(NULL, any, agg) --> agg
+    // nvl2(NULL, non-agg, any) --> any
+    if (head.isNullLiteral()) {
+      if (ifNull.isAggregate() || ! ifNotNull.isAggregate()) {
+        return ifNull;
+      }
     }
-    if (head.isLiteral() &&
-        (ifNotNull.isAggregate() || ! ifNull.isAggregate())) {
-      return ifNotNull;
+
+    // nvl2(non-null-literal, agg, any) --> agg
+    // nvl2(non-null-literal, any, non-agg) --> any
+    else if (head.isLiteral()) {
+      if (ifNotNull.isAggregate() || ! ifNull.isAggregate()) {
+        return ifNotNull;
+      }
     }
     return new CaseExpr(null, // CASE
         Lists.newArrayList(
           new CaseWhenClause( // WHEN
             new IsNullPredicate(head, true), // EXPR IS NOT NULL
             ifNotNull)), // THEN ifNotNull
-        ifNull); // ELSE isNull END
+        ifNull); // ELSE ifNull END
   }
 
   /**
    * Rewrite of <code>nullif(x, y)</code>.
    * <ul>
    * <li><code>nullif(null, y)</code> &rarr; <code>NULL</code></li>
-   * <li><code>nullif(x, null)</code> &rarr; <code>NULL</code></li>
+   * <li><code>nullif(x, null)</code> &rarr; <code>x</code></li>
    * <li><code>nullif(x y)</code> &rarr; <br>
    * <code>CASE WHEN x IS DISTINCT FROM y THEN x END</code></li>
    * <ul>
@@ -232,9 +249,13 @@ public class RewriteConditionalFnsRule  implements ExprRewriteRule {
   private Expr rewriteNullIfFn(FunctionCallExpr expr) {
     List<Expr> plist = expr.getParams().exprs();
     Expr head = plist.get(0);
+
+    // Nothing is equal to null, so return the head.
     if (head.isNullLiteral()) { return head; }
     Expr tail = plist.get(1);
-    if (tail.isNullLiteral()) { return tail; }
+    if (tail.isNullLiteral()) { return head; }
+
+    // Full rewrite to CASE.
     return new CaseExpr(null, // CASE
         Lists.newArrayList(
           new CaseWhenClause( // WHEN
@@ -242,5 +263,20 @@ public class RewriteConditionalFnsRule  implements ExprRewriteRule {
                 tail), // x IS DISTINCT FROM y
             head.clone())), // THEN x
         null); // END (which defaults to NULL)
+  }
+
+  /**
+   * Create entries for the odd-duck NVL2 function:
+   * <code>nvl2(type1 expr, type2 ifNotNull, type2 ifNull)</code>.
+   * The types form an n^2 matrix that can't easily be represented.
+   * Instead, we define a special function that matches on the
+   * second and third arguments, ignoring the first.
+   */
+  public static void initBuiltins(Db db) {
+    for (Type t: Type.getSupportedTypes()) {
+      if (t.isNull()) continue;
+      if (t.isScalarType(PrimitiveType.CHAR)) continue;
+      db.addBuiltin(new ScalarFunction.Nvl2Function(t));
+    }
   }
 }

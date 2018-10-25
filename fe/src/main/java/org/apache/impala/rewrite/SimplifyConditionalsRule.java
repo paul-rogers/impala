@@ -28,6 +28,7 @@ import org.apache.impala.analysis.CaseWhenClause;
 import org.apache.impala.analysis.CompoundPredicate;
 import org.apache.impala.analysis.Expr;
 import org.apache.impala.analysis.NullLiteral;
+import org.apache.impala.analysis.Predicate;
 import org.apache.impala.common.AnalysisException;
 
 /***
@@ -57,7 +58,7 @@ public class SimplifyConditionalsRule implements ExprRewriteRule {
 
   @Override
   public Expr apply(Expr expr, Analyzer analyzer) throws AnalysisException {
-    if (!expr.isAnalyzed()) return expr;
+    assert expr.isAnalyzed();
 
     Expr simplified;
     if (expr instanceof CompoundPredicate) {
@@ -99,21 +100,20 @@ public class SimplifyConditionalsRule implements ExprRewriteRule {
    */
   private Expr simplifyCompoundPredicate(CompoundPredicate expr) {
     Expr leftChild = expr.getChild(0);
-    if (!(leftChild instanceof BoolLiteral)) return expr;
 
     if (expr.getOp() == CompoundPredicate.Operator.AND) {
-      if (((BoolLiteral) leftChild).getValue()) {
+      if (Predicate.IS_TRUE_LITERAL.apply(leftChild)) {
         // TRUE AND 'expr', so return 'expr'.
         return expr.getChild(1);
-      } else {
+      } else if (Predicate.IS_FALSE_LITERAL.apply(leftChild)) {
         // FALSE AND 'expr', so return FALSE.
         return leftChild;
       }
     } else if (expr.getOp() == CompoundPredicate.Operator.OR) {
-      if (((BoolLiteral) leftChild).getValue()) {
+      if (Predicate.IS_TRUE_LITERAL.apply(leftChild)) {
         // TRUE OR 'expr', so return TRUE.
         return leftChild;
-      } else {
+      } else if (Predicate.IS_FALSE_LITERAL.apply(leftChild)) {
         // FALSE OR 'expr', so return 'expr'.
         return expr.getChild(1);
       }
@@ -154,7 +154,7 @@ public class SimplifyConditionalsRule implements ExprRewriteRule {
     Expr elseExpr = null;
     for (int i = loopStart; i < numChildren - 1; i += 2) {
       Expr child = expr.getChild(i);
-      if (child instanceof NullLiteral) continue;
+      if (child.isNullLiteral()) continue;
 
       Expr whenExpr;
       if (expr.hasCaseExpr()) {
@@ -170,20 +170,18 @@ public class SimplifyConditionalsRule implements ExprRewriteRule {
         whenExpr = child;
       }
 
-      if (whenExpr instanceof BoolLiteral) {
-        if (((BoolLiteral) whenExpr).getValue()) {
-          if (newWhenClauses.size() == 0) {
-            // This WHEN is always TRUE, and any cases preceding it are constant
-            // FALSE/NULL, so just return its THEN.
-            return expr.getChild(i + 1).castTo(expr.getType());
-          } else {
-            // This WHEN is always TRUE, so the cases after it can never be reached.
-            elseExpr = expr.getChild(i + 1);
-            break;
-          }
+      if (Predicate.IS_TRUE_LITERAL.apply(whenExpr)) {
+        if (newWhenClauses.size() == 0) {
+          // This WHEN is always TRUE, and any cases preceding it are constant
+          // FALSE/NULL, so just return its THEN.
+          return expr.getChild(i + 1).castTo(expr.getType());
         } else {
-          // This WHEN is always FALSE, so it can be removed.
+          // This WHEN is always TRUE, so the cases after it can never be reached.
+          elseExpr = expr.getChild(i + 1);
+          break;
         }
+      } else if (Predicate.IS_FALSE_LITERAL.apply(whenExpr)) {
+        // This WHEN is always FALSE, so it can be removed.
       } else {
         newWhenClauses.add(new CaseWhenClause(child, expr.getChild(i + 1)));
       }

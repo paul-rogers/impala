@@ -528,17 +528,9 @@ visible_functions = [
   [['if'], 'TIMESTAMP', ['BOOLEAN', 'TIMESTAMP', 'TIMESTAMP'], ''],
   [['if'], 'DECIMAL', ['BOOLEAN', 'DECIMAL', 'DECIMAL'], ''],
 
-  # Rewritten away in the FE
-  [['nvl2'], 'BOOLEAN', ['NULL', 'BOOLEAN', 'BOOLEAN'], ''],
-  [['nvl2'], 'TINYINT', ['NULL', 'TINYINT', 'TINYINT'], ''],
-  [['nvl2'], 'SMALLINT', ['NULL', 'SMALLINT', 'SMALLINT'], ''],
-  [['nvl2'], 'INT', ['NULL', 'INT', 'INT'], ''],
-  [['nvl2'], 'BIGINT', ['NULL', 'BIGINT', 'BIGINT'], ''],
-  [['nvl2'], 'FLOAT', ['NULL', 'FLOAT', 'FLOAT'], ''],
-  [['nvl2'], 'DOUBLE', ['NULL', 'DOUBLE', 'DOUBLE'], ''],
-  [['nvl2'], 'STRING', ['NULL', 'STRING', 'STRING'], ''],
-  [['nvl2'], 'TIMESTAMP', ['NULL', 'TIMESTAMP', 'TIMESTAMP'], ''],
-  [['nvl2'], 'DECIMAL', ['NULL', 'DECIMAL', 'DECIMAL'], ''],
+  # nvl2 is rewritten away in the FE,
+  # Requires a special representation: see ScalarFunction.NVL2Function
+  # and RewriteConditionalFunctions.initBuiltins()
 
   # Rewritten away in the FE
   [['nullif'], 'BOOLEAN', ['BOOLEAN', 'BOOLEAN'], ''],

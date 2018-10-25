@@ -908,8 +908,9 @@ public class SelectStmt extends QueryStmt {
       }
     }
     if (orderByElements_ != null) {
-      for (OrderByElement orderByElem: orderByElements_) {
-        orderByElem.setExpr(rewriteCheckOrdinalResult(rewriter, orderByElem.getExpr()));
+      List<Expr> sortExprs = sortInfo_.getSortExprs();
+      for (int i = 0; i < sortExprs.size(); i++) {
+        sortExprs.set(i, rewriteCheckOrdinalResult(rewriter, sortExprs.get(i)));
       }
     }
   }

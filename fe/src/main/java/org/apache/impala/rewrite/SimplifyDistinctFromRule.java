@@ -21,6 +21,7 @@ import org.apache.impala.analysis.Analyzer;
 import org.apache.impala.analysis.BinaryPredicate;
 import org.apache.impala.analysis.BoolLiteral;
 import org.apache.impala.analysis.Expr;
+import org.apache.impala.analysis.IsNullPredicate;
 
 /**
  * Simplifies DISTINCT FROM and NOT DISTINCT FROM predicates
@@ -36,21 +37,33 @@ public class SimplifyDistinctFromRule implements ExprRewriteRule {
 
   @Override
   public Expr apply(Expr expr, Analyzer analyzer) {
-    if (!expr.isAnalyzed()) return expr;
+    assert expr.isAnalyzed();
 
-    if (expr instanceof BinaryPredicate) {
-      BinaryPredicate pred = (BinaryPredicate) expr;
-      if (pred.getOp() == BinaryPredicate.Operator.NOT_DISTINCT) {
-        if (pred.getChild(0).equals(pred.getChild(1))) {
-          return new BoolLiteral(true);
-        }
-      }
-      if (pred.getOp() == BinaryPredicate.Operator.DISTINCT_FROM) {
-        if (pred.getChild(0).equals(pred.getChild(1))) {
-          return new BoolLiteral(false);
-        }
-      }
+    if (! (expr instanceof BinaryPredicate)) { return expr; }
+    BinaryPredicate pred = (BinaryPredicate) expr;
+    return simplify(pred,
+        pred.getOp() == BinaryPredicate.Operator.NOT_DISTINCT);
+  }
+
+  private Expr simplify(BinaryPredicate pred, boolean sameAs) {
+    Expr first = pred.getChild(0);
+    Expr second = pred.getChild(1);
+
+    // If the two terms are equal, return a constant result.
+    // But, don't do this if the term is an aggregate (IMPALA-5125)
+    if (first.equals(second) && ! first.isAggregate()) {
+      return new BoolLiteral(sameAs);
     }
-    return expr;
+
+    // Convert NULL IS [NOT] DISTINCT FROM foo to foo IS [NOT] NULL
+    if (first.isNullLiteral()) {
+      return new IsNullPredicate(second, ! sameAs);
+    }
+
+    // Convert foo IS [NOT] DISTINCT FROM NULL to foo IS [NOT] NULL
+    if (second.isNullLiteral()) {
+      return new IsNullPredicate(first, ! sameAs);
+    }
+    return pred;
   }
 }

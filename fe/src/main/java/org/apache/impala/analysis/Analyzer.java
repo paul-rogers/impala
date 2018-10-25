@@ -329,9 +329,14 @@ public class Analyzer {
         rules.add(FoldConstantsRule.INSTANCE);
         rules.add(NormalizeExprsRule.INSTANCE);
         rules.add(ExtractCommonConjunctRule.INSTANCE);
-        // Relies on FoldConstantsRule adn NormalizeExprsRule,
-        // Relies on SimplifyConditionalsRule coming later.
-        rules.add(RewriteConditionalFnsRule.INSTANCE);
+      }
+      // Relies on FoldConstantsRule adn NormalizeExprsRule,
+      // Relies on SimplifyConditionalsRule coming later.
+      // But, even if the above are not done, conditionals
+      // still must be rewritten as there is no BE implementation
+      // for these functions.
+      rules.add(RewriteConditionalFnsRule.INSTANCE);
+      if (queryCtx.getClient_request().getQuery_options().enable_expr_rewrites) {
         // Relies on FoldConstantsRule and NormalizeExprsRule.
         rules.add(SimplifyConditionalsRule.INSTANCE);
         rules.add(EqualityDisjunctsToInRule.INSTANCE);

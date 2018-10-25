@@ -53,7 +53,10 @@ public abstract class BaseRewriteRulesTest extends FrontendTestBase {
 
     public Expr apply(Expr expr, Analyzer analyzer) throws AnalysisException {
       Expr ret = wrapped.apply(expr, analyzer);
-      if (expr != ret) rewrites++;
+      if (expr != ret) {
+        rewrites++;
+        ret.analyze(analyzer);
+      }
       return ret;
     }
   }
@@ -63,19 +66,23 @@ public abstract class BaseRewriteRulesTest extends FrontendTestBase {
     return RewritesOk("functional.alltypessmall", exprStr, rule, expectedExprStr);
   }
 
-  public Expr RewritesOk(String tableName, String exprStr, ExprRewriteRule rule, String expectedExprStr)
+  public Expr RewritesOk(String tableName, String exprStr, ExprRewriteRule rule,
+      String expectedExprStr)
       throws ImpalaException {
     return RewritesOk(tableName, exprStr, Lists.newArrayList(rule), expectedExprStr);
   }
 
-  public Expr RewritesOk(String exprStr, List<ExprRewriteRule> rules, String expectedExprStr)
+  public Expr RewritesOk(String exprStr, List<ExprRewriteRule> rules,
+      String expectedExprStr)
       throws ImpalaException {
     return RewritesOk("functional.alltypessmall", exprStr, rules, expectedExprStr);
   }
 
-  public Expr verifyPartialRewrite(String exprStr, List<ExprRewriteRule> rules, String expectedExprStr)
+  public Expr verifyPartialRewrite(String exprStr, List<ExprRewriteRule> rules,
+      String expectedExprStr)
       throws ImpalaException {
-    return verifyRewrites("functional.alltypessmall", exprStr, rules, expectedExprStr, false);
+    return verifyRewrites("functional.alltypessmall", exprStr, rules,
+        expectedExprStr, false);
   }
 
   public Expr RewritesOk(String tableName, String exprStr, List<ExprRewriteRule> rules,
@@ -83,7 +90,8 @@ public abstract class BaseRewriteRulesTest extends FrontendTestBase {
     return verifyRewrites(tableName, exprStr, rules, expectedExprStr, true);
   }
 
-  private Expr verifyRewrites(String tableName, String exprStr, List<ExprRewriteRule> rules,
+  private Expr verifyRewrites(String tableName, String exprStr,
+      List<ExprRewriteRule> rules,
       String expectedExprStr, boolean requireFire) throws ImpalaException {
     String stmtStr = "select " + exprStr + " from " + tableName;
     // Analyze without rewrites since that's what we want to test here.
@@ -96,17 +104,22 @@ public abstract class BaseRewriteRulesTest extends FrontendTestBase {
     return rewrittenExpr;
   }
 
-  public Expr RewritesOkWhereExpr(String exprStr, ExprRewriteRule rule, String expectedExprStr)
+  public Expr RewritesOkWhereExpr(String exprStr, ExprRewriteRule rule,
+      String expectedExprStr)
       throws ImpalaException {
-    return RewritesOkWhereExpr("functional.alltypessmall", exprStr, rule, expectedExprStr);
+    return RewritesOkWhereExpr("functional.alltypessmall", exprStr,
+        rule, expectedExprStr);
   }
 
-  public Expr RewritesOkWhereExpr(String tableName, String exprStr, ExprRewriteRule rule, String expectedExprStr)
+  public Expr RewritesOkWhereExpr(String tableName, String exprStr,
+      ExprRewriteRule rule, String expectedExprStr)
       throws ImpalaException {
-    return RewritesOkWhereExpr(tableName, exprStr, Lists.newArrayList(rule), expectedExprStr);
+    return RewritesOkWhereExpr(tableName, exprStr,
+        Lists.newArrayList(rule), expectedExprStr);
   }
 
-  public Expr RewritesOkWhereExpr(String tableName, String exprStr, List<ExprRewriteRule> rules,
+  public Expr RewritesOkWhereExpr(String tableName, String exprStr,
+      List<ExprRewriteRule> rules,
       String expectedExprStr) throws ImpalaException {
     String stmtStr = "select count(1)  from " + tableName + " where " + exprStr;
     // Analyze without rewrites since that's what we want to test here.
@@ -142,10 +155,10 @@ public abstract class BaseRewriteRulesTest extends FrontendTestBase {
     if (expectedExprStr != null) {
       assertEquals(expectedExprStr, rewrittenSql);
       if (requireFire) {
-        // Asserts that all specified rules fired at least once. This makes sure that the
-        // rules being tested are, in fact, being executed. A common mistake is to write
-        // an expression that's re-written by the constant folder before getting to the
-        // rule that is intended for the test.
+        // Asserts that all specified rules fired at least once. This makes sure that
+        // the rules being tested are, in fact, being executed. A common mistake is
+        // to write an expression that's re-written by the constant folder before
+        // getting to the rule that is intended for the test.
         for (ExprRewriteRule r : wrappedRules) {
           CountingRewriteRuleWrapper w = (CountingRewriteRuleWrapper) r;
           Assert.assertTrue("Rule " + w.wrapped.toString() + " didn't fire.",

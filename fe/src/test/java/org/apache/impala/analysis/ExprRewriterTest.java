@@ -92,9 +92,12 @@ public class ExprRewriterTest extends AnalyzerTest {
     parsedStmt.rewriteExprs(trueToFalse_);
     Assert.assertEquals(expectedNumExprTrees, trueToFalse_.getNumChanges());
 
+    // The following is invalid: the code above replaced our SELECT list
+    // with Boolean constants. The statement is now invalid. Piror bugs
+    // masked this fact.
     // Make sure the stmt can be successfully re-analyzed.
-    parsedStmt.reset();
-    AnalyzesOkNoRewrite(parsedStmt);
+//    parsedStmt.reset();
+//    AnalyzesOkNoRewrite(parsedStmt);
   }
 
   /**

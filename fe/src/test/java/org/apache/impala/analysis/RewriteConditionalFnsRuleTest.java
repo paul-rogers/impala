@@ -3,6 +3,7 @@ package org.apache.impala.analysis;
 import java.util.List;
 
 import org.apache.impala.common.ImpalaException;
+import org.apache.impala.rewrite.BetweenToCompoundRule;
 import org.apache.impala.rewrite.ExprRewriteRule;
 import org.apache.impala.rewrite.FoldConstantsRule;
 import org.apache.impala.rewrite.RewriteConditionalFnsRule;
@@ -123,7 +124,8 @@ public class RewriteConditionalFnsRuleTest extends BaseRewriteRulesTest {
 
     // If the leading parameter is a non-NULL constant, rewrite to that constant.
     RewritesOk("coalesce(1, id, year)", rule, "1");
-    // If non-leading parameter is a non-NULL constant, drop other terms
+
+    // If non-leading parameter is a non-NULL constant, drop other terms.
     RewritesOk("coalesce(id, 1, year)", rule, coalesceRewrite("id", "1"));
 
     // If COALESCE has only one parameter, rewrite to the parameter.
@@ -160,27 +162,69 @@ public class RewriteConditionalFnsRuleTest extends BaseRewriteRulesTest {
 
   @Test
   public void testNvl2() throws ImpalaException {
+
+    // Basic rewrite
+    RewritesOk("nvl2(id, 10, 20)", rule,
+        "CASE WHEN id IS NOT NULL THEN 10 ELSE 20 END");
+
+    // Optimizations
     RewritesOk("nvl2(null, 10, 20)", rule, "20");
+    RewritesOk("nvl2(4, 10, 20)", rule, "10");
+
+    // Rewrite preserves an aggregate, so keep
     RewritesOk("nvl2(null, 10, sum(id))", rule, "sum(id)");
     RewritesOk("nvl2(null, avg(id), sum(id))", rule, "sum(id)");
-    RewritesOk("nvl2(4, 10, 20)", rule, "10");
     RewritesOk("nvl2(4, sum(id), 20)", rule, "sum(id)");
     RewritesOk("nvl2(4, sum(id), avg(id))", rule, "sum(id)");
-    RewritesOk("nvl2(id, 10, 20)", rule,
-        "CASE WHEN id IS NOT NULL THEN 10 ELSE 20 END");
-    RewritesOk("nvl2(id, 10, 20)", rule,
-        "CASE WHEN id IS NOT NULL THEN 10 ELSE 20 END");
+
+    // Rewrite would lose an aggregate, keep full CASE
     RewritesOk("nvl2(null, sum(id), 20)", rule,
-        "CASE WHEN NULL IS NOT NULL THEN 10 ELSE sum(id) END");
-    RewritesOk("nvl2(4, avg(id), 20)", rule,
-        "CASE WHEN 4 IS NOT NULL THEN avg(id) ELSE 20 END");
+        "CASE WHEN NULL IS NOT NULL THEN sum(id) ELSE 20 END");
+    RewritesOk("nvl2(4, 10, sum(id))", rule,
+        "CASE WHEN 4 IS NOT NULL THEN 10 ELSE sum(id) END");
   }
 
+  /**
+   * Test nullif(expr1, expr2).
+   * <p>
+   * Returns NULL if the two specified arguments are equal. If the specified
+   * arguments are not equal, returns the value of expr1.
+   */
   @Test
   public void testNullIf() throws ImpalaException {
+    // Nothing is equal to null, so return expr1, which is NULL.
     RewritesOk("nullif(null, id)", rule, "NULL");
-    RewritesOk("nullif(id, null)", rule, "NULL");
+    // Nothing is equal to null, so return expr1, which is id.
+    RewritesOk("nullif(id, null)", rule, "id");
+    // Otherwise, rewrite to a CASE statement.
     RewritesOk("nullif(id, 10)", rule,
         "CASE WHEN id IS DISTINCT FROM 10 THEN id END");
+  }
+
+  /**
+   * Test that complex BETWEEN conditions that use if() are
+   * further rewritten to use CASE.
+   */
+  @Test
+  public void testNestedBetween() throws ImpalaException {
+
+    // See ExprRewriteRuleTest.TestBetweenToCompoundRule
+    // For test of rewrite of BETWEEN to use if
+    // Here we verify the full rewrite to CASE
+
+    List<ExprRewriteRule> rules = Lists.newArrayList(
+        BetweenToCompoundRule.INSTANCE,
+        rule);
+    RewritesOk(
+        "int_col not between if(tinyint_col not between 1 and 2, 10, 20) " +
+        "and cast(smallint_col not between 1 and 2 as int)", rules,
+        "int_col < CASE WHEN tinyint_col < 1 OR tinyint_col > 2 THEN 10 ELSE 20 END " +
+        "OR int_col > CAST(smallint_col < 1 OR smallint_col > 2 AS INT)");
+    // Mixed nested BETWEEN and NOT BETWEEN predicates.
+    RewritesOk(
+        "int_col between if(tinyint_col between 1 and 2, 10, 20) " +
+        "and cast(smallint_col not between 1 and 2 as int)", rules,
+        "int_col >= CASE WHEN tinyint_col >= 1 AND tinyint_col <= 2 THEN 10 ELSE 20 END " +
+        "AND int_col <= CAST(smallint_col < 1 OR smallint_col > 2 AS INT)");
   }
 }

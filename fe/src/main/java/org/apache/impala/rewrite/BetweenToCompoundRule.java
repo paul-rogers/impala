@@ -27,11 +27,14 @@ import org.apache.impala.analysis.Predicate;
 /**
  * Rewrites BetweenPredicates into an equivalent conjunctive/disjunctive
  * CompoundPredicate.
+ * <p>
  * It can be applied to pre-analysis expr trees and therefore does not reanalyze
  * the transformation output itself.
  * Examples:
- * A BETWEEN X AND Y ==> A >= X AND A <= Y
- * A NOT BETWEEN X AND Y ==> A < X OR A > Y
+ * <ul>
+ * <li><code>A BETWEEN X AND Y</code> &rarr; <code>A >= X AND A <= Y</code></li>
+ * <li><code>A NOT BETWEEN X AND Y</code> &rarr; <code>A < X OR A > Y</code></li>
+ * </li>
  */
 public class BetweenToCompoundRule implements ExprRewriteRule {
   public static ExprRewriteRule INSTANCE = new BetweenToCompoundRule();
@@ -40,23 +43,21 @@ public class BetweenToCompoundRule implements ExprRewriteRule {
   public Expr apply(Expr expr, Analyzer analyzer) {
     if (!(expr instanceof BetweenPredicate)) return expr;
     BetweenPredicate bp = (BetweenPredicate) expr;
-    Expr result = null;
     if (bp.isNotBetween()) {
       // Rewrite into disjunction.
       Predicate lower = new BinaryPredicate(BinaryPredicate.Operator.LT,
           bp.getChild(0), bp.getChild(1));
       Predicate upper = new BinaryPredicate(BinaryPredicate.Operator.GT,
           bp.getChild(0), bp.getChild(2));
-      result = new CompoundPredicate(CompoundPredicate.Operator.OR, lower, upper);
+      return new CompoundPredicate(CompoundPredicate.Operator.OR, lower, upper);
     } else {
       // Rewrite into conjunction.
       Predicate lower = new BinaryPredicate(BinaryPredicate.Operator.GE,
           bp.getChild(0), bp.getChild(1));
       Predicate upper = new BinaryPredicate(BinaryPredicate.Operator.LE,
           bp.getChild(0), bp.getChild(2));
-      result = new CompoundPredicate(CompoundPredicate.Operator.AND, lower, upper);
+      return new CompoundPredicate(CompoundPredicate.Operator.AND, lower, upper);
     }
-    return result;
   }
 
   private BetweenToCompoundRule() {}

@@ -18,7 +18,6 @@
 package org.apache.impala.analysis;
 
 import org.apache.impala.catalog.ScalarType;
-import org.apache.impala.catalog.Type;
 import org.apache.impala.common.AnalysisException;
 import org.apache.impala.thrift.TExprNode;
 
