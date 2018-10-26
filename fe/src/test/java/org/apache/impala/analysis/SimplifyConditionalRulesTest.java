@@ -113,6 +113,10 @@ public class SimplifyConditionalRulesTest extends BaseRewriteRulesTest {
     RewritesOk("case when id = 1 then 0 when 2 = 1 + 1 then 1 when true then 2 end",
         rules, "CASE WHEN id = 1 THEN 0 ELSE 1 END");
 
+    // CASE WHEN TRUE THEN x ... END --> x
+    RewritesOk("case when true then 10 when 2 = 1 + 1 then 1 when true then 2 end",
+        rule, "10");
+
     // When NULL.
     RewritesOk("case when id = 0 then 0 when null then 1 else 2 end", rule,
         "CASE WHEN id = 0 THEN 0 ELSE 2 END");
@@ -170,5 +174,4 @@ public class SimplifyConditionalRulesTest extends BaseRewriteRulesTest {
         "case when true then count(id) when false then sum(id) end",
         rule, "count(id)");
   }
-
 }

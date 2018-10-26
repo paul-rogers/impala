@@ -308,4 +308,24 @@ public class CastExpr extends Expr {
 
   @Override
   public Expr clone() { return new CastExpr(this); }
+
+  /**
+   * Constant folding produces expressions of the form
+   * CAST(NULL as <type>). When we simplify expressions
+   * like CAST(NULL as <type>) IS NULL, we need to know that
+   * the cast is trivial, and that the expression is, in fact,
+   * a (typed) null literal.
+   */
+  @Override
+  public boolean isNullLiteral() {
+    Preconditions.checkState(children_.size() == 1);
+    return getChild(0).isNullLiteral();
+  }
+
+  @Override
+  public boolean isLiteralLike() {
+    Preconditions.checkState(children_.size() == 1);
+    return getChild(0).isLiteral();
+  }
+
 }

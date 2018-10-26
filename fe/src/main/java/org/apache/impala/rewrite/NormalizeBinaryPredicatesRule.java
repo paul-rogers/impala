@@ -36,6 +36,8 @@ import org.apache.impala.analysis.Expr;
 public class NormalizeBinaryPredicatesRule implements ExprRewriteRule {
   public static ExprRewriteRule INSTANCE = new NormalizeBinaryPredicatesRule();
 
+  private NormalizeBinaryPredicatesRule() { }
+
   @Override
   public Expr apply(Expr expr, Analyzer analyzer) {
     if (!(expr instanceof BinaryPredicate)) return expr;

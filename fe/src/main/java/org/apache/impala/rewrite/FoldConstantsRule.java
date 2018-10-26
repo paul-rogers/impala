@@ -20,7 +20,6 @@ package org.apache.impala.rewrite;
 import org.apache.impala.analysis.Analyzer;
 import org.apache.impala.analysis.Expr;
 import org.apache.impala.analysis.LiteralExpr;
-import org.apache.impala.analysis.NullLiteral;
 import org.apache.impala.analysis.CastExpr;
 
 import org.apache.impala.common.AnalysisException;
@@ -45,26 +44,35 @@ public class FoldConstantsRule implements ExprRewriteRule {
 
   @Override
   public Expr apply(Expr expr, Analyzer analyzer) throws AnalysisException {
+    assert expr.isAnalyzed();
+
     // Avoid calling Expr.isConstant() because that would lead to repeated traversals
     // of the Expr tree. Assumes the bottom-up application of this rule. Constant
     // children should have been folded at this point.
-    for (Expr child: expr.getChildren()) if (!child.isLiteral()) return expr;
+    // However, the block one down will result in producing expressions of
+    // the form CAST(NULL as type), which are not literals. So, we call the
+    // special isLiteralLike() that returns true for the cast of a literal.
+    for (Expr child: expr.getChildren()) if (!child.isLiteralLike()) return expr;
+
+    // If the expression is a non-constant literal, can't simplify.
     if (expr.isLiteral() || !expr.isConstant()) return expr;
 
     // Do not constant fold cast(null as dataType) because we cannot preserve the
     // cast-to-types and that can lead to query failures, e.g., CTAS
     if (expr instanceof CastExpr) {
       CastExpr castExpr = (CastExpr) expr;
-      if (castExpr.getChild(0) instanceof NullLiteral) {
+      if (castExpr.getChild(0).isNullLiteral()) {
         return expr;
       }
     }
     // Analyze constant exprs, if necessary. Note that the 'expr' may become non-constant
     // after analysis (e.g., aggregate functions).
-    if (!expr.isAnalyzed()) {
-      expr.analyze(analyzer);
-      if (!expr.isConstant()) return expr;
-    }
+    if (!expr.isConstant()) return expr;
+
+//    // Can't simplify FE-only conditional functions; they'll be
+//    // handled elsewhere.
+//    if (RewriteConditionalFnsRule.isRewrittenFunction(expr)) { return expr; }
+
     Expr result = LiteralExpr.create(expr, analyzer.getQueryCtx());
     // Preserve original type so parent Exprs do not need to be re-analyzed.
     if (result != null) return result.castTo(expr.getType());

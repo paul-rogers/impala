@@ -980,6 +980,7 @@ abstract public class Expr extends TreeNode<Expr> implements ParseNode, Cloneabl
    * Create a deep copy of 'l'. The elements of the returned list are of the same
    * type as the input list.
    */
+  @SuppressWarnings("unchecked")
   public static <C extends Expr> ArrayList<C> cloneList(List<C> l) {
     Preconditions.checkNotNull(l);
     ArrayList<C> result = new ArrayList<C>(l.size());
@@ -1183,11 +1184,17 @@ abstract public class Expr extends TreeNode<Expr> implements ParseNode, Cloneabl
   }
 
   /**
-   * @return true if this is an instance of LiteralExpr
+   * @return true if this is an instance of LiteralExpr.
    */
-  public boolean isLiteral() {
-    return this instanceof LiteralExpr;
-  }
+  public boolean isLiteral() { return false; }
+
+  /**
+   * @return true if this is an instance of LiteralExpr, or is
+   * a CAST(literal AS type). That is, returns true if this
+   * node should be treated as a literal for constant folding.
+   * See @{link FoldConstantsRule} for details.
+   */
+  public boolean isLiteralLike() { return isLiteral(); }
 
   /**
    * Returns true if this expression should be treated as constant. I.e. if the frontend
@@ -1223,12 +1230,7 @@ abstract public class Expr extends TreeNode<Expr> implements ParseNode, Cloneabl
    * @return true if this expr is either a null literal or a cast from
    * a null literal.
    */
-  public boolean isNullLiteral() {
-    if (this instanceof NullLiteral) return true;
-    if (!(this instanceof CastExpr)) return false;
-    Preconditions.checkState(children_.size() == 1);
-    return children_.get(0).isNullLiteral();
-  }
+  public boolean isNullLiteral() { return false; }
 
   /**
    * Return true if this expr is a scalar subquery.
@@ -1408,6 +1410,7 @@ abstract public class Expr extends TreeNode<Expr> implements ParseNode, Cloneabl
       try {
         // Make sure we call function 'negate' only on classes that support it,
         // otherwise we may recurse infinitely.
+        @SuppressWarnings("unused")
         Method m = root.getChild(0).getClass().getDeclaredMethod(NEGATE_FN);
         return pushNegationToOperands(root.getChild(0).negate());
       } catch (NoSuchMethodException e) {

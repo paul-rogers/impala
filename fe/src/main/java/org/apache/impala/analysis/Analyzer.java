@@ -325,17 +325,14 @@ public class Analyzer {
       // Binary predicates must be rewritten to a canonical form for both Kudu predicate
       // pushdown and Parquet row group pruning based on min/max statistics.
       rules.add(NormalizeBinaryPredicatesRule.INSTANCE);
+      // Conditionals must be rewritten as there is no BE implementation
+      // for these functions.
+      rules.add(RewriteConditionalFnsRule.INSTANCE);
       if (queryCtx.getClient_request().getQuery_options().enable_expr_rewrites) {
         rules.add(FoldConstantsRule.INSTANCE);
         rules.add(NormalizeExprsRule.INSTANCE);
         rules.add(ExtractCommonConjunctRule.INSTANCE);
       }
-      // Relies on FoldConstantsRule adn NormalizeExprsRule,
-      // Relies on SimplifyConditionalsRule coming later.
-      // But, even if the above are not done, conditionals
-      // still must be rewritten as there is no BE implementation
-      // for these functions.
-      rules.add(RewriteConditionalFnsRule.INSTANCE);
       if (queryCtx.getClient_request().getQuery_options().enable_expr_rewrites) {
         // Relies on FoldConstantsRule and NormalizeExprsRule.
         rules.add(SimplifyConditionalsRule.INSTANCE);

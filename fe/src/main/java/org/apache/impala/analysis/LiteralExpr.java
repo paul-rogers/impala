@@ -107,6 +107,9 @@ public abstract class LiteralExpr extends Expr implements Comparable<LiteralExpr
     return LITERAL_COST;
   }
 
+  @Override
+  public boolean isLiteral() { return true; }
+
   /**
    * Returns an analyzed literal from the thrift object.
    */

@@ -51,6 +51,9 @@ public class NullLiteral extends LiteralExpr {
   public int hashCode() { return 0; }
 
   @Override
+  public boolean isNullLiteral() { return true; }
+
+  @Override
   public String toSqlImpl() { return getStringValue(); }
 
   @Override

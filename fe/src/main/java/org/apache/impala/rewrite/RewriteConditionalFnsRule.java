@@ -35,25 +35,25 @@ import org.apache.impala.catalog.Type;
 import org.apache.impala.common.AnalysisException;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 
 /**
  * Rewrites conditional functions to use a CASE statement.
  * The conditional functions vanish from the plan after this
  * rewrite: there is no back-end implementation for these functions.
- * <ul>
- * <li><code>coalesce(v1, v2, ...)</code></li>
- * <li><code>if(condition, ifTrue, ifFalseOrNull)</code></li>
- * <li><code>ifnull(a, ifNull)</code></li>
- * <li><code>isnull(a, ifNull)</code></li>
- * <li><code>nullif(expr1, expr2)</code></</li>
- * <li><code>nvl(a, ifNull)</code></li>
- * </ul>
- * <p>
- * Since every function is rewritten to a <code>CASE</code>
- * statement, the planner runs the rule to simplify <code>CASE</code>
- * after this rule. Where that other rule can perform simplications,
- * those simplifications are omitted here. However, the <code>CASE</code>
+ *
+ * coalesce(v1, v2, ...)
+ * if(condition, ifTrue, ifFalseOrNull)
+ * ifnull(a, ifNull)
+ * isnull(a, ifNull)
+ * nullif(expr1, expr2)
+ * nvl(a, ifNull)
+ *
+ * Since every function is rewritten to a CASE
+ * statement, the planner runs the rule to simplify CASE
+ * after this rule. Where that other rule can perform simplifications,
+ * those simplifications are omitted here. However, the CASE
  * case rules are limited (See IMPALA-7750), so several optimizations
  * appear here that can be removed once IMPALA-7750 is fixed.
  */
@@ -61,6 +61,14 @@ public class RewriteConditionalFnsRule  implements ExprRewriteRule {
   public static RewriteConditionalFnsRule INSTANCE = new RewriteConditionalFnsRule();
 
   private RewriteConditionalFnsRule() { }
+
+  private static List<String> CONDITIONAL_FNS = ImmutableList.of(
+      "if", "coalesce", "isnull", "nvl", "ifnull", "nvl2", "nullif" );
+
+  public static boolean isRewrittenFunction(Expr expr) {
+    if (! (expr instanceof FunctionCallExpr)) { return false; }
+    return CONDITIONAL_FNS.contains(((FunctionCallExpr) expr).getFnName().getFunction());
+  }
 
   @Override
   public Expr apply(Expr expr, Analyzer analyzer) throws AnalysisException {
@@ -81,7 +89,7 @@ public class RewriteConditionalFnsRule  implements ExprRewriteRule {
 
   /**
    * Transform SQL functions that require short-circuit evaluation
-   * into the equivalent <code>CASE</code> expressions. The BE does
+   * into the equivalent CASE expressions. The BE does
    * code gen for <CASE>, avoiding the need for ad-hoc implementations
    * of each function.
    */
@@ -105,15 +113,15 @@ public class RewriteConditionalFnsRule  implements ExprRewriteRule {
   }
 
   /**
-   * Rewrites <code>IF(cond, thenExpr, elseExpr)</code>  &rarr;
-   * <code>CASE WHEN cond THEN thenExpr ELSE elseExpr END</code>.
-   * <p>
-   * Relies on <code>CASE</code> simplification to perform the
+   * Rewrites IF(cond, thenExpr, elseExpr)  -->
+   * CASE WHEN cond THEN thenExpr ELSE elseExpr END.
+   *
+   * Relies on CASE simplification to perform the
    * following simplifications:
-   * <ul>
-   * <li><code>IF(TRUE, then, else)</code> &rarr; <code>then</code></li>
-   * <li><code>IF(FALSE|NULL, then, else)</code> &rarr; <code>else</code></li>
-   * </ul>
+   *
+   * IF(TRUE, thenExpr, elseExpr) --> thenExpr
+   * IF(FALSE|NULL, thenExpr, elseExpr) --> elseExpr
+   *
    */
   private Expr rewriteIfFn(FunctionCallExpr expr) {
     Preconditions.checkState(expr.getChildren().size() == 3);
@@ -126,49 +134,47 @@ public class RewriteConditionalFnsRule  implements ExprRewriteRule {
   }
 
   /**
-   * Rewrites <code>IFNULL(a, x)</code>, which is an alias
-   * for <code>ISNULL(a, x)</code> and
-   * <code>NVL(a, x)</code>.
-   * <ul>
-   * <li><code>IFNULL(NULL, x)</code> &rarr; <code>x</code></li>
-   * <li><code>IFNULL(a, x)</code> &rarr; <code>a</code>, if a is a non-null literal</li>
-   * <li><code>IFNULL(a, x)</code> &rarr; <br>
-   * <code>CASE WHEN a IS NULL THEN x ELSE a END</code></li>
-   * </ul>
+   * Rewrites IFNULL(a, x), which is an alias
+   * for ISNULL(a, x) and NVL(a, x).
+   *
+   * IFNULL(NULL, x) --> x
+   * IFNULL(a, x) --> a, if a is a non-null literal
+   * IFNULL(a, x) --> <br>
+   * CASE WHEN a IS NULL THEN x ELSE a END
    */
   private Expr rewriteIfNullFn(FunctionCallExpr expr) {
     Preconditions.checkState(expr.getChildren().size() == 2);
     Expr child0 = expr.getChild(0);
-    Expr child1 = expr.getChild(1);
-    if (child0.isNullLiteral()) return child1;
-    if (child0.isLiteral() && ! child1.isAggregate()) return child0;
-
-    // Transform into a CASE expression
     return new CaseExpr(null, // CASE
         Lists.newArrayList(
             new CaseWhenClause( // WHEN a IS NULL
                 new IsNullPredicate(child0, false),
-                child1)), // THEN x
+                expr.getChild(1))), // THEN x
         child0.clone()); // ELSE a END
   }
 
   /**
-   * Rewrites <code>COALESCE(a, b, ...)</code> by skipping nulls and
+   * Rewrites COALESCE(a, b, ...) by skipping nulls and
    * applying the following transformations:
-   * <ul>
-   * <li><code>COALESCE(null, a, b)</code> &rarr; <code>COALESCE(a, b)</code></li>
-   * <li><code>COALESCE(a, null, c)</code> &rarr; <code>COALESCE(a, c)</code></li>
-   * <li><code>COALESCE(<i>literal</i>, a, b)</code> &rarr;
-   * <code><i>literal</i></code>, when literal is not NullLiteral</code></li>
-   * <li><code>COALESCE(a, <i>literal</i>, b)</code> &rarr;
-   * <code>COALESCE(a, <i>literal</i>)</code> when literal is not NullLiteral;</li>
-   * <li><code>COALESCE(a, b)</code> &rarr; <br>
-   * <code>CASE WHEN a IS NOT NULL THEN a <br>
-   * WHEN b IS NOT NULL THEN b END</code></li>
-   * </ul>
+   *
+   * COALESCE(null, a, b) --> COALESCE(a, b)
+   * COALESCE(a, null, c) --> COALESCE(a, c)
+   * COALESCE(literal, a, b) -->
+   * literal, when literal is not NullLiteral
+   * COALESCE(a, literal, b) -->
+   * COALESCE(a, literal) when literal is not NullLiteral;
+   * COALESCE(a, b) --> <br>
+   * CASE WHEN a IS NOT NULL THEN a <br>
+   * WHEN b IS NOT NULL THEN b END
+   *
    * A special case occurs if the resulting rules remove all
    * aggregate functions. If so, the rewrite must be done again to include
    * at least one aggregate, even if that aggregate won't ever be evaluated.
+   * See IMPALA-5125.
+   *
+   * The simplifications are done here because they benefit from knowledge
+   * of the semantics of COALESCE(), and are difficult to do once encoded
+   * as a CASE statement.
    */
   private Expr rewriteCoalesceFn(FunctionCallExpr expr) {
     boolean hasAgg = expr.contains(Expr.isAggregatePredicate());
@@ -199,52 +205,35 @@ public class RewriteConditionalFnsRule  implements ExprRewriteRule {
   }
 
   /**
-   * Rewrite of <code>nvl2(expr, ifNotNull, ifNull)</code>.
-   * <ul>
-   * <li><code>nvl2(null, x, y)</code> &rarr; <code>y</code></li>
-   * <li><code>nvl2(non_null_literal, x, y)</code> &rarr; <code>x</code></li>
-   * <li><code>nvl2(expr, x y)</code> &rarr; <br>
-   * <code>CASE WHEN expr IS NOT NULL THEN x ELSE y END</code></li>
-   * <ul>
+   * Rewrite of nvl2(expr, ifNotNull, ifNull).
+   *
+   * nvl2(null, x, y) --> y
+   * nvl2(non_null_literal, x, y) --> x
+   * nvl2(expr, x y) --> <br>
+   * CASE WHEN expr IS NOT NULL THEN x ELSE y END
+   *
    * Apply optimizations only if does not drop an aggregate.
    */
   private Expr rewriteNvl2Fn(FunctionCallExpr expr) {
     List<Expr> plist = expr.getParams().exprs();
-    Expr head = plist.get(0);
-    Expr ifNotNull = plist.get(1);
-    Expr ifNull = plist.get(2);
-
-    // nvl2(NULL, any, agg) --> agg
-    // nvl2(NULL, non-agg, any) --> any
-    if (head.isNullLiteral()) {
-      if (ifNull.isAggregate() || ! ifNotNull.isAggregate()) {
-        return ifNull;
-      }
-    }
-
-    // nvl2(non-null-literal, agg, any) --> agg
-    // nvl2(non-null-literal, any, non-agg) --> any
-    else if (head.isLiteral()) {
-      if (ifNotNull.isAggregate() || ! ifNull.isAggregate()) {
-        return ifNotNull;
-      }
-    }
     return new CaseExpr(null, // CASE
         Lists.newArrayList(
           new CaseWhenClause( // WHEN
-            new IsNullPredicate(head, true), // EXPR IS NOT NULL
-            ifNotNull)), // THEN ifNotNull
-        ifNull); // ELSE ifNull END
+            new IsNullPredicate(plist.get(0), true), // EXPR IS NOT NULL
+            plist.get(1))), // THEN ifNotNull
+        plist.get(2)); // ELSE ifNull END
   }
 
   /**
-   * Rewrite of <code>nullif(x, y)</code>.
-   * <ul>
-   * <li><code>nullif(null, y)</code> &rarr; <code>NULL</code></li>
-   * <li><code>nullif(x, null)</code> &rarr; <code>x</code></li>
-   * <li><code>nullif(x y)</code> &rarr; <br>
-   * <code>CASE WHEN x IS DISTINCT FROM y THEN x END</code></li>
-   * <ul>
+   * Rewrite of nullif(x, y).
+   *
+   * nullif(x y) -->
+   *   CASE WHEN x IS DISTINCT FROM y THEN x END
+   * nullif(null, y) --> NULL
+   * nullif(x, null) --> x
+   *
+   * Handles simplifications here because they benefit from
+   * semantic knowledge of the function.
    */
   private Expr rewriteNullIfFn(FunctionCallExpr expr) {
     List<Expr> plist = expr.getParams().exprs();
@@ -267,10 +256,12 @@ public class RewriteConditionalFnsRule  implements ExprRewriteRule {
 
   /**
    * Create entries for the odd-duck NVL2 function:
-   * <code>nvl2(type1 expr, type2 ifNotNull, type2 ifNull)</code>.
+   * type1 nvl2(type2 expr, type1 ifNotNull, type1 ifNull).
    * The types form an n^2 matrix that can't easily be represented.
    * Instead, we define a special function that matches on the
-   * second and third arguments, ignoring the first.
+   * second and third arguments, since they determine the return
+   * type. We then ignore the first argument since we only care if
+   * it is null, and CASE will take care of the details.
    */
   public static void initBuiltins(Db db) {
     for (Type t: Type.getSupportedTypes()) {

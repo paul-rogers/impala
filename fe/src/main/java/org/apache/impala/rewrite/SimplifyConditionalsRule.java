@@ -22,7 +22,6 @@ import java.util.List;
 
 import org.apache.impala.analysis.Analyzer;
 import org.apache.impala.analysis.BinaryPredicate;
-import org.apache.impala.analysis.BoolLiteral;
 import org.apache.impala.analysis.CaseExpr;
 import org.apache.impala.analysis.CaseWhenClause;
 import org.apache.impala.analysis.CompoundPredicate;
@@ -35,7 +34,7 @@ import org.apache.impala.common.AnalysisException;
  * This rule simplifies conditional functions with constant conditions. It relies on
  * FoldConstantsRule to replace the constant conditions with a BoolLiteral or NullLiteral
  * first, and on NormalizeExprsRule to normalize CompoundPredicates.
- * <p>
+ *
  * Examples:
  * <ul>
  * <li><code>id = 0 OR false</code> &rarr; <code>id = 0</code></li>
@@ -47,7 +46,7 @@ import org.apache.impala.common.AnalysisException;
  * Unary functions like isfalse, isnotfalse, istrue, isnottrue, nullvalue,
  * and nonnullvalue don't need special handling as the fold constants rule
  * will handle them.
- * <p>
+ *
  * We can't eliminate aggregates as this may change the meaning of the
  * query, for example: <pre><code>
  * 'select if (true, 0, sum(id)) from alltypes' != 'select 0 from alltypes'
@@ -95,7 +94,7 @@ public class SimplifyConditionalsRule implements ExprRewriteRule {
    * Unlike other rules here such as IF, we cannot in general simplify CompoundPredicates
    * with a NullLiteral child (unless the other child is a BoolLiteral), eg. null and
    * 'expr' is false if 'expr' is false but null if 'expr' is true.
-   * <p>
+   *
    * NOT is covered by FoldConstantRule.
    */
   private Expr simplifyCompoundPredicate(CompoundPredicate expr) {
@@ -126,9 +125,9 @@ public class SimplifyConditionalsRule implements ExprRewriteRule {
    * they are removed. If all of the 'when's are removed, just the ELSE is returned. If
    * any of the 'when's have constant TRUE values, the leftmost one becomes the ELSE
    * clause and all following cases are removed.
-   * <p>
-   * Note that FunctionalCallExpr.createExpr() converts "nvl2" into "if",
-   * "decode" into "case", and "nullif" into "if".
+   *
+   * Note that FunctionalCallExpr.createExpr() converts
+   * "decode" into "case".
    */
   private Expr simplifyCaseExpr(CaseExpr expr, Analyzer analyzer)
       throws AnalysisException {
@@ -140,7 +139,7 @@ public class SimplifyConditionalsRule implements ExprRewriteRule {
     // Check and return early if there's nothing that can be simplified.
     boolean canSimplify = false;
     for (int i = loopStart; i < numChildren - 1; i += 2) {
-      if (expr.getChild(i).isLiteral()) {
+      if (expr.getChild(i).isLiteralLike()) {
         canSimplify = true;
         break;
       }

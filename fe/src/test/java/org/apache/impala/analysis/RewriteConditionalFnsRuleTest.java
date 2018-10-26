@@ -7,15 +7,15 @@ import org.apache.impala.rewrite.BetweenToCompoundRule;
 import org.apache.impala.rewrite.ExprRewriteRule;
 import org.apache.impala.rewrite.FoldConstantsRule;
 import org.apache.impala.rewrite.RewriteConditionalFnsRule;
-import org.apache.impala.rewrite.SimplifyConditionalsRule;
 import org.junit.Test;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 
 /**
- * Test RewriteConditionalFnsRule. Tests both the basic
- * rewrite, and the extended rewrite + CASE simplification.
+ * Test RewriteConditionalFnsRule. Tests  the basic
+ * rewrite. See {@link FullRewriteTest} for compound
+ * simplifications.
  */
 public class RewriteConditionalFnsRuleTest extends BaseRewriteRulesTest {
 
@@ -27,32 +27,6 @@ public class RewriteConditionalFnsRuleTest extends BaseRewriteRulesTest {
     // Basic rewrite, no simplification
     RewritesOk("if(true, id, id+1)", rule,
         "CASE WHEN TRUE THEN id ELSE id + 1 END");
-
-    // Simplifications provided by CASE rewriting
-    List<ExprRewriteRule> rules = Lists.newArrayList(
-        rule,
-        SimplifyConditionalsRule.INSTANCE);
-    RewritesOk("if(true, id, id+1)", rules, "id");
-    RewritesOk("if(false, id, id+1)", rules, "id + 1");
-    RewritesOk("if(null, id, id+1)", rules, "id + 1");
-    // Nothing to simplify
-    verifyPartialRewrite("if(id = 0, true, false)", rules,
-        "CASE WHEN id = 0 THEN TRUE ELSE FALSE END");
-    // Don't simplify if drops last aggregate
-    verifyPartialRewrite("if(true, 0, sum(id))", rules,
-        "CASE WHEN TRUE THEN 0 ELSE sum(id) END");
-    verifyPartialRewrite("if(false, sum(id), 0)", rules,
-        "CASE WHEN FALSE THEN sum(id) ELSE 0 END");
-    // OK to simplify if retains an aggregate
-    RewritesOk("if(false, max(id), min(id))", rules, "min(id)");
-    RewritesOk("if(true, max(id), min(id))", rules, "max(id)");
-    verifyPartialRewrite("if(false, 0, sum(id))", rules, "sum(id)");
-    verifyPartialRewrite("if(true, sum(id), 0)", rules, "sum(id)");
-    // If else is NULL, case should drop it since it is
-    // the default
-    // IMPALA-7750
-//    RewritesOk("if(id = 0, 10, null)", rules,
-//        "CASE WHEN id = 0 THEN 10 END");
   }
 
   /**
@@ -60,32 +34,13 @@ public class RewriteConditionalFnsRuleTest extends BaseRewriteRulesTest {
    */
   @Test
   public void testifNull() throws ImpalaException {
-    // IFNULL and its aliases
     for (String f : ImmutableList.of("ifnull", "isnull", "nvl")) {
-      RewritesOk(f + "(null, id)", rule, "id");
-      RewritesOk(f + "(null, null)", rule, "NULL");
       RewritesOk(f + "(id, id + 1)", rule,
           "CASE WHEN id IS NULL THEN id + 1 ELSE id END");
-
-      RewritesOk(f + "(1, 2)", rule, "1");
-      RewritesOk(f + "(0, id)", rule, "0");
-
-      // non literal constants shouldn't be simplified by the rule
-      // But isnull, nvl should be replaced by ifnull,
-      // then ifnull replaced by CASE
-      RewritesOk(f + "(1 + 1, id)", rule,
-          "CASE WHEN 1 + 1 IS NULL THEN id ELSE 1 + 1 END");
-      RewritesOk(f + "(NULL + 1, id)", rule,
-          "CASE WHEN NULL + 1 IS NULL THEN id ELSE NULL + 1 END");
-
-      // Can't simplify if removes only aggregate
-      RewritesOk(f + "(null, max(id))", rule, "max(id)");
-      RewritesOk(f + "(1, max(id))", rule,
-          "CASE WHEN 1 IS NULL THEN max(id) ELSE 1 END");
     }
   }
 
-  private static String coalesceRewrite(String...terms) {
+  public static String coalesceRewrite(String...terms) {
     StringBuilder buf = new StringBuilder()
         .append("CASE");
     for (int i = 0; i < terms.length -1; i++) {
@@ -103,6 +58,11 @@ public class RewriteConditionalFnsRuleTest extends BaseRewriteRulesTest {
         .toString();
   }
 
+  /**
+   * Test COALSESCE(a, b, c, ...). The basic rewrite handles
+   * many optimizations because these are too complex to be
+   * done once rewritten to a CASE expression.
+   */
   @Test
   public void testCoalesce() throws ImpalaException {
 
@@ -162,31 +122,17 @@ public class RewriteConditionalFnsRuleTest extends BaseRewriteRulesTest {
 
   @Test
   public void testNvl2() throws ImpalaException {
-
-    // Basic rewrite
     RewritesOk("nvl2(id, 10, 20)", rule,
         "CASE WHEN id IS NOT NULL THEN 10 ELSE 20 END");
 
-    // Optimizations
-    RewritesOk("nvl2(null, 10, 20)", rule, "20");
-    RewritesOk("nvl2(4, 10, 20)", rule, "10");
-
-    // Rewrite preserves an aggregate, so keep
-    RewritesOk("nvl2(null, 10, sum(id))", rule, "sum(id)");
-    RewritesOk("nvl2(null, avg(id), sum(id))", rule, "sum(id)");
-    RewritesOk("nvl2(4, sum(id), 20)", rule, "sum(id)");
-    RewritesOk("nvl2(4, sum(id), avg(id))", rule, "sum(id)");
-
-    // Rewrite would lose an aggregate, keep full CASE
-    RewritesOk("nvl2(null, sum(id), 20)", rule,
-        "CASE WHEN NULL IS NOT NULL THEN sum(id) ELSE 20 END");
-    RewritesOk("nvl2(4, 10, sum(id))", rule,
-        "CASE WHEN 4 IS NOT NULL THEN 10 ELSE sum(id) END");
+    // Optimizations handled in CASE, not in basic rewrite
+    RewritesOk("nvl2(null, 10, 20)", rule,
+        "CASE WHEN NULL IS NOT NULL THEN 10 ELSE 20 END");
   }
 
   /**
    * Test nullif(expr1, expr2).
-   * <p>
+   *
    * Returns NULL if the two specified arguments are equal. If the specified
    * arguments are not equal, returns the value of expr1.
    */
