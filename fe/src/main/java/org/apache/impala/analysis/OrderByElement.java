@@ -153,4 +153,9 @@ public class OrderByElement {
     }
     return result;
   }
+
+  public void reset(Expr expr) {
+    this.expr_ = expr;
+    this.expr_.reset();
+  }
 }

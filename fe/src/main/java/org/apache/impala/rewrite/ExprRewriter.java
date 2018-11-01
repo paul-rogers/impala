@@ -83,7 +83,10 @@ public class ExprRewriter {
       expr.setChild(i, applyRuleBottomUp(expr.getChild(i), rule, analyzer));
     }
     Expr rewrittenExpr = rule.apply(expr, analyzer);
-    if (rewrittenExpr != expr) ++numChanges_;
+    if (rewrittenExpr != expr) {
+      ++numChanges_;
+      rewrittenExpr.analyze(analyzer);
+    }
     return rewrittenExpr;
   }
 

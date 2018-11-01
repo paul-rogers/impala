@@ -34,7 +34,6 @@ public class NormalizeExprsRule implements ExprRewriteRule {
 
   @Override
   public Expr apply(Expr expr, Analyzer analyzer) {
-    if (!expr.isAnalyzed()) return expr;
 
     // TODO: add normalization for other expr types.
     if (expr instanceof CompoundPredicate) {

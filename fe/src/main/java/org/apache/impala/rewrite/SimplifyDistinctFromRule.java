@@ -36,7 +36,6 @@ public class SimplifyDistinctFromRule implements ExprRewriteRule {
 
   @Override
   public Expr apply(Expr expr, Analyzer analyzer) {
-    if (!expr.isAnalyzed()) return expr;
 
     if (expr instanceof BinaryPredicate) {
       BinaryPredicate pred = (BinaryPredicate) expr;

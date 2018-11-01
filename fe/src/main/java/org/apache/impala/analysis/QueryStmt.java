@@ -482,8 +482,8 @@ public abstract class QueryStmt extends StatementBase {
   @Override
   public void reset() {
     super.reset();
-    if (orderByElements_ != null) {
-      for (OrderByElement o: orderByElements_) o.getExpr().reset();
+    for (int i = 0; i < orderByElements_.size(); i++) {
+      orderByElements_.get(i).reset(sortInfo_.getSortExprs().get(i));
     }
     limitElement_.reset();
     resultExprs_.clear();

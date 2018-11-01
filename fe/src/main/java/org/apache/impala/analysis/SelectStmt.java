@@ -116,6 +116,7 @@ public class SelectStmt extends QueryStmt {
   public List<TableRef> getTableRefs() { return fromClause_.getTableRefs(); }
   public boolean hasWhereClause() { return whereClause_ != null; }
   public boolean hasGroupByClause() { return groupingExprs_ != null; }
+  public ArrayList<Expr> getGroupingExprs() { return groupingExprs_; }
   public Expr getWhereClause() { return whereClause_; }
   public void setWhereClause(Expr whereClause) { whereClause_ = whereClause; }
   public MultiAggregateInfo getMultiAggInfo() { return multiAggInfo_; }
@@ -908,8 +909,9 @@ public class SelectStmt extends QueryStmt {
       }
     }
     if (orderByElements_ != null) {
-      for (OrderByElement orderByElem: orderByElements_) {
-        orderByElem.setExpr(rewriteCheckOrdinalResult(rewriter, orderByElem.getExpr()));
+      List<Expr> sortExprs = sortInfo_.getSortExprs();
+      for (int i = 0; i < sortExprs.size(); i++) {
+        sortExprs.set(i, rewriteCheckOrdinalResult(rewriter, sortExprs.get(i)));
       }
     }
   }
