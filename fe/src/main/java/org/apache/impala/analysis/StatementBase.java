@@ -137,6 +137,8 @@ public abstract class StatementBase implements ParseNode {
    * responsibility to know if/when the statement was indeed rewritten.
    */
   public String toSql(boolean rewritten) { return ""; }
+  @Override
+  public String toString() { return toSql(true); }
   public void setIsExplain() { isExplain_ = true; }
   public boolean isExplain() { return isExplain_; }
 

@@ -594,6 +594,8 @@ abstract public class PlanNode extends TreeNode<PlanNode> {
     return output.toString();
   }
 
+  public String toString() { return debugString(); }
+
   protected String getExplainString(List<? extends Expr> exprs) {
     if (exprs == null) return "";
     StringBuilder output = new StringBuilder();

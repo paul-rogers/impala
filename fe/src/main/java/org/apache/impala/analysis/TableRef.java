@@ -590,6 +590,9 @@ public class TableRef implements ParseNode {
     return toSql(false);
   }
 
+  @Override
+  public String toString() { return toSql(true); }
+
   public String toSql(boolean rewritten) {
     if (joinOp_ == null) {
       // prepend "," if we're part of a sequence of table refs w/o an

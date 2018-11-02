@@ -224,10 +224,10 @@ public class StmtRewriter {
       // CASE 1, IN:
       if (!inPred.isNotIn()) return null;
 
-      // CASE 2, NOT IN and RHS returns a single row:
-      if (rhsQuery.returnsSingleRow()) {
-        return new BinaryPredicate(BinaryPredicate.Operator.NE, lhs, rhs);
-      }
+//      // CASE 2, NOT IN and RHS returns a single row:
+//      if (rhsQuery.returnsSingleRow()) {
+//        return new BinaryPredicate(BinaryPredicate.Operator.NE, lhs, rhs);
+//      }
 
       // CASE 3, NOT IN, RHS returns multiple rows.
       Preconditions.checkState(rhsQuery.getResultExprs().size() == 1);

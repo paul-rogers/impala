@@ -1113,6 +1113,13 @@ PLAN-ROOT SINK
 00:SCAN HDFS [functional.allcomplextypes a]
    partitions=0/0 files=0 size=0B
 ====
+# Variation on the above.
+SELECT id
+FROM alltypestiny
+WHERE -1 NOT IN (SELECT COUNT(id) FROM alltypestiny HAVING false);
+---- PLAN
+TBD
+====
 # Test subplans: Bushy plan with multiple subplans.
 select a.id, c.item, d.key, d.value, v.cnt
 from functional.allcomplextypes a

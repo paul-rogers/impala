@@ -155,6 +155,11 @@ public class PlannerTest extends PlannerTestBase {
   }
 
   @Test
+  public void testAdHoc() {
+    runPlannerTestFile("ad-hoc");
+  }
+
+  @Test
   public void testComplexTypesFileFormats() {
     runPlannerTestFile("complex-types-file-formats");
   }
