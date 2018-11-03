@@ -462,7 +462,7 @@ public class KuduScanNode extends ScanNode {
     // KuduPredicate takes a list of values as Objects.
     List<Object> values = Lists.newArrayList();
     for (int i = 1; i < predicate.getChildren().size(); ++i) {
-      if (!(predicate.getChild(i).isLiteral())) return false;
+      if (!Expr.IS_LITERAL.apply(predicate.getChild(i))) return false;
       LiteralExpr literal = (LiteralExpr) predicate.getChild(i);
 
       // Cannot push predicates with null literal values (KUDU-1595).

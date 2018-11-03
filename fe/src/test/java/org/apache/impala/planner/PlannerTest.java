@@ -350,7 +350,9 @@ public class PlannerTest extends PlannerTestBase {
   }
 
   @Test
-  public void testParquetStatsAgg() { runPlannerTestFile("parquet-stats-agg"); }
+  public void testParquetStatsAgg() {
+    runPlannerTestFile("parquet-stats-agg");
+  }
 
   @Test
   public void testParquetFiltering() {

@@ -27,7 +27,6 @@ import org.apache.impala.common.Pair;
 import org.apache.impala.thrift.TRangePartition;
 import org.apache.impala.util.KuduUtil;
 
-import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 
@@ -182,7 +181,8 @@ public class RangePartition implements ParseNode {
       e.analyze(analyzer);
       literal = LiteralExpr.create(e, analyzer.getQueryCtx());
       Preconditions.checkNotNull(literal);
-      if (literal.isNullLiteral()) {
+      if (Expr.IS_NULL_VALUE.apply(literal)) {
+        // TODO: Correct message for a null value?
         throw new AnalysisException(String.format("Range partition value %s cannot be " +
             "cast to target TIMESTAMP partitioning column.", value.toSql()));
       }

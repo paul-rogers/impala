@@ -193,7 +193,7 @@ public class HdfsPartitionPruner {
       SlotRef slot = bp.getBoundSlot();
       if (slot == null) return false;
       Expr bindingExpr = bp.getSlotBinding(slot.getSlotId());
-      if (bindingExpr == null || !bindingExpr.isLiteral()) return false;
+      if (bindingExpr == null || !Expr.IS_LITERAL.apply(bindingExpr)) return false;
       return true;
     } else if (expr instanceof CompoundPredicate) {
       boolean res = canEvalUsingPartitionMd(expr.getChild(0), analyzer);
@@ -217,7 +217,7 @@ public class HdfsPartitionPruner {
       SlotRef slot = ((InPredicate)expr).getBoundSlot();
       if (slot == null) return false;
       for (int i = 1; i < expr.getChildren().size(); ++i) {
-        if (!(expr.getChild(i).isLiteral())) return false;
+        if (!Expr.IS_LITERAL.apply(expr.getChild(i))) return false;
       }
       return true;
     }
@@ -233,7 +233,7 @@ public class HdfsPartitionPruner {
     Preconditions.checkNotNull(expr);
     Preconditions.checkState(expr instanceof BinaryPredicate);
     boolean isSlotOnLeft = true;
-    if (expr.getChild(0).isLiteral()) isSlotOnLeft = false;
+    if (Expr.IS_LITERAL.apply(expr.getChild(0))) isSlotOnLeft = false;
 
     // Get the operands
     BinaryPredicate bp = (BinaryPredicate)expr;
@@ -241,7 +241,7 @@ public class HdfsPartitionPruner {
     Preconditions.checkNotNull(slot);
     Expr bindingExpr = bp.getSlotBinding(slot.getSlotId());
     Preconditions.checkNotNull(bindingExpr);
-    Preconditions.checkState(bindingExpr.isLiteral());
+    Preconditions.checkState(Expr.IS_LITERAL.apply(bindingExpr));
     LiteralExpr literal = (LiteralExpr)bindingExpr;
     Operator op = bp.getOp();
     if ((literal instanceof NullLiteral) && (op != Operator.NOT_DISTINCT)

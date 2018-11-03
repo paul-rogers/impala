@@ -34,6 +34,8 @@ import org.apache.impala.analysis.Expr;
 public class SimplifyDistinctFromRule implements ExprRewriteRule {
   public static ExprRewriteRule INSTANCE = new SimplifyDistinctFromRule();
 
+  private SimplifyDistinctFromRule() { }
+
   @Override
   public Expr apply(Expr expr, Analyzer analyzer) {
     if (!expr.isAnalyzed()) return expr;

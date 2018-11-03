@@ -32,6 +32,8 @@ import org.apache.impala.analysis.Expr;
 public class NormalizeExprsRule implements ExprRewriteRule {
   public static ExprRewriteRule INSTANCE = new NormalizeExprsRule();
 
+  private NormalizeExprsRule() { }
+
   @Override
   public Expr apply(Expr expr, Analyzer analyzer) {
     if (!expr.isAnalyzed()) return expr;

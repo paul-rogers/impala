@@ -20,8 +20,6 @@ package org.apache.impala.rewrite;
 import org.apache.impala.analysis.Analyzer;
 import org.apache.impala.analysis.Expr;
 import org.apache.impala.analysis.LiteralExpr;
-import org.apache.impala.analysis.NullLiteral;
-import org.apache.impala.analysis.CastExpr;
 
 import org.apache.impala.common.AnalysisException;
 
@@ -48,27 +46,56 @@ public class FoldConstantsRule implements ExprRewriteRule {
     // Avoid calling Expr.isConstant() because that would lead to repeated traversals
     // of the Expr tree. Assumes the bottom-up application of this rule. Constant
     // children should have been folded at this point.
-    for (Expr child: expr.getChildren()) if (!child.isLiteral()) return expr;
-    if (expr.isLiteral() || !expr.isConstant()) return expr;
+    //
+    // However, this rule may produce an expression the form CAST(NULL as type),
+    // which are not literals. So, we call IS_LITERAL_VALUE that checks
+    // for an actual literal, or the cast of a null (which is literal enough
+    // for our needs.)
+    //
+    // We may find an expression of the form (CAST 1.8 AS DECIMAL(...)).
+    // Don't treat this as a child literal: it is the result of a prior
+    // rewrite attempt that produced an overflow or other error, so we leave
+    // it unchanged.
+    for (Expr child: expr.getChildren()) {
+      if (!Expr.IS_LITERAL_VALUE.apply(child)) return expr;
+    }
 
     // Do not constant fold cast(null as dataType) because we cannot preserve the
     // cast-to-types and that can lead to query failures, e.g., CTAS
-    if (expr instanceof CastExpr) {
-      CastExpr castExpr = (CastExpr) expr;
-      if (castExpr.getChild(0) instanceof NullLiteral) {
-        return expr;
-      }
-    }
-    // Analyze constant exprs, if necessary. Note that the 'expr' may become non-constant
-    // after analysis (e.g., aggregate functions).
+    if (Expr.IS_NULL_VALUE.apply(expr)) { return expr; }
+
+    // If the is a literal, it can't get any simpler. If it is not
+    // a constant, we can't evaluate it.
+    if (Expr.IS_LITERAL.apply(expr) || !expr.isConstant()) return expr;
+
+    // Do not constant fold cast(null as dataType) because we cannot preserve the
+    // cast-to-types and that can lead to query failures, e.g., CTAS
+    if (Expr.IS_NULL_LITERAL.apply(expr)) { return expr; }
+
+    // Analyze constant exprs, if necessary. Note that the 'expr' may become
+    // non-constant after analysis (e.g., aggregate functions).
     if (!expr.isAnalyzed()) {
       expr.analyze(analyzer);
       if (!expr.isConstant()) return expr;
     }
+
     Expr result = LiteralExpr.create(expr, analyzer.getQueryCtx());
+
     // Preserve original type so parent Exprs do not need to be re-analyzed.
-    if (result != null) return result.castTo(expr.getType());
-    return expr;
+    // This may mean that an expression of the for CAST(1.8 AS DECIMAL(38,28))
+    // is preserved. In this case, though this expression looks like a literal,
+    // it is not because it may evaluate to NULL at runtime due to overflow;
+    // the above must be treated as non-constant.
+    if (result == null) {
+      // The expression is not really a constant. Avoid repeated
+      // passes through this rule.
+      expr.becomeNonConstant();
+      return expr;
+    } else {
+      // Change the type associated with the literal to the
+      // desired type. Does not produce CAST(x AS type).
+      return result.castTo(expr.getType());
+    }
   }
 
   private FoldConstantsRule() {}

@@ -276,7 +276,7 @@ PLAN-ROOT SINK
 |     partitions=24/24 files=24 size=178.13KB
 |
 02:AGGREGATE [FINALIZE]
-|  output: count(NULL + 3)
+|  output: count(NULL)
 |
 01:SCAN HDFS [functional_parquet.alltypes]
    partitions=24/24 files=24 size=178.13KB

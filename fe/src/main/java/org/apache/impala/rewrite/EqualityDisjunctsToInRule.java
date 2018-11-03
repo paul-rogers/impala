@@ -39,6 +39,8 @@ public class EqualityDisjunctsToInRule implements ExprRewriteRule {
 
   public static ExprRewriteRule INSTANCE = new EqualityDisjunctsToInRule();
 
+  private EqualityDisjunctsToInRule() { }
+
   @Override
   public Expr apply(Expr expr, Analyzer analyzer) {
     if (!Expr.IS_OR_PREDICATE.apply(expr)) return expr;
