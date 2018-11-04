@@ -164,15 +164,77 @@ public class SelectStmt extends QueryStmt {
   public void analyze(Analyzer analyzer) throws AnalysisException {
     if (isAnalyzed()) return;
     super.analyze(analyzer);
+    new SelectAnalyzer(analyzer).analyze();
+  }
+
+  /**
+   * Algorithm class for the SELECT statement analyzer. Holds
+   * the analyzer and intermediate state.
+   */
+  private class SelectAnalyzer {
+
+    private final Analyzer analyzer;
+    private ArrayList<Expr> groupingExprsCopy;
+    private List<FunctionCallExpr> aggExprs;
+    private ExprSubstitutionMap ndvSmap;
+    private ExprSubstitutionMap countAllMap;
+
+    private SelectAnalyzer(Analyzer analyzer) {
+      this.analyzer = analyzer;
+    }
+
+    // Note temporary odd indentation just to minimize code
+    // diffs in the first change request. A second request
+    // will shift indentation, but that will be the only change.
+
+  private void analyze() throws AnalysisException {
 
     // Start out with table refs to establish aliases.
     fromClause_.analyze(analyzer);
+
+    analyzeSelectClause();
+    verifyResultExprs();
+    analyzeWhereClause();
+
+    createSortInfo(analyzer);
+    analyzeAggregation();
+    createAnalyticInfo();
+    if (evaluateOrderBy_) createSortTupleInfo(analyzer);
+
+    // Remember the SQL string before inline-view expression substitution.
+    sqlString_ = toSql();
+    if (origSqlString_ == null) origSqlString_ = sqlString_;
+    resolveInlineViewRefs();
+
+    // If this block's select-project-join portion returns an empty result set and the
+    // block has no aggregation, then mark this block as returning an empty result set.
+    if (analyzer.hasEmptySpjResultSet() && multiAggInfo_ == null) {
+      analyzer.setHasEmptyResultSet();
+    }
+
+    buildColumnLineageGraph();
+  }
+
+  private void buildColumnLineageGraph() {
+
+    ColumnLineageGraph graph = analyzer.getColumnLineageGraph();
+    if (multiAggInfo_ != null && multiAggInfo_.hasAggregateExprs()) {
+      graph.addDependencyPredicates(multiAggInfo_.getGroupingExprs());
+    }
+    if (sortInfo_ != null && hasLimit()) {
+      // When there is a LIMIT clause in conjunction with an ORDER BY, the ordering exprs
+      // must be added in the column lineage graph.
+      graph.addDependencyPredicates(sortInfo_.getSortExprs());
+    }
+  }
+
+  private void analyzeSelectClause() throws AnalysisException {
 
     // Generate !empty() predicates to filter out empty collections.
     // Skip this step when analyzing a WITH-clause because CollectionTableRefs
     // do not register collection slots in their parent in that context
     // (see CollectionTableRef.analyze()).
-    if (!analyzer.isWithClause()) registerIsNotEmptyPredicates(analyzer);
+    if (!analyzer.isWithClause()) registerIsNotEmptyPredicates();
 
     // analyze plan hints from select list
     selectList_.analyzePlanHints(analyzer);
@@ -183,9 +245,9 @@ public class SelectStmt extends QueryStmt {
       if (item.isStar()) {
         if (item.getRawPath() != null) {
           Path resolvedPath = analyzeStarPath(item.getRawPath(), analyzer);
-          expandStar(resolvedPath, analyzer);
+          expandStar(resolvedPath);
         } else {
-          expandStar(analyzer);
+          expandStar();
         }
       } else {
         // Analyze the resultExpr before generating a label to ensure enforcement
@@ -208,6 +270,9 @@ public class SelectStmt extends QueryStmt {
         colLabels_.add(label);
       }
     }
+  }
+
+  private void verifyResultExprs() throws AnalysisException {
 
     // Star exprs only expand to the scalar-typed columns/fields, so
     // the resultExprs_ could be empty.
@@ -246,7 +311,9 @@ public class SelectStmt extends QueryStmt {
             "cannot combine SELECT DISTINCT with analytic functions");
       }
     }
+  }
 
+  private void analyzeWhereClause() throws AnalysisException {
     if (whereClause_ != null) {
       whereClause_.analyze(analyzer);
       if (whereClause_.contains(Expr.isAggregatePredicate())) {
@@ -260,32 +327,6 @@ public class SelectStmt extends QueryStmt {
             "WHERE clause must not contain analytic expressions: " + e.toSql());
       }
       analyzer.registerConjuncts(whereClause_, false);
-    }
-
-    createSortInfo(analyzer);
-    analyzeAggregation(analyzer);
-    createAnalyticInfo(analyzer);
-    if (evaluateOrderBy_) createSortTupleInfo(analyzer);
-
-    // Remember the SQL string before inline-view expression substitution.
-    sqlString_ = toSql();
-    if (origSqlString_ == null) origSqlString_ = sqlString_;
-    resolveInlineViewRefs(analyzer);
-
-    // If this block's select-project-join portion returns an empty result set and the
-    // block has no aggregation, then mark this block as returning an empty result set.
-    if (analyzer.hasEmptySpjResultSet() && multiAggInfo_ == null) {
-      analyzer.setHasEmptyResultSet();
-    }
-
-    ColumnLineageGraph graph = analyzer.getColumnLineageGraph();
-    if (multiAggInfo_ != null && multiAggInfo_.hasAggregateExprs()) {
-      graph.addDependencyPredicates(multiAggInfo_.getGroupingExprs());
-    }
-    if (sortInfo_ != null && hasLimit()) {
-      // When there is a LIMIT clause in conjunction with an ORDER BY, the ordering exprs
-      // must be added in the column lineage graph.
-      graph.addDependencyPredicates(sortInfo_.getSortExprs());
     }
   }
 
@@ -320,7 +361,7 @@ public class SelectStmt extends QueryStmt {
    * a !empty() predicate is assigned to a plan node that comes after the unnest of the
    * collection that also performs the projection.
    */
-  private void registerIsNotEmptyPredicates(Analyzer analyzer) throws AnalysisException {
+  private void registerIsNotEmptyPredicates() throws AnalysisException {
     for (TableRef tblRef: fromClause_.getTableRefs()) {
       Preconditions.checkState(tblRef.isResolved());
       if (!(tblRef instanceof CollectionTableRef)) continue;
@@ -342,57 +383,10 @@ public class SelectStmt extends QueryStmt {
   }
 
   /**
-   * Marks all unassigned join predicates as well as exprs in aggInfo and sortInfo.
-   */
-  @Override
-  public void materializeRequiredSlots(Analyzer analyzer) {
-    // Mark unassigned join predicates. Some predicates that must be evaluated by a join
-    // can also be safely evaluated below the join (picked up by getBoundPredicates()).
-    // Such predicates will be marked twice and that is ok.
-    List<Expr> unassigned =
-        analyzer.getUnassignedConjuncts(getTableRefIds(), true);
-    List<Expr> unassignedJoinConjuncts = Lists.newArrayList();
-    for (Expr e: unassigned) {
-      if (analyzer.evalAfterJoin(e)) unassignedJoinConjuncts.add(e);
-    }
-    List<Expr> baseTblJoinConjuncts =
-        Expr.substituteList(unassignedJoinConjuncts, baseTblSmap_, analyzer, false);
-    materializeSlots(analyzer, baseTblJoinConjuncts);
-
-    if (evaluateOrderBy_) {
-      // mark ordering exprs before marking agg/analytic exprs because they could contain
-      // agg/analytic exprs that are not referenced anywhere but the ORDER BY clause
-      sortInfo_.materializeRequiredSlots(analyzer, baseTblSmap_);
-    }
-
-    if (hasAnalyticInfo()) {
-      // Mark analytic exprs before marking agg exprs because they could contain agg
-      // exprs that are not referenced anywhere but the analytic expr.
-      // Gather unassigned predicates and mark their slots. It is not desirable
-      // to account for propagated predicates because if an analytic expr is only
-      // referenced by a propagated predicate, then it's better to not materialize the
-      // analytic expr at all.
-      ArrayList<TupleId> tids = Lists.newArrayList();
-      getMaterializedTupleIds(tids); // includes the analytic tuple
-      List<Expr> conjuncts = analyzer.getUnassignedConjuncts(tids, false);
-      materializeSlots(analyzer, conjuncts);
-      analyticInfo_.materializeRequiredSlots(analyzer, baseTblSmap_);
-    }
-
-    if (multiAggInfo_ != null) {
-      // Mark all agg slots required for conjunct evaluation as materialized before
-      // calling MultiAggregateInfo.materializeRequiredSlots().
-      List<Expr> conjuncts = multiAggInfo_.collectConjuncts(analyzer, false);
-      materializeSlots(analyzer, conjuncts);
-      multiAggInfo_.materializeRequiredSlots(analyzer, baseTblSmap_);
-    }
-  }
-
-  /**
     * Populates baseTblSmap_ with our combined inline view smap and creates
     * baseTblResultExprs.
     */
-  protected void resolveInlineViewRefs(Analyzer analyzer)
+  protected void resolveInlineViewRefs()
       throws AnalysisException {
     // Gather the inline view substitution maps from the enclosed inline views
     for (TableRef tblRef: fromClause_) {
@@ -409,14 +403,6 @@ public class SelectStmt extends QueryStmt {
       LOG.trace("resultExprs: " + Expr.debugString(resultExprs_));
       LOG.trace("baseTblResultExprs: " + Expr.debugString(baseTblResultExprs_));
     }
-  }
-
-  public List<TupleId> getTableRefIds() {
-    List<TupleId> result = Lists.newArrayList();
-    for (TableRef ref: fromClause_) {
-      result.add(ref.getId());
-    }
-    return result;
   }
 
   /**
@@ -442,7 +428,7 @@ public class SelectStmt extends QueryStmt {
    * complex-typed fields because those are currently illegal in any select
    * list (even for inline views, etc.)
    */
-  private void expandStar(Analyzer analyzer) throws AnalysisException {
+  private void expandStar() throws AnalysisException {
     if (fromClause_.isEmpty()) {
       throw new AnalysisException("'*' expression in select list requires FROM clause.");
     }
@@ -451,7 +437,7 @@ public class SelectStmt extends QueryStmt {
       if (analyzer.isSemiJoined(tableRef.getId())) continue;
       Path resolvedPath = new Path(tableRef.getDesc(), Collections.<String>emptyList());
       Preconditions.checkState(resolvedPath.resolve());
-      expandStar(resolvedPath, analyzer);
+      expandStar(resolvedPath);
     }
   }
 
@@ -459,7 +445,7 @@ public class SelectStmt extends QueryStmt {
    * Expand "path.*" from a resolved path, ignoring complex-typed fields because those
    * are currently illegal in any select list (even for inline views, etc.)
    */
-  private void expandStar(Path resolvedPath, Analyzer analyzer)
+  private void expandStar(Path resolvedPath)
       throws AnalysisException {
     Preconditions.checkState(resolvedPath.isResolved());
     if (resolvedPath.destTupleDesc() != null &&
@@ -470,7 +456,7 @@ public class SelectStmt extends QueryStmt {
       TupleDescriptor tupleDesc = resolvedPath.destTupleDesc();
       FeTable table = tupleDesc.getTable();
       for (Column c: table.getColumnsInHiveOrder()) {
-        addStarResultExpr(resolvedPath, analyzer, c.getName());
+        addStarResultExpr(resolvedPath, c.getName());
       }
     } else {
       // The resolved path does not target the descriptor of a catalog table.
@@ -488,23 +474,23 @@ public class SelectStmt extends QueryStmt {
       if (structType instanceof CollectionStructType) {
         CollectionStructType cst = (CollectionStructType) structType;
         if (cst.isMapStruct()) {
-          addStarResultExpr(resolvedPath, analyzer, Path.MAP_KEY_FIELD_NAME);
+          addStarResultExpr(resolvedPath, Path.MAP_KEY_FIELD_NAME);
         }
         if (cst.getOptionalField().getType().isStructType()) {
           structType = (StructType) cst.getOptionalField().getType();
           for (StructField f: structType.getFields()) {
             addStarResultExpr(
-                resolvedPath, analyzer, cst.getOptionalField().getName(), f.getName());
+                resolvedPath, cst.getOptionalField().getName(), f.getName());
           }
         } else if (cst.isMapStruct()) {
-          addStarResultExpr(resolvedPath, analyzer, Path.MAP_VALUE_FIELD_NAME);
+          addStarResultExpr(resolvedPath, Path.MAP_VALUE_FIELD_NAME);
         } else {
-          addStarResultExpr(resolvedPath, analyzer, Path.ARRAY_ITEM_FIELD_NAME);
+          addStarResultExpr(resolvedPath, Path.ARRAY_ITEM_FIELD_NAME);
         }
       } else {
         // Default star expansion.
         for (StructField f: structType.getFields()) {
-          addStarResultExpr(resolvedPath, analyzer, f.getName());
+          addStarResultExpr(resolvedPath, f.getName());
         }
       }
     }
@@ -516,7 +502,7 @@ public class SelectStmt extends QueryStmt {
    * Ignores paths with a complex-typed destination because they are currently
    * illegal in any select list (even for inline views, etc.)
    */
-  private void addStarResultExpr(Path resolvedPath, Analyzer analyzer,
+  private void addStarResultExpr(Path resolvedPath,
       String... relRawPath) throws AnalysisException {
     Path p = Path.createRelPath(resolvedPath, relRawPath);
     Preconditions.checkState(p.resolve());
@@ -534,7 +520,22 @@ public class SelectStmt extends QueryStmt {
    * AggregationInfo, including the agg output tuple, and transform all post-agg exprs
    * given AggregationInfo's smap.
    */
-  private void analyzeAggregation(Analyzer analyzer) throws AnalysisException {
+  private void analyzeAggregation() throws AnalysisException {
+
+    analyzeHavingClause();
+    if (! checkForAggregates()) {
+      return;
+    }
+    verifyAggSemantics();
+    analyzeGroupingExprs();
+    collectAggExprs();
+    rewriteCountDistinct();
+    buildAggregateExprs();
+    buildResultExprs();
+    verifyAggregation();
+  }
+
+  private void analyzeHavingClause() throws AnalysisException {
     // Analyze the HAVING clause first so we can check if it contains aggregates.
     // We need to analyze/register it even if we are not computing aggregates.
     if (havingClause_ != null) {
@@ -553,6 +554,9 @@ public class SelectStmt extends QueryStmt {
       }
       havingPred_.checkReturnsBool("HAVING clause", true);
     }
+  }
+
+  public boolean checkForAggregates() throws AnalysisException {
 
     if (groupingExprs_ == null && !selectList_.isDistinct()
         && !TreeNode.contains(resultExprs_, Expr.isAggregatePredicate())
@@ -564,8 +568,12 @@ public class SelectStmt extends QueryStmt {
       // We're not computing aggregates but we still need to register the HAVING
       // clause which could, e.g., contain a constant expression evaluating to false.
       if (havingPred_ != null) analyzer.registerConjuncts(havingPred_, true);
-      return;
+      return false;
     }
+    return true;
+  }
+
+  private void verifyAggSemantics() throws AnalysisException {
 
     // If we're computing an aggregate, we must have a FROM clause.
     if (fromClause_.isEmpty()) {
@@ -604,9 +612,11 @@ public class SelectStmt extends QueryStmt {
         }
       }
     }
+  }
 
+  public void analyzeGroupingExprs() throws AnalysisException {
     // analyze grouping exprs
-    ArrayList<Expr> groupingExprsCopy = Lists.newArrayList();
+    groupingExprsCopy = Lists.newArrayList();
     if (groupingExprs_ != null) {
       // make a deep copy here, we don't want to modify the original
       // exprs during analysis (in case we need to print them later)
@@ -629,10 +639,12 @@ public class SelectStmt extends QueryStmt {
         }
       }
     }
+  }
 
+  private void collectAggExprs() {
     // Collect the aggregate expressions from the SELECT, HAVING and ORDER BY clauses
     // of this statement.
-    List<FunctionCallExpr> aggExprs = Lists.newArrayList();
+    aggExprs = Lists.newArrayList();
     TreeNode.collect(resultExprs_, Expr.isAggregatePredicate(), aggExprs);
     if (havingPred_ != null) {
       havingPred_.collect(Expr.isAggregatePredicate(), aggExprs);
@@ -642,9 +654,11 @@ public class SelectStmt extends QueryStmt {
       TreeNode.collect(sortInfo_.getSortExprs(), Expr.isAggregatePredicate(),
           aggExprs);
     }
+  }
+
+  public void rewriteCountDistinct() {
 
     // Optionally rewrite all count(distinct <expr>) into equivalent NDV() calls.
-    ExprSubstitutionMap ndvSmap = null;
     if (analyzer.getQueryCtx().client_request.query_options.appx_count_distinct) {
       ndvSmap = new ExprSubstitutionMap();
       for (FunctionCallExpr aggExpr: aggExprs) {
@@ -667,6 +681,9 @@ public class SelectStmt extends QueryStmt {
         aggExprs.add((FunctionCallExpr) aggExpr);
       }
     }
+  }
+
+  private void buildAggregateExprs() throws AnalysisException {
 
     // When DISTINCT aggregates are present, non-distinct (i.e. ALL) aggregates are
     // evaluated in two phases (see AggregateInfo for more details). In particular,
@@ -678,7 +695,7 @@ public class SelectStmt extends QueryStmt {
     // Therefore, COUNT([ALL]) is transformed into zeroifnull(COUNT([ALL]) if
     // i) There is no GROUP-BY clause, and
     // ii) Other DISTINCT aggregates are present.
-    ExprSubstitutionMap countAllMap = createCountAllMap(aggExprs, analyzer);
+    countAllMap = createCountAllMap();
     countAllMap = ExprSubstitutionMap.compose(ndvSmap, countAllMap, analyzer);
     List<Expr> substitutedAggs =
         Expr.substituteList(aggExprs, countAllMap, analyzer, false);
@@ -698,6 +715,9 @@ public class SelectStmt extends QueryStmt {
     Expr.removeDuplicates(groupingExprs);
     multiAggInfo_ = new MultiAggregateInfo(groupingExprs, aggExprs);
     multiAggInfo_.analyze(analyzer);
+  }
+
+  private void buildResultExprs() throws AnalysisException {
 
     ExprSubstitutionMap finalOutputSmap = multiAggInfo_.getOutputSmap();
     ExprSubstitutionMap combinedSmap =
@@ -732,6 +752,9 @@ public class SelectStmt extends QueryStmt {
             Expr.debugString(sortInfo_.getSortExprs()));
       }
     }
+  }
+
+  public void verifyAggregation() throws AnalysisException {
 
     // check that all post-agg exprs point to agg output
     for (int i = 0; i < selectList_.getItems().size(); ++i) {
@@ -770,8 +793,7 @@ public class SelectStmt extends QueryStmt {
    * This transformation is necessary for COUNT to correctly return 0 for empty
    * input relations.
    */
-  private ExprSubstitutionMap createCountAllMap(
-      List<FunctionCallExpr> aggExprs, Analyzer analyzer)
+  private ExprSubstitutionMap createCountAllMap()
       throws AnalysisException {
     ExprSubstitutionMap scalarCountAllMap = new ExprSubstitutionMap();
 
@@ -816,7 +838,7 @@ public class SelectStmt extends QueryStmt {
    * If the select list contains AnalyticExprs, create AnalyticInfo and substitute
    * AnalyticExprs using the AnalyticInfo's smap.
    */
-  private void createAnalyticInfo(Analyzer analyzer)
+  private void createAnalyticInfo()
       throws AnalysisException {
     // collect AnalyticExprs from the SELECT and ORDER BY clauses
     ArrayList<Expr> analyticExprs = Lists.newArrayList();
@@ -868,6 +890,62 @@ public class SelectStmt extends QueryStmt {
             Expr.debugString(sortInfo_.getSortExprs()));
       }
     }
+  }
+  }
+
+  /**
+   * Marks all unassigned join predicates as well as exprs in aggInfo and sortInfo.
+   */
+  @Override
+  public void materializeRequiredSlots(Analyzer analyzer) {
+    // Mark unassigned join predicates. Some predicates that must be evaluated by a join
+    // can also be safely evaluated below the join (picked up by getBoundPredicates()).
+    // Such predicates will be marked twice and that is ok.
+    List<Expr> unassigned =
+        analyzer.getUnassignedConjuncts(getTableRefIds(), true);
+    List<Expr> unassignedJoinConjuncts = Lists.newArrayList();
+    for (Expr e: unassigned) {
+      if (analyzer.evalAfterJoin(e)) unassignedJoinConjuncts.add(e);
+    }
+    List<Expr> baseTblJoinConjuncts =
+        Expr.substituteList(unassignedJoinConjuncts, baseTblSmap_, analyzer, false);
+    materializeSlots(analyzer, baseTblJoinConjuncts);
+
+    if (evaluateOrderBy_) {
+      // mark ordering exprs before marking agg/analytic exprs because they could contain
+      // agg/analytic exprs that are not referenced anywhere but the ORDER BY clause
+      sortInfo_.materializeRequiredSlots(analyzer, baseTblSmap_);
+    }
+
+    if (hasAnalyticInfo()) {
+      // Mark analytic exprs before marking agg exprs because they could contain agg
+      // exprs that are not referenced anywhere but the analytic expr.
+      // Gather unassigned predicates and mark their slots. It is not desirable
+      // to account for propagated predicates because if an analytic expr is only
+      // referenced by a propagated predicate, then it's better to not materialize the
+      // analytic expr at all.
+      ArrayList<TupleId> tids = Lists.newArrayList();
+      getMaterializedTupleIds(tids); // includes the analytic tuple
+      List<Expr> conjuncts = analyzer.getUnassignedConjuncts(tids, false);
+      materializeSlots(analyzer, conjuncts);
+      analyticInfo_.materializeRequiredSlots(analyzer, baseTblSmap_);
+    }
+
+    if (multiAggInfo_ != null) {
+      // Mark all agg slots required for conjunct evaluation as materialized before
+      // calling MultiAggregateInfo.materializeRequiredSlots().
+      List<Expr> conjuncts = multiAggInfo_.collectConjuncts(analyzer, false);
+      materializeSlots(analyzer, conjuncts);
+      multiAggInfo_.materializeRequiredSlots(analyzer, baseTblSmap_);
+    }
+  }
+
+  public List<TupleId> getTableRefIds() {
+    List<TupleId> result = Lists.newArrayList();
+    for (TableRef ref: fromClause_) {
+      result.add(ref.getId());
+    }
+    return result;
   }
 
   /**

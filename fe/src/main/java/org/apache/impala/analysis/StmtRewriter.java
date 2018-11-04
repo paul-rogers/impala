@@ -150,7 +150,6 @@ public class StmtRewriter {
       return boolLiteral;
     }
 
-
     /**
      * Rewrites [NOT] IN predicate when the LHS is a constant and RHS is a subquery.
      * If 'inPred' is not rewritten, null is returned. If 'inPred' is rewritten, the
@@ -278,21 +277,22 @@ public class StmtRewriter {
      * creating a join between the new inline view and the right-most table
      * from 'stmt'. Return true if the rewrite introduced a new visible tuple
      * due to a CROSS JOIN or a LEFT OUTER JOIN.
-     * <p>
+     *
      * This process works as follows:
+     *
      * 1. Create a new inline view with the subquery as the view's stmt. Changes
-     * made to the subquery's stmt will affect the inline view.
+     *    made to the subquery's stmt will affect the inline view.
      * 2. Extract all correlated predicates from the subquery's WHERE
-     * clause; the subquery's select list may be extended with new items and a
-     * GROUP BY clause may be added.
+     *    clause; the subquery's select list may be extended with new items and a
+     *    GROUP BY clause may be added.
      * 3. Add the inline view to stmt's tableRefs and create a
-     * join (left semi join, anti-join, left outer join for agg functions
-     * that return a non-NULL value for an empty input, or cross-join) with
-     * stmt's right-most table.
+     *    join (left semi join, anti-join, left outer join for agg functions
+     *    that return a non-NULL value for an empty input, or cross-join) with
+     *    stmt's right-most table.
      * 4. Initialize the ON clause of the new join from the original subquery
-     * predicate and the new inline view.
+     *    predicate and the new inline view.
      * 5. Apply expr substitutions such that the extracted correlated predicates
-     * refer to columns of the new inline view.
+     *    refer to columns of the new inline view.
      * 6. Add all extracted correlated predicates to the ON clause.
      */
     private static boolean mergeExpr(SelectStmt stmt, Expr expr, Analyzer analyzer)
@@ -561,7 +561,7 @@ public class StmtRewriter {
 
     /**
      * Extract all correlated predicates of a subquery.
-     * <p>
+     *
      * TODO Handle correlated predicates in a HAVING clause.
      */
     private static ArrayList<Expr> extractCorrelatedPredicates(SelectStmt subqueryStmt)
