@@ -184,7 +184,7 @@ public class Analyzer {
   public boolean setHasPlanHints() { return globalState_.hasPlanHints = true; }
   public boolean hasPlanHints() { return globalState_.hasPlanHints; }
   public void setIsWithClause() { isWithClause_ = true; }
-  public boolean isWithClause() { return isWithClause_; }
+  public boolean hasWithClause() { return isWithClause_; }
 
   // State shared between all objects of an Analyzer tree. We use LinkedHashMap and
   // LinkedHashSet where applicable to preserve the iteration order and make the class
