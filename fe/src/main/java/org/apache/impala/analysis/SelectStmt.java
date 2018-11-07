@@ -189,9 +189,23 @@ public class SelectStmt extends QueryStmt {
       analyzeSelectClause();
       verifyResultExprs();
       analyzeWhereClause();
-
       createSortInfo();
-      analyzeAggregation();
+
+      // Analyze aggregation-relevant components of the select block (Group By
+      // clause, select list, Order By clause), substitute AVG with SUM/COUNT,
+      // create the AggregationInfo, including the agg output tuple, and transform
+      // all post-agg exprs given AggregationInfo's smap.
+      analyzeHavingClause();
+      if (checkForAggregates()) {
+        verifyAggSemantics();
+        analyzeGroupingExprs();
+        collectAggExprs();
+        rewriteCountDistinct();
+        buildAggregateExprs();
+        buildResultExprs();
+        verifyAggregation();
+      }
+
       createAnalyticInfo();
       if (evaluateOrderBy_) createSortTupleInfo();
 
@@ -207,18 +221,6 @@ public class SelectStmt extends QueryStmt {
       }
 
       buildColumnLineageGraph();
-    }
-
-    private void buildColumnLineageGraph() {
-      ColumnLineageGraph graph = analyzer_.getColumnLineageGraph();
-      if (multiAggInfo_ != null && multiAggInfo_.hasAggregateExprs()) {
-        graph.addDependencyPredicates(multiAggInfo_.getGroupingExprs());
-      }
-      if (sortInfo_ != null && hasLimit()) {
-        // When there is a LIMIT clause in conjunction with an ORDER BY, the
-        // ordering exprs must be added in the column lineage graph.
-        graph.addDependencyPredicates(sortInfo_.getSortExprs());
-      }
     }
 
     private void analyzeSelectClause() throws AnalysisException {
@@ -306,7 +308,7 @@ public class SelectStmt extends QueryStmt {
     }
 
     private void analyzeWhereClause() throws AnalysisException {
-      if (whereClause_== null) { return; }
+      if (whereClause_== null) return;
       whereClause_.analyze(analyzer_);
       if (whereClause_.contains(Expr.isAggregatePredicate())) {
         throw new AnalysisException(
@@ -515,30 +517,10 @@ public class SelectStmt extends QueryStmt {
       colLabels_.add(relRawPath[relRawPath.length - 1]);
     }
 
-    /**
-     * Analyze aggregation-relevant components of the select block (Group By clause,
-     * select list, Order By clause), substitute AVG with SUM/COUNT, create the
-     * AggregationInfo, including the agg output tuple, and transform all post-agg exprs
-     * given AggregationInfo's smap.
-     */
-    private void analyzeAggregation() throws AnalysisException {
-      analyzeHavingClause();
-      if (!checkForAggregates()) {
-        return;
-      }
-      verifyAggSemantics();
-      analyzeGroupingExprs();
-      collectAggExprs();
-      rewriteCountDistinct();
-      buildAggregateExprs();
-      buildResultExprs();
-      verifyAggregation();
-    }
-
     private void analyzeHavingClause() throws AnalysisException {
       // Analyze the HAVING clause first so we can check if it contains aggregates.
       // We need to analyze/register it even if we are not computing aggregates.
-      if (havingClause_ == null) { return; }
+      if (havingClause_ == null) return;
       // can't contain subqueries
       if (havingClause_.contains(Predicates.instanceOf(Subquery.class))) {
         throw new AnalysisException(
@@ -613,7 +595,7 @@ public class SelectStmt extends QueryStmt {
 
     private void analyzeGroupingExprs() throws AnalysisException {
       if (groupingExprs_ == null) {
-        groupingExprsCopy_ = Lists.newArrayList();
+        groupingExprsCopy_ = new ArrayList<>();
         return;
       }
       // make a deep copy here, we don't want to modify the original
@@ -655,7 +637,7 @@ public class SelectStmt extends QueryStmt {
 
     private void rewriteCountDistinct() {
       // Optionally rewrite all count(distinct <expr>) into equivalent NDV() calls.
-      if (! analyzer_.getQueryCtx().client_request.query_options.appx_count_distinct) {
+      if (!analyzer_.getQueryCtx().client_request.query_options.appx_count_distinct) {
         return;
       }
       ndvSmap_ = new ExprSubstitutionMap();
@@ -890,6 +872,17 @@ public class SelectStmt extends QueryStmt {
           LOG.trace("post-analytic orderingExprs: " +
               Expr.debugString(sortInfo_.getSortExprs()));
         }
+      }
+    }
+    private void buildColumnLineageGraph() {
+      ColumnLineageGraph graph = analyzer_.getColumnLineageGraph();
+      if (multiAggInfo_ != null && multiAggInfo_.hasAggregateExprs()) {
+        graph.addDependencyPredicates(multiAggInfo_.getGroupingExprs());
+      }
+      if (sortInfo_ != null && hasLimit()) {
+        // When there is a LIMIT clause in conjunction with an ORDER BY, the
+        // ordering exprs must be added in the column lineage graph.
+        graph.addDependencyPredicates(sortInfo_.getSortExprs());
       }
     }
   }

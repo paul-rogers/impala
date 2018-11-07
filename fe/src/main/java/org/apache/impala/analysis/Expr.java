@@ -380,14 +380,6 @@ abstract public class Expr extends TreeNode<Expr> implements ParseNode, Cloneabl
   public void setIsAuxExpr() { isAuxExpr_ = true; }
   public Function getFn() { return fn_; }
 
-//  @Override
-//  public void setChild(int index, Expr child) {
-//    if (getChild(index) != child) {
-//      super.setChild(index, child);
-//      isAnalyzed_ = false;
-//    }
-//  }
-
   /**
    * Perform semantic analysis of node and all of its children.
    * Throws exception if any errors found.
@@ -426,9 +418,31 @@ abstract public class Expr extends TreeNode<Expr> implements ParseNode, Cloneabl
     analysisDone();
   }
 
-  public void reanalyze(Analyzer analyzer) throws AnalysisException {
+  /**
+   * Called from the rewrite engine after each expression rewrite.
+   * This node is new, or its children have been altered. Either way,
+   * this node needs to be partially-reanalyzed, at least for the
+   * cost bits.
+   *
+   * The assumption is that rewrites don't change the semantic meaning
+   * of an expression: they don't alter nodes bound to columns.
+   * As a result, the full analysis machinery is not needed and,
+   * indeed, has already been done.
+   *
+   * Since the rewriter works bottom up (unlike analysis which
+   * works top down), we need only recompute this one node,
+   * children have already been recomputed.
+   *
+   * This node can be new. If it is, it must be an operator of
+   * some sort. (CAST, CASE, Boolean operator, etc.) Thus, costing
+   * is the only analysis needed, so we can mark the node as
+   * analyzed.
+   */
+  public void recomputeCosts() {
     isAnalyzed_ = false;
-    analyze(analyzer);
+    computeNumDistinctValues();
+    evalCost_ = computeEvalCost();
+    analysisDone();
   }
 
   /**

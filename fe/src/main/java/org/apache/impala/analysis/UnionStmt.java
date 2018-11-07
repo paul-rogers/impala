@@ -218,11 +218,9 @@ public class UnionStmt extends QueryStmt {
   }
 
   private class UnionAnalyzer extends QueryAnalyzer {
-    Analyzer analyzer;
 
     public UnionAnalyzer(Analyzer analyzer) {
       super(analyzer);
-      this.analyzer = analyzer;
     }
 
   private void analyze() throws AnalysisException {
@@ -256,7 +254,7 @@ public class UnionStmt extends QueryStmt {
     for (UnionOperand op: operands_) {
       resultExprLists.add(op.getQueryStmt().getResultExprs());
     }
-    analyzer.castToUnionCompatibleTypes(resultExprLists);
+    analyzer_.castToUnionCompatibleTypes(resultExprLists);
 
     // Create tuple descriptor materialized by this UnionStmt, its resultExprs, and
     // its sortInfo if necessary.
@@ -272,7 +270,7 @@ public class UnionStmt extends QueryStmt {
       ArrayList<Expr> groupingExprs = Expr.cloneList(resultExprs_);
       try {
         distinctAggInfo_ = MultiAggregateInfo.createDistinct(
-            groupingExprs, analyzer.getTupleDesc(tupleId_), analyzer);
+            groupingExprs, analyzer_.getTupleDesc(tupleId_), analyzer_);
       } catch (AnalysisException e) {
         // Should never happen.
         throw new IllegalStateException(
@@ -292,7 +290,7 @@ public class UnionStmt extends QueryStmt {
    */
   private void analyzeOperands() throws AnalysisException {
     for (int i = 0; i < operands_.size(); ++i) {
-      operands_.get(i).analyze(analyzer);
+      operands_.get(i).analyze(analyzer_);
       QueryStmt firstQuery = operands_.get(0).getQueryStmt();
       List<Expr> firstExprs = operands_.get(0).getQueryStmt().getResultExprs();
       QueryStmt query = operands_.get(i).getQueryStmt();
@@ -355,7 +353,7 @@ public class UnionStmt extends QueryStmt {
    * tuple to the corresponding result exprs of the operand.
    */
   private void setOperandSmap(UnionOperand operand) {
-    TupleDescriptor tupleDesc = analyzer.getDescTbl().getTupleDesc(tupleId_);
+    TupleDescriptor tupleDesc = analyzer_.getDescTbl().getTupleDesc(tupleId_);
     // operands' smaps were already set in the operands' analyze()
     operand.getSmap().clear();
     List<Expr> resultExprs = operand.getQueryStmt().getResultExprs();
@@ -427,7 +425,7 @@ public class UnionStmt extends QueryStmt {
    */
   private void createMetadata() throws AnalysisException {
     // Create tuple descriptor for materialized tuple created by the union.
-    TupleDescriptor tupleDesc = analyzer.getDescTbl().createTupleDescriptor("union");
+    TupleDescriptor tupleDesc = analyzer_.getDescTbl().createTupleDescriptor("union");
     tupleDesc.setIsMaterialized(true);
     tupleId_ = tupleDesc.getId();
     if (LOG.isTraceEnabled()) {
@@ -454,7 +452,7 @@ public class UnionStmt extends QueryStmt {
     // Create tuple descriptor and slots.
     for (int i = 0; i < firstSelectExprs.size(); ++i) {
       Expr expr = firstSelectExprs.get(i);
-      SlotDescriptor slotDesc = analyzer.addSlotDescriptor(tupleDesc);
+      SlotDescriptor slotDesc = analyzer_.addSlotDescriptor(tupleDesc);
       slotDesc.setLabel(getColLabels().get(i));
       slotDesc.setType(expr.getType());
       slotDesc.setStats(columnStats.get(i));
@@ -484,7 +482,7 @@ public class UnionStmt extends QueryStmt {
         if (op.hasAnalyticExprs()) continue;
         slotRef = resultExpr.unwrapSlotRef(true);
         if (slotRef == null) continue;
-        analyzer.registerValueTransfer(outputSlotRef.getSlotId(), slotRef.getSlotId());
+        analyzer_.registerValueTransfer(outputSlotRef.getSlotId(), slotRef.getSlotId());
       }
       // If all the child slots are not nullable, then the union output slot should not
       // be nullable as well.

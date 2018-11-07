@@ -84,12 +84,10 @@ public class ExprRewriter {
       expr.setChild(i, applyRuleBottomUp(expr.getChild(i), rule, analyzer));
     }
     Expr rewrittenExpr = rule.apply(expr, analyzer);
-    if (rewrittenExpr != expr)
-      ++numChanges_;
+    if (rewrittenExpr != expr) ++numChanges_;
 
-    // If the node or its children changed,
-    // re-analyze the node.
-    if (numChanges_ > startPoint) rewrittenExpr.reanalyze(analyzer);
+    // If the node or its children changed, re-analyze the node.
+//    if (numChanges_ > startPoint) rewrittenExpr.recomputeCosts();
     return rewrittenExpr;
   }
 
