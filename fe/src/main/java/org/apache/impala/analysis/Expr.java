@@ -380,6 +380,14 @@ abstract public class Expr extends TreeNode<Expr> implements ParseNode, Cloneabl
   public void setIsAuxExpr() { isAuxExpr_ = true; }
   public Function getFn() { return fn_; }
 
+//  @Override
+//  public void setChild(int index, Expr child) {
+//    if (getChild(index) != child) {
+//      super.setChild(index, child);
+//      isAnalyzed_ = false;
+//    }
+//  }
+
   /**
    * Perform semantic analysis of node and all of its children.
    * Throws exception if any errors found.
@@ -416,6 +424,11 @@ abstract public class Expr extends TreeNode<Expr> implements ParseNode, Cloneabl
     analyzeImpl(analyzer);
     evalCost_ = computeEvalCost();
     analysisDone();
+  }
+
+  public void reanalyze(Analyzer analyzer) throws AnalysisException {
+    isAnalyzed_ = false;
+    analyze(analyzer);
   }
 
   /**

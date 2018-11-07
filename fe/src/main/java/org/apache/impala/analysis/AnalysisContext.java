@@ -452,7 +452,7 @@ public class AnalysisContext {
     if (analysisResult_.requiresExprRewrite()) {
       rewriter.reset();
       analysisResult_.stmt_.rewriteExprs(rewriter);
-      reAnalyze = rewriter.changed();
+//      reAnalyze = rewriter.changed();
     }
     if (analysisResult_.requiresSubqueryRewrite()) {
       new StmtRewriter.SubqueryRewriter().rewrite(analysisResult_);
