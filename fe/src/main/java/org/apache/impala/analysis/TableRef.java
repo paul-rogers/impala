@@ -531,9 +531,9 @@ public class TableRef implements ParseNode {
       onClause_.analyze(analyzer);
       analyzer.setVisibleSemiJoinedTuple(null);
       onClause_.checkReturnsBool("ON clause", true);
-        if (onClause_.contains(Expr.isAggregatePredicate())) {
-          throw new AnalysisException(
-              "aggregate function not allowed in ON clause: " + toSql());
+      if (onClause_.contains(Expr.isAggregatePredicate())) {
+        throw new AnalysisException(
+            "aggregate function not allowed in ON clause: " + toSql());
       }
       if (onClause_.contains(AnalyticExpr.class)) {
         throw new AnalysisException(

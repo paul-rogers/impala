@@ -437,11 +437,31 @@ abstract public class Expr extends TreeNode<Expr> implements ParseNode, Cloneabl
    * some sort. (CAST, CASE, Boolean operator, etc.) Thus, costing
    * is the only analysis needed, so we can mark the node as
    * analyzed.
+   *
+   * If this node is new, then (some of) its children may also be
+   * new. For example, ifNull(foo, bar) -->
+   * CASE WHEN foo IS NULL THEN bar ELSE foo END
+   * Here, CASE is new, as is the IS NULL predicate.
    */
-  public void recomputeCosts() {
+  public void rewrittenFrom(Expr from) {
+    if (from.isAuxExpr_ || from.isOnClauseConjunct_) {
+      System.out.println("Special: " + from.toSql());
+    }
     isAnalyzed_ = false;
+    for (Expr child: children_) {
+      if (! child.isAnalyzed_) {
+        child.rewrittenFrom(null);
+        child.isAuxExpr_ = from.isAuxExpr_;
+        child.isOnClauseConjunct_ = from.isOnClauseConjunct_;
+      }
+    }
     computeNumDistinctValues();
     evalCost_ = computeEvalCost();
+    if (from != null) {
+      this.isAuxExpr_ = from.isAuxExpr_;
+      this.isOnClauseConjunct_ = from.isOnClauseConjunct_;
+      this.printSqlInParens_ = from.printSqlInParens_;
+    }
     analysisDone();
   }
 

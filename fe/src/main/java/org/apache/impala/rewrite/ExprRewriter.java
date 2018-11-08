@@ -46,6 +46,7 @@ public class ExprRewriter {
   }
 
   public Expr rewrite(Expr expr, Analyzer analyzer) throws AnalysisException {
+    System.out.println("Before: " + expr.toSql());
     // Keep applying the rule list until no rule has made any changes.
     int oldNumChanges;
     Expr rewrittenExpr = expr;
@@ -55,6 +56,7 @@ public class ExprRewriter {
         rewrittenExpr = applyRuleRepeatedly(rewrittenExpr, rule, analyzer);
       }
     } while (oldNumChanges != numChanges_);
+    System.out.println("After: " + rewrittenExpr.toSql());
     return rewrittenExpr;
   }
 
@@ -84,10 +86,11 @@ public class ExprRewriter {
       expr.setChild(i, applyRuleBottomUp(expr.getChild(i), rule, analyzer));
     }
     Expr rewrittenExpr = rule.apply(expr, analyzer);
-    if (rewrittenExpr != expr) ++numChanges_;
+    if (rewrittenExpr != expr)
+      ++numChanges_;
 
     // If the node or its children changed, re-analyze the node.
-//    if (numChanges_ > startPoint) rewrittenExpr.recomputeCosts();
+    if (numChanges_ > startPoint) rewrittenExpr.rewrittenFrom(expr);
     return rewrittenExpr;
   }
 

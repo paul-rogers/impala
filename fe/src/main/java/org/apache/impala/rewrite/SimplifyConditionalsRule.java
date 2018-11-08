@@ -60,7 +60,8 @@ public class SimplifyConditionalsRule implements ExprRewriteRule {
 
   @Override
   public Expr apply(Expr expr, Analyzer analyzer) throws AnalysisException {
-    if (!expr.isAnalyzed()) return expr;
+    if (!expr.isAnalyzed())
+      return expr;
 
     Expr simplified;
     if (expr instanceof FunctionCallExpr) {

@@ -140,6 +140,24 @@ PLAN-ROOT SINK
    partitions=24/24 files=24 size=478.45KB
 ====
 # Constant conjunct in the ON-clause of an outer join is
+# assigned to the join. Baseline case for the next case.
+select *
+from functional.alltypessmall a
+left outer join functional.alltypestiny b
+on FALSE
+---- PLAN
+PLAN-ROOT SINK
+|
+02:NESTED LOOP JOIN [LEFT OUTER JOIN]
+|  join predicates: FALSE
+|
+|--01:SCAN HDFS [functional.alltypestiny b]
+|     partitions=4/4 files=4 size=460B
+|
+00:SCAN HDFS [functional.alltypessmall a]
+   partitions=4/4 files=4 size=6.32KB
+====
+# Constant conjunct in the ON-clause of an outer join is
 # assigned to the join.
 select *
 from functional.alltypessmall a
@@ -148,9 +166,8 @@ on (a.id = b.id and 1 + 1 > 10)
 ---- PLAN
 PLAN-ROOT SINK
 |
-02:HASH JOIN [LEFT OUTER JOIN]
-|  hash predicates: a.id = b.id
-|  other join predicates: FALSE
+02:NESTED LOOP JOIN [LEFT OUTER JOIN]
+|  join predicates: (FALSE)
 |
 |--01:SCAN HDFS [functional.alltypestiny b]
 |     partitions=4/4 files=4 size=460B
@@ -167,17 +184,14 @@ on (a.id = b.id and !true)
 ---- PLAN
 PLAN-ROOT SINK
 |
-02:HASH JOIN [RIGHT OUTER JOIN]
-|  hash predicates: a.id = b.id
-|  other join predicates: FALSE
-|  runtime filters: RF000 <- b.id
+02:NESTED LOOP JOIN [RIGHT OUTER JOIN]
+|  join predicates: (FALSE)
 |
 |--01:SCAN HDFS [functional.alltypestiny b]
 |     partitions=4/4 files=4 size=460B
 |
 00:SCAN HDFS [functional.alltypessmall a]
    partitions=4/4 files=4 size=6.32KB
-   runtime filters: RF000 -> a.id
 ====
 # Constant conjunct in the ON-clause of an outer join is
 # assigned to the join.
