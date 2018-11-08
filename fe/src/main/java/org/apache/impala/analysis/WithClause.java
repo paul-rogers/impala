@@ -76,7 +76,7 @@ public class WithClause implements ParseNode {
     // during analysis of the WITH clause. withClauseAnalyzer is a child of 'analyzer' so
     // that local views registered in parent blocks are visible here.
     Analyzer withClauseAnalyzer = Analyzer.createWithNewGlobalState(analyzer);
-    withClauseAnalyzer.setIsWithClause();
+    withClauseAnalyzer.setHasWithClause();
     if (analyzer.isExplain()) withClauseAnalyzer.setIsExplain();
     for (View view: views_) {
       Analyzer viewAnalyzer = new Analyzer(withClauseAnalyzer);

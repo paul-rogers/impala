@@ -149,7 +149,8 @@ public abstract class QueryStmt extends StatementBase {
   public void analyze(Analyzer analyzer) throws AnalysisException {
     if (isAnalyzed()) return;
     super.analyze(analyzer);
-    analyzeLimit(analyzer);
+    QueryAnalyzer queryAnalyzer = new QueryAnalyzer(analyzer);
+    queryAnalyzer.analyzeLimit();
     if (hasWithClause()) withClause_.analyze(analyzer);
   }
 
@@ -170,7 +171,7 @@ public abstract class QueryStmt extends StatementBase {
    * (3) a mix of correlated table refs and table refs rooted at those refs
    *     (the statement is 'self-contained' with respect to correlation)
    */
-  public List<TupleId> getCorrelatedTupleIds(Analyzer analyzer)
+  public List<TupleId> getCorrelatedTupleIds()
       throws AnalysisException {
     // Correlated tuple ids of this stmt.
     List<TupleId> correlatedTupleIds = Lists.newArrayList();
@@ -208,12 +209,20 @@ public abstract class QueryStmt extends StatementBase {
     return correlatedTupleIds;
   }
 
-  private void analyzeLimit(Analyzer analyzer) throws AnalysisException {
+  protected class QueryAnalyzer {
+
+    protected Analyzer analyzer_;
+
+    protected QueryAnalyzer(Analyzer analyzer) {
+      analyzer_ = analyzer;
+    }
+
+  private void analyzeLimit() throws AnalysisException {
     if (limitElement_.getOffsetExpr() != null && !hasOrderByClause()) {
       throw new AnalysisException("OFFSET requires an ORDER BY clause: " +
           limitElement_.toSql().trim());
     }
-    limitElement_.analyze(analyzer);
+    limitElement_.analyze(analyzer_);
   }
 
   /**
@@ -224,7 +233,7 @@ public abstract class QueryStmt extends StatementBase {
    * Sets evaluateOrderBy_ to false for ignored order-by w/o limit/offset in nested
    * queries.
    */
-  protected void createSortInfo(Analyzer analyzer) throws AnalysisException {
+  protected void createSortInfo() throws AnalysisException {
     // not computing order by
     if (orderByElements_ == null) {
       evaluateOrderBy_ = false;
@@ -247,9 +256,9 @@ public abstract class QueryStmt extends StatementBase {
       isAscOrder.add(Boolean.valueOf(orderByElement.isAsc()));
       nullsFirstParams.add(orderByElement.getNullsFirstParam());
     }
-    substituteOrdinalsAndAliases(orderingExprs, "ORDER BY", analyzer);
+    substituteOrdinalsAndAliases(orderingExprs, "ORDER BY");
 
-    if (!analyzer.isRootAnalyzer() && hasOffset() && !hasLimit()) {
+    if (!analyzer_.isRootAnalyzer() && hasOffset() && !hasLimit()) {
       throw new AnalysisException("Order-by with offset without limit not supported" +
         " in nested queries.");
     }
@@ -257,7 +266,7 @@ public abstract class QueryStmt extends StatementBase {
     sortInfo_ = new SortInfo(orderingExprs, isAscOrder, nullsFirstParams);
     // order by w/o limit and offset in inline views, union operands and insert statements
     // are ignored.
-    if (!hasLimit() && !hasOffset() && !analyzer.isRootAnalyzer()) {
+    if (!hasLimit() && !hasOffset() && !analyzer_.isRootAnalyzer()) {
       evaluateOrderBy_ = false;
       // Return a warning that the order by was ignored.
       StringBuilder strBuilder = new StringBuilder();
@@ -271,7 +280,7 @@ public abstract class QueryStmt extends StatementBase {
       strBuilder.append("or an insert/ctas statement has no effect on the query result ");
       strBuilder.append("unless a LIMIT and/or OFFSET is used in conjunction ");
       strBuilder.append("with the ORDER BY.");
-      analyzer.addWarning(strBuilder.toString());
+      analyzer_.addWarning(strBuilder.toString());
     } else {
       evaluateOrderBy_ = true;
     }
@@ -286,7 +295,7 @@ public abstract class QueryStmt extends StatementBase {
    * Done after analyzeAggregation() since ordering and result exprs may refer to the
    * outputs of aggregation.
    */
-  protected void createSortTupleInfo(Analyzer analyzer) throws AnalysisException {
+  protected void createSortTupleInfo() throws AnalysisException {
     Preconditions.checkState(evaluateOrderBy_);
     for (Expr orderingExpr: sortInfo_.getSortExprs()) {
       if (orderingExpr.getType().isComplexType()) {
@@ -295,7 +304,7 @@ public abstract class QueryStmt extends StatementBase {
             orderingExpr.getType().toSql()));
       }
     }
-    sortInfo_.createSortTupleInfo(resultExprs_, analyzer);
+    sortInfo_.createSortTupleInfo(resultExprs_, analyzer_);
 
     ExprSubstitutionMap smap = sortInfo_.getOutputSmap();
     for (int i = 0; i < smap.size(); ++i) {
@@ -306,14 +315,14 @@ public abstract class QueryStmt extends StatementBase {
       SlotRef inputSlotRef = (SlotRef) smap.getLhs().get(i);
       SlotRef outputSlotRef = (SlotRef) smap.getRhs().get(i);
       if (hasLimit()) {
-        analyzer.registerValueTransfer(
+        analyzer_.registerValueTransfer(
             inputSlotRef.getSlotId(), outputSlotRef.getSlotId());
       } else {
-        analyzer.createAuxEqPredicate(outputSlotRef, inputSlotRef);
+        analyzer_.createAuxEqPredicate(outputSlotRef, inputSlotRef);
       }
     }
 
-    substituteResultExprs(smap, analyzer);
+    substituteResultExprs(smap, analyzer_);
   }
 
   /**
@@ -325,18 +334,18 @@ public abstract class QueryStmt extends StatementBase {
    * Returns clone() of 'expr' if it is not an ordinal, nor an alias.
    * The returned expr is analyzed regardless of whether substitution was performed.
    */
-  protected Expr substituteOrdinalOrAlias(Expr expr, String errorPrefix,
-      Analyzer analyzer) throws AnalysisException {
-    Expr substituteExpr = trySubstituteOrdinal(expr, errorPrefix, analyzer);
+  protected Expr substituteOrdinalOrAlias(Expr expr, String errorPrefix)
+      throws AnalysisException {
+    Expr substituteExpr = trySubstituteOrdinal(expr, errorPrefix);
     if (substituteExpr != null) return substituteExpr;
     if (ambiguousAliasList_.contains(expr)) {
       throw new AnalysisException("Column '" + expr.toSql() +
           "' in " + errorPrefix + " clause is ambiguous");
     }
     if (expr instanceof SlotRef) {
-      substituteExpr = expr.trySubstitute(aliasSmap_, analyzer, false);
+      substituteExpr = expr.trySubstitute(aliasSmap_, analyzer_, false);
     } else {
-      expr.analyze(analyzer);
+      expr.analyze(analyzer_);
       substituteExpr = expr;
     }
     return substituteExpr;
@@ -349,19 +358,19 @@ public abstract class QueryStmt extends StatementBase {
    * The 'exprs' are all analyzed after this function regardless of whether
    * substitution was performed.
    */
-  protected void substituteOrdinalsAndAliases(List<Expr> exprs, String errorPrefix,
-      Analyzer analyzer) throws AnalysisException {
+  protected void substituteOrdinalsAndAliases(List<Expr> exprs, String errorPrefix)
+      throws AnalysisException {
     for (int i = 0; i < exprs.size(); ++i) {
-      exprs.set(i, substituteOrdinalOrAlias(exprs.get(i), errorPrefix, analyzer));
+      exprs.set(i, substituteOrdinalOrAlias(exprs.get(i), errorPrefix));
     }
   }
 
   // Attempt to replace an expression of form "<number>" with the corresponding
   // select list items.  Return null if not an ordinal expression.
-  private Expr trySubstituteOrdinal(Expr expr, String errorPrefix,
-      Analyzer analyzer) throws AnalysisException {
+  private Expr trySubstituteOrdinal(Expr expr, String errorPrefix)
+      throws AnalysisException {
     if (!(expr instanceof NumericLiteral)) return null;
-    expr.analyze(analyzer);
+    expr.analyze(analyzer_);
     if (!expr.getType().isIntegerType()) return null;
     long pos = ((NumericLiteral) expr).getLongValue();
     if (pos < 1) {
@@ -376,6 +385,7 @@ public abstract class QueryStmt extends StatementBase {
 
     // Create copy to protect against accidentally shared state.
     return resultExprs_.get((int) pos - 1).clone();
+  }
   }
 
   /**

@@ -213,11 +213,23 @@ public class UnionStmt extends QueryStmt {
     if (isAnalyzed()) return;
     super.analyze(analyzer);
 
+    UnionAnalyzer unionAnalyzer = new UnionAnalyzer(analyzer);
+    unionAnalyzer.analyze();
+  }
+
+  private class UnionAnalyzer extends QueryAnalyzer {
+
+    public UnionAnalyzer(Analyzer analyzer) {
+      super(analyzer);
+    }
+
+  private void analyze() throws AnalysisException {
+
     // Propagates DISTINCT from right to left.
     propagateDistinct();
 
     // Analyze all operands and make sure they return an equal number of exprs.
-    analyzeOperands(analyzer);
+    analyzeOperands();
 
     // Remember the SQL string before unnesting operands.
     toSqlString_ = toSql();
@@ -226,7 +238,7 @@ public class UnionStmt extends QueryStmt {
     // Unnest the operands before casting the result exprs. Unnesting may add
     // additional entries to operands_ and the result exprs of those unnested
     // operands must also be cast properly.
-    unnestOperands(analyzer);
+    unnestOperands();
 
     // Compute hasAnalyticExprs_
     hasAnalyticExprs_ = false;
@@ -242,15 +254,15 @@ public class UnionStmt extends QueryStmt {
     for (UnionOperand op: operands_) {
       resultExprLists.add(op.getQueryStmt().getResultExprs());
     }
-    analyzer.castToUnionCompatibleTypes(resultExprLists);
+    analyzer_.castToUnionCompatibleTypes(resultExprLists);
 
     // Create tuple descriptor materialized by this UnionStmt, its resultExprs, and
     // its sortInfo if necessary.
-    createMetadata(analyzer);
-    createSortInfo(analyzer);
+    createMetadata();
+    createSortInfo();
 
     // Create unnested operands' smaps.
-    for (UnionOperand operand: operands_) setOperandSmap(operand, analyzer);
+    for (UnionOperand operand: operands_) setOperandSmap(operand);
 
     // Create distinctAggInfo, if necessary.
     if (!distinctOperands_.isEmpty()) {
@@ -258,7 +270,7 @@ public class UnionStmt extends QueryStmt {
       ArrayList<Expr> groupingExprs = Expr.cloneList(resultExprs_);
       try {
         distinctAggInfo_ = MultiAggregateInfo.createDistinct(
-            groupingExprs, analyzer.getTupleDesc(tupleId_), analyzer);
+            groupingExprs, analyzer_.getTupleDesc(tupleId_), analyzer_);
       } catch (AnalysisException e) {
         // Should never happen.
         throw new IllegalStateException(
@@ -267,7 +279,7 @@ public class UnionStmt extends QueryStmt {
     }
 
     unionResultExprs_ = Expr.cloneList(resultExprs_);
-    if (evaluateOrderBy_) createSortTupleInfo(analyzer);
+    if (evaluateOrderBy_) createSortTupleInfo();
     baseTblResultExprs_ = resultExprs_;
   }
 
@@ -276,9 +288,9 @@ public class UnionStmt extends QueryStmt {
    * Throws an AnalysisException if that is not the case, or if analyzing
    * an operand fails.
    */
-  private void analyzeOperands(Analyzer analyzer) throws AnalysisException {
+  private void analyzeOperands() throws AnalysisException {
     for (int i = 0; i < operands_.size(); ++i) {
-      operands_.get(i).analyze(analyzer);
+      operands_.get(i).analyze(analyzer_);
       QueryStmt firstQuery = operands_.get(0).getQueryStmt();
       List<Expr> firstExprs = operands_.get(0).getQueryStmt().getResultExprs();
       QueryStmt query = operands_.get(i).getQueryStmt();
@@ -293,44 +305,10 @@ public class UnionStmt extends QueryStmt {
   }
 
   /**
-   * Marks the baseTblResultExprs of its operands as materialized, based on
-   * which of the output slots have been marked.
-   * Calls materializeRequiredSlots() on the operands themselves.
-   */
-  @Override
-  public void materializeRequiredSlots(Analyzer analyzer) {
-    TupleDescriptor tupleDesc = analyzer.getDescTbl().getTupleDesc(tupleId_);
-    // to keep things simple we materialize all grouping exprs = output slots,
-    // regardless of what's being referenced externally
-    if (!distinctOperands_.isEmpty()) tupleDesc.materializeSlots();
-
-    if (evaluateOrderBy_) sortInfo_.materializeRequiredSlots(analyzer, null);
-
-    // collect operands' result exprs
-    List<SlotDescriptor> outputSlots = tupleDesc.getSlots();
-    List<Expr> exprs = Lists.newArrayList();
-    for (int i = 0; i < outputSlots.size(); ++i) {
-      SlotDescriptor slotDesc = outputSlots.get(i);
-      if (!slotDesc.isMaterialized()) continue;
-      for (UnionOperand op: operands_) {
-        exprs.add(op.getQueryStmt().getBaseTblResultExprs().get(i));
-      }
-    }
-    if (distinctAggInfo_ != null) {
-      distinctAggInfo_.materializeRequiredSlots(analyzer, null);
-    }
-    materializeSlots(analyzer, exprs);
-
-    for (UnionOperand op: operands_) {
-      op.getQueryStmt().materializeRequiredSlots(analyzer);
-    }
-  }
-
-  /**
    * Fill distinct-/allOperands and performs possible unnesting of UnionStmt
    * operands in the process.
    */
-  private void unnestOperands(Analyzer analyzer) throws AnalysisException {
+  private void unnestOperands() throws AnalysisException {
     if (operands_.size() == 1) {
       // ValuesStmt for a single row.
       allOperands_.add(operands_.get(0));
@@ -374,8 +352,8 @@ public class UnionStmt extends QueryStmt {
    * Sets the smap for the given operand. It maps from the output slots this union's
    * tuple to the corresponding result exprs of the operand.
    */
-  private void setOperandSmap(UnionOperand operand, Analyzer analyzer) {
-    TupleDescriptor tupleDesc = analyzer.getDescTbl().getTupleDesc(tupleId_);
+  private void setOperandSmap(UnionOperand operand) {
+    TupleDescriptor tupleDesc = analyzer_.getDescTbl().getTupleDesc(tupleId_);
     // operands' smaps were already set in the operands' analyze()
     operand.getSmap().clear();
     List<Expr> resultExprs = operand.getQueryStmt().getResultExprs();
@@ -421,14 +399,6 @@ public class UnionStmt extends QueryStmt {
   }
 
   /**
-   * String representation of queryStmt used in reporting errors.
-   * Allow subclasses to override this.
-   */
-  protected String queryStmtToSql(QueryStmt queryStmt) {
-    return queryStmt.toSql();
-  }
-
-  /**
    * Propagates DISTINCT (if present) from right to left.
    * Implied associativity:
    * A UNION ALL B UNION DISTINCT C = (A UNION ALL B) UNION DISTINCT C
@@ -453,9 +423,9 @@ public class UnionStmt extends QueryStmt {
    * Also fills the substitution map, such that "order by" can properly resolve
    * column references from the result of the union.
    */
-  private void createMetadata(Analyzer analyzer) throws AnalysisException {
+  private void createMetadata() throws AnalysisException {
     // Create tuple descriptor for materialized tuple created by the union.
-    TupleDescriptor tupleDesc = analyzer.getDescTbl().createTupleDescriptor("union");
+    TupleDescriptor tupleDesc = analyzer_.getDescTbl().createTupleDescriptor("union");
     tupleDesc.setIsMaterialized(true);
     tupleId_ = tupleDesc.getId();
     if (LOG.isTraceEnabled()) {
@@ -482,7 +452,7 @@ public class UnionStmt extends QueryStmt {
     // Create tuple descriptor and slots.
     for (int i = 0; i < firstSelectExprs.size(); ++i) {
       Expr expr = firstSelectExprs.get(i);
-      SlotDescriptor slotDesc = analyzer.addSlotDescriptor(tupleDesc);
+      SlotDescriptor slotDesc = analyzer_.addSlotDescriptor(tupleDesc);
       slotDesc.setLabel(getColLabels().get(i));
       slotDesc.setType(expr.getType());
       slotDesc.setStats(columnStats.get(i));
@@ -512,13 +482,56 @@ public class UnionStmt extends QueryStmt {
         if (op.hasAnalyticExprs()) continue;
         slotRef = resultExpr.unwrapSlotRef(true);
         if (slotRef == null) continue;
-        analyzer.registerValueTransfer(outputSlotRef.getSlotId(), slotRef.getSlotId());
+        analyzer_.registerValueTransfer(outputSlotRef.getSlotId(), slotRef.getSlotId());
       }
       // If all the child slots are not nullable, then the union output slot should not
       // be nullable as well.
       slotDesc.setIsNullable(isNullable);
     }
     baseTblResultExprs_ = resultExprs_;
+  }
+  }
+
+  /**
+   * String representation of queryStmt used in reporting errors.
+   * Allow subclasses to override this.
+   */
+  protected String queryStmtToSql(QueryStmt queryStmt) {
+    return queryStmt.toSql();
+  }
+
+  /**
+   * Marks the baseTblResultExprs of its operands as materialized, based on
+   * which of the output slots have been marked.
+   * Calls materializeRequiredSlots() on the operands themselves.
+   */
+  @Override
+  public void materializeRequiredSlots(Analyzer analyzer) {
+    TupleDescriptor tupleDesc = analyzer.getDescTbl().getTupleDesc(tupleId_);
+    // to keep things simple we materialize all grouping exprs = output slots,
+    // regardless of what's being referenced externally
+    if (!distinctOperands_.isEmpty()) tupleDesc.materializeSlots();
+
+    if (evaluateOrderBy_) sortInfo_.materializeRequiredSlots(analyzer, null);
+
+    // collect operands' result exprs
+    List<SlotDescriptor> outputSlots = tupleDesc.getSlots();
+    List<Expr> exprs = Lists.newArrayList();
+    for (int i = 0; i < outputSlots.size(); ++i) {
+      SlotDescriptor slotDesc = outputSlots.get(i);
+      if (!slotDesc.isMaterialized()) continue;
+      for (UnionOperand op: operands_) {
+        exprs.add(op.getQueryStmt().getBaseTblResultExprs().get(i));
+      }
+    }
+    if (distinctAggInfo_ != null) {
+      distinctAggInfo_.materializeRequiredSlots(analyzer, null);
+    }
+    materializeSlots(analyzer, exprs);
+
+    for (UnionOperand op: operands_) {
+      op.getQueryStmt().materializeRequiredSlots(analyzer);
+    }
   }
 
   @Override
