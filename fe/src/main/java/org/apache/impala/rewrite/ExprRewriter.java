@@ -46,7 +46,7 @@ public class ExprRewriter {
   }
 
   public Expr rewrite(Expr expr, Analyzer analyzer) throws AnalysisException {
-    System.out.println("Before: " + expr.toSql());
+//    System.out.println("Before: " + expr.toSql());
     // Keep applying the rule list until no rule has made any changes.
     int oldNumChanges;
     Expr rewrittenExpr = expr;
@@ -56,7 +56,7 @@ public class ExprRewriter {
         rewrittenExpr = applyRuleRepeatedly(rewrittenExpr, rule, analyzer);
       }
     } while (oldNumChanges != numChanges_);
-    System.out.println("After: " + rewrittenExpr.toSql());
+//    System.out.println("After: " + rewrittenExpr.toSql());
     return rewrittenExpr;
   }
 

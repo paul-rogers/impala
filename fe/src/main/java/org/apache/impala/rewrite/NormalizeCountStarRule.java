@@ -20,7 +20,6 @@ package org.apache.impala.rewrite;
 import org.apache.impala.analysis.Analyzer;
 import org.apache.impala.analysis.Expr;
 import org.apache.impala.analysis.FunctionCallExpr;
-import org.apache.impala.analysis.FunctionName;
 import org.apache.impala.analysis.FunctionParams;
 
 /**
@@ -45,9 +44,7 @@ public class NormalizeCountStarRule implements ExprRewriteRule {
     Expr child = origExpr.getChild(0);
     if (!Expr.IS_LITERAL.apply(child)) return expr;
     if (Expr.IS_NULL_VALUE.apply(child)) return expr;
-    FunctionCallExpr result = new FunctionCallExpr(new FunctionName("count"),
-        FunctionParams.createStarParam());
-    return result;
+    return origExpr.rewrite(FunctionParams.createStarParam());
   }
 
   private NormalizeCountStarRule() {}

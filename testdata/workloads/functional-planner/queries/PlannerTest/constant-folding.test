@@ -61,7 +61,7 @@ PLAN-ROOT SINK
    stored statistics:
      table: rows=150000 size=289.00MB
      columns missing stats: c_orders
-   extrapolated-rows=disabled max-scan-range-rows=44227
+   extrapolated-rows=disabled max-scan-range-rows=44226
    parquet statistics predicates: c_custkey > 10
    parquet statistics predicates on o: o_orderkey = 4
    parquet dictionary predicates: c_custkey > 10
@@ -125,7 +125,7 @@ PLAN-ROOT SINK
 01:AGGREGATE [FINALIZE]
 |  output: sum(2 + id), count(*)
 |  group by: timestamp_col = TIMESTAMP '2016-11-15 00:00:00'
-|  having: sum(2 + id) <= 10, sum(2 + id) > 1, sum(2 + id) >= 5, 1048576 * count(*) % 2 = 0
+|  having: (sum(2 + id) > 1), sum(2 + id) <= 10, sum(2 + id) >= 5, 1048576 * count(*) % 2 = 0
 |  mem-estimate=10.00MB mem-reservation=1.94MB spill-buffer=64.00KB thread-reservation=0
 |  tuple-ids=1 row-size=17B cardinality=0
 |  in pipelines: 01(GETNEXT), 00(OPEN)

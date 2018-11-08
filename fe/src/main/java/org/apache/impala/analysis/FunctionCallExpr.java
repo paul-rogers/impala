@@ -687,4 +687,16 @@ public class FunctionCallExpr extends Expr {
     return e;
   }
 
+
+  public FunctionCallExpr rewrite(FunctionParams newParams) {
+    FunctionCallExpr result = new FunctionCallExpr(fnName_, newParams);
+    result.type_ = this.type_;
+    result.isAnalyticFnCall_ = this.isAnalyticFnCall_;
+    result.isInternalFnCall_ = this.isInternalFnCall_;
+    result.isOnClauseConjunct_ = this.isOnClauseConjunct_;
+    result.label_ = this.label_;
+    result.numDistinctValues_ = this.numDistinctValues_;
+    result.fn_ = this.fn_;
+    return result;
+  }
 }

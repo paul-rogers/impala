@@ -419,48 +419,46 @@ abstract public class Expr extends TreeNode<Expr> implements ParseNode, Cloneabl
   }
 
   /**
-   * Called from the rewrite engine after each expression rewrite.
-   * This node is new, or its children have been altered. Either way,
-   * this node needs to be partially-reanalyzed, at least for the
-   * cost bits.
+   * Called from the rewrite engine after each expression rewrite. This node is
+   * new, or its children have been altered. Either way, this node needs to be
+   * partially-reanalyzed, at least for the cost bits.
    *
-   * The assumption is that rewrites don't change the semantic meaning
-   * of an expression: they don't alter nodes bound to columns.
-   * As a result, the full analysis machinery is not needed and,
-   * indeed, has already been done.
+   * The assumption is that rewrites don't change the semantic meaning of an
+   * expression: they don't alter nodes bound to columns. As a result, the full
+   * analysis machinery is not needed and, indeed, has already been done.
    *
-   * Since the rewriter works bottom up (unlike analysis which
-   * works top down), we need only recompute this one node,
-   * children have already been recomputed.
+   * Since the rewriter works bottom up (unlike analysis which works top down), we
+   * need only recompute this one node, children have already been recomputed.
    *
-   * This node can be new. If it is, it must be an operator of
-   * some sort. (CAST, CASE, Boolean operator, etc.) Thus, costing
-   * is the only analysis needed, so we can mark the node as
-   * analyzed.
+   * This node can be new. If it is, it must be an operator of some sort. (CAST,
+   * CASE, Boolean operator, etc.) Thus, costing is the only analysis needed, so
+   * we can mark the node as analyzed.
    *
-   * If this node is new, then (some of) its children may also be
-   * new. For example, ifNull(foo, bar) -->
-   * CASE WHEN foo IS NULL THEN bar ELSE foo END
+   * If this node is new, then (some of) its children may also be new. For
+   * example, ifNull(foo, bar) --> CASE WHEN foo IS NULL THEN bar ELSE foo END
    * Here, CASE is new, as is the IS NULL predicate.
    */
   public void rewrittenFrom(Expr from) {
-    if (from.isAuxExpr_ || from.isOnClauseConjunct_) {
-      System.out.println("Special: " + from.toSql());
-    }
     isAnalyzed_ = false;
     for (Expr child: children_) {
       if (! child.isAnalyzed_) {
         child.rewrittenFrom(null);
-        child.isAuxExpr_ = from.isAuxExpr_;
-        child.isOnClauseConjunct_ = from.isOnClauseConjunct_;
+        if (from != null) {
+          child.isAuxExpr_ = from.isAuxExpr_;
+          child.isOnClauseConjunct_ = from.isOnClauseConjunct_;
+        }
       }
     }
     computeNumDistinctValues();
     evalCost_ = computeEvalCost();
     if (from != null) {
-      this.isAuxExpr_ = from.isAuxExpr_;
-      this.isOnClauseConjunct_ = from.isOnClauseConjunct_;
-      this.printSqlInParens_ = from.printSqlInParens_;
+      isAuxExpr_ = from.isAuxExpr_;
+      isOnClauseConjunct_ = from.isOnClauseConjunct_;
+      // TODO: IMPAA-7838: Parenthesis handling is awkward
+      // Parenthesis should be based on the need to override
+      // precedence, not on some ill-advised attempt to retail
+      // the user's source parenthesis.
+      printSqlInParens_ = from.printSqlInParens_ && ! isLiteral();
     }
     analysisDone();
   }
