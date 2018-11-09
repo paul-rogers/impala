@@ -17,7 +17,6 @@
 
 package org.apache.impala.analysis;
 
-import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Iterator;
@@ -456,9 +455,9 @@ abstract public class Expr extends TreeNode<Expr> implements ParseNode, Cloneabl
       isOnClauseConjunct_ = from.isOnClauseConjunct_;
       // TODO: IMPAA-7838: Parenthesis handling is awkward
       // Parenthesis should be based on the need to override
-      // precedence, not on some ill-advised attempt to retail
+      // precedence, not on some ill-advised attempt to retain
       // the user's source parenthesis.
-      printSqlInParens_ = from.printSqlInParens_ && ! isLiteral();
+      printSqlInParens_ = from.printSqlInParens_ && ! IS_LITERAL.apply(this);
     }
     analysisDone();
   }
@@ -1495,7 +1494,7 @@ abstract public class Expr extends TreeNode<Expr> implements ParseNode, Cloneabl
       try {
         // Make sure we call function 'negate' only on classes that support it,
         // otherwise we may recurse infinitely.
-        Method m = root.getChild(0).getClass().getDeclaredMethod(NEGATE_FN);
+        root.getChild(0).getClass().getDeclaredMethod(NEGATE_FN);
         return pushNegationToOperands(root.getChild(0).negate());
       } catch (NoSuchMethodException e) {
         // The 'negate' function is not implemented. Break the recursion.
