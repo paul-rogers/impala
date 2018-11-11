@@ -186,6 +186,11 @@ public class SelectStmt extends QueryStmt {
       return analyzer_.getExprRewriter().rewrite(expr, analyzer_);
     }
 
+    public Expr rewriteCheckOrdinalResult(Expr expr) throws AnalysisException {
+      return SelectStmt.this.rewriteCheckOrdinalResult(
+          analyzer_.getExprRewriter(), expr);
+    }
+
     private void analyze() throws AnalysisException {
       // Start out with table refs to establish aliases.
       fromClause_.analyze(analyzer_);
@@ -541,6 +546,7 @@ public class SelectStmt extends QueryStmt {
             "Subqueries are not supported in the HAVING clause.");
       }
       havingPred_ = substituteOrdinalOrAlias(havingClause_, "HAVING");
+      havingPred_ = rewriteCheckOrdinalResult(havingPred_);
       // can't contain analytic exprs
       Expr analyticExpr = havingPred_.findFirstOf(AnalyticExpr.class);
       if (analyticExpr != null) {
@@ -980,15 +986,15 @@ public class SelectStmt extends QueryStmt {
 //    selectList_.rewriteExprs(rewriter, analyzer_);
     for (TableRef ref: fromClause_.getTableRefs()) ref.rewriteExprs(rewriter, analyzer_);
     if (whereClause_ != null) {
-      whereClause_ = rewriter.rewrite(whereClause_, analyzer_);
+//      whereClause_ = rewriter.rewrite(whereClause_, analyzer_);
       // Also rewrite exprs in the statements of subqueries.
       List<Subquery> subqueryExprs = Lists.newArrayList();
       whereClause_.collect(Subquery.class, subqueryExprs);
       for (Subquery s: subqueryExprs) s.getStatement().rewriteExprs(rewriter);
     }
-    if (havingClause_ != null) {
-      havingClause_ = rewriteCheckOrdinalResult(rewriter, havingClause_);
-    }
+//    if (havingClause_ != null) {
+//      havingClause_ = rewriteCheckOrdinalResult(rewriter, havingClause_);
+//    }
 //    if (groupingExprs_ != null) {
 //      for (int i = 0; i < groupingExprs_.size(); ++i) {
 //        groupingExprs_.set(i, rewriteCheckOrdinalResult(
