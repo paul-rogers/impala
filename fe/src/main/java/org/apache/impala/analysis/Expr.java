@@ -1336,8 +1336,8 @@ abstract public class Expr extends TreeNode<Expr> implements ParseNode, Cloneabl
   public void checkReturnsBool(String name, boolean printExpr) throws AnalysisException {
     if (!type_.isBoolean() && !type_.isNull()) {
       throw new AnalysisException(
-          String.format("%s%s requires return type 'BOOLEAN'. " +
-              "Actual type is '%s'.", name, (printExpr) ? " '" + toSql() + "'" : "",
+          String.format("%s%s requires type BOOLEAN. " +
+              "Actual type is %s.", name, (printExpr) ? " (" + toSql() + ")" : "",
               type_.toString()));
     }
   }

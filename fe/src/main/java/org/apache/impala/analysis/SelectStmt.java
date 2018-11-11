@@ -77,7 +77,7 @@ public class SelectStmt extends QueryStmt {
 
   // SQL string of this SelectStmt before inline-view expression substitution.
   // Set in analyze().
-  protected String originalSelect_;
+  protected String originalWhere_;
   protected String sqlString_;
 
   SelectStmt(SelectList selectList,
@@ -258,10 +258,16 @@ public class SelectStmt extends QueryStmt {
           // of expr child and depth limits (toColumn() label may call toSql()).
           item.analyze(analyzer_);
           Expr expr = item.getExpr();
+
+          // Do error checks before rewrite, include unrewritten expression
+          // in error message.
           if (expr.contains(Predicates.instanceOf(Subquery.class))) {
             throw new AnalysisException(
-                "Subqueries are not supported in the select list.");
+                "Subqueries are not supported in the select list:. " +
+                expr.toSql());
           }
+
+          // Rewrite and distribute the rewritten expression.
           expr = rewrite(expr);
           item.setExpr(expr);
           resultExprs_.add(expr);
@@ -324,21 +330,30 @@ public class SelectStmt extends QueryStmt {
       if (whereClause_== null) return;
       whereClause_.analyze(analyzer_);
 
+      // Do checks before rewriting to provide original
+      // expressions in errors.
+      if (whereClause_.contains(Expr.isAggregatePredicate())) {
+        throw new AnalysisException(
+            "Aggregate functions are not supported in the WHERE clause: " +
+            whereClause_.toSql());
+      }
+      Expr e = whereClause_.findFirstOf(AnalyticExpr.class);
+      if (e != null) {
+        throw new AnalysisException(
+            "Analytic expressions are not supported in the WHERE clause: " +
+            e.toSql());
+      }
+
+      // Type check comes last, else the above won't report more
+      // specific errors.
+      whereClause_.checkReturnsBool("WHERE clause", true);
+
       // Simplify the WHERE clause. Drop it if it is trivial.
+      originalWhere_ = whereClause_.toSql();
       whereClause_ = rewrite(whereClause_);
       if (Expr.IS_TRUE_LITERAL.apply(whereClause_)) {
         whereClause_ = null;
         return;
-      }
-      if (whereClause_.contains(Expr.isAggregatePredicate())) {
-        throw new AnalysisException(
-            "aggregate function not allowed in WHERE clause");
-      }
-      whereClause_.checkReturnsBool("WHERE clause", false);
-      Expr e = whereClause_.findFirstOf(AnalyticExpr.class);
-      if (e != null) {
-        throw new AnalysisException(
-            "WHERE clause must not contain analytic expressions: " + e.toSql());
       }
       analyzer_.registerConjuncts(whereClause_, false);
     }
@@ -986,13 +1001,13 @@ public class SelectStmt extends QueryStmt {
     Preconditions.checkState(isAnalyzed());
 //    selectList_.rewriteExprs(rewriter, analyzer_);
     for (TableRef ref: fromClause_.getTableRefs()) ref.rewriteExprs(rewriter, analyzer_);
-    if (whereClause_ != null) {
-//      whereClause_ = rewriter.rewrite(whereClause_, analyzer_);
-      // Also rewrite exprs in the statements of subqueries.
-      List<Subquery> subqueryExprs = Lists.newArrayList();
-      whereClause_.collect(Subquery.class, subqueryExprs);
-      for (Subquery s: subqueryExprs) s.getStatement().rewriteExprs(rewriter);
-    }
+//    if (whereClause_ != null) {
+////      whereClause_ = rewriter.rewrite(whereClause_, analyzer_);
+//      // Also rewrite exprs in the statements of subqueries.
+//      List<Subquery> subqueryExprs = Lists.newArrayList();
+//      whereClause_.collect(Subquery.class, subqueryExprs);
+//      for (Subquery s: subqueryExprs) s.getStatement().rewriteExprs(rewriter);
+//    }
 //    if (havingClause_ != null) {
 //      havingClause_ = rewriteCheckOrdinalResult(rewriter, havingClause_);
 //    }
@@ -1036,11 +1051,20 @@ public class SelectStmt extends QueryStmt {
     if (!fromClause_.isEmpty()) {
       strBuilder.append(fromClause_.toSql(rewritten));
     }
-    // Where clause
-    if (whereClause_ != null) {
-      strBuilder.append(" WHERE ");
-      strBuilder.append(whereClause_.toSql());
+
+    // Where clause. Original WHERE string can be non-null when
+    // WHERE expr itself is null (if WHERE was trivial.)
+    String whereStr;
+    if (rewritten) {
+      whereStr = whereClause_ == null ? null: whereClause_.toSql();
+    } else {
+      whereStr = originalWhere_;
     }
+    if (whereStr != null) {
+      strBuilder.append(" WHERE ");
+      strBuilder.append(whereStr);
+    }
+
     // Group By clause
     if (groupingExprs_ != null) {
       strBuilder.append(" GROUP BY ");

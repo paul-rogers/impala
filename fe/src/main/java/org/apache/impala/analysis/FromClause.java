@@ -33,7 +33,7 @@ import com.google.common.collect.Lists;
  */
 public class FromClause implements ParseNode, Iterable<TableRef> {
 
-  private final ArrayList<TableRef> tableRefs_;
+  private final List<TableRef> tableRefs_;
 
   private boolean analyzed_ = false;
 
