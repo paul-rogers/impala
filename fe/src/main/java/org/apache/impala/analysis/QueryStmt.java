@@ -49,7 +49,7 @@ public abstract class QueryStmt extends StatementBase {
 
   protected WithClause withClause_;
 
-  protected ArrayList<OrderByElement> orderByElements_;
+  protected List<OrderByElement> orderByElements_;
   protected LimitElement limitElement_;
 
   // For a select statment:
@@ -57,11 +57,11 @@ public abstract class QueryStmt extends StatementBase {
   // aliases substituted, agg output substituted)
   // For a union statement:
   // list of slotrefs into the tuple materialized by the union.
-  protected ArrayList<Expr> resultExprs_ = Lists.newArrayList();
+  protected List<Expr> resultExprs_ = Lists.newArrayList();
 
   // For a select statment: select list exprs resolved to base tbl refs
   // For a union statement: same as resultExprs
-  protected ArrayList<Expr> baseTblResultExprs_ = Lists.newArrayList();
+  protected List<Expr> baseTblResultExprs_ = Lists.newArrayList();
 
   /**
    * Map of expression substitutions for replacing aliases
@@ -75,7 +75,7 @@ public abstract class QueryStmt extends StatementBase {
    *   select int_col a, string_col a from alltypessmall;
    * Both columns are using the same alias "a".
    */
-  protected final ArrayList<Expr> ambiguousAliasList_;
+  protected final List<Expr> ambiguousAliasList_;
 
   protected SortInfo sortInfo_;
 
@@ -105,6 +105,9 @@ public abstract class QueryStmt extends StatementBase {
     aliasSmap_ = new ExprSubstitutionMap();
     ambiguousAliasList_ = Lists.newArrayList();
   }
+
+  public ExprSubstitutionMap getAliasSmap() { return aliasSmap_; }
+  public List<Expr> getAmbiguousAliases() { return ambiguousAliasList_; }
 
   /**
   * Returns all table references in the FROM clause of this statement and all statements
@@ -416,7 +419,7 @@ public abstract class QueryStmt extends StatementBase {
   public long getOffset() { return limitElement_.getOffset(); }
   public SortInfo getSortInfo() { return sortInfo_; }
   public boolean evaluateOrderBy() { return evaluateOrderBy_; }
-  public ArrayList<Expr> getBaseTblResultExprs() { return baseTblResultExprs_; }
+  public List<Expr> getBaseTblResultExprs() { return baseTblResultExprs_; }
   public void setLimit(long limit) throws AnalysisException {
     Preconditions.checkState(limit >= 0);
     long newLimit = hasLimit() ? Math.min(limit, getLimit()) : limit;

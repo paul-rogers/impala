@@ -91,6 +91,7 @@ public class SelectList {
     }
   }
 
+  @Deprecated // TODO: Remove
   public void rewriteExprs(ExprRewriter rewriter, Analyzer analyzer)
       throws AnalysisException {
     for (SelectListItem item: items_) {
@@ -102,6 +103,7 @@ public class SelectList {
   @Override
   public SelectList clone() { return new SelectList(this); }
 
+  @Deprecated // TODO: Remove
   public void reset() {
     for (SelectListItem item: items_) {
       if (!item.isStar()) item.setExpr(item.getExpr().reset());

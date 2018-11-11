@@ -448,12 +448,12 @@ public class AnalysisContext {
 
     // Apply expr and subquery rewrites.
     boolean reAnalyze = false;
-    ExprRewriter rewriter = analysisResult_.analyzer_.getExprRewriter();
-    if (analysisResult_.requiresExprRewrite()) {
-      rewriter.reset();
-      analysisResult_.stmt_.rewriteExprs(rewriter);
-      reAnalyze = rewriter.changed();
-    }
+//    ExprRewriter rewriter = analysisResult_.analyzer_.getExprRewriter();
+//    if (analysisResult_.requiresExprRewrite()) {
+//      rewriter.reset();
+//      analysisResult_.stmt_.rewriteExprs(rewriter);
+//      reAnalyze = rewriter.changed();
+//    }
     if (analysisResult_.requiresSubqueryRewrite()) {
       new StmtRewriter.SubqueryRewriter().rewrite(analysisResult_);
       reAnalyze = true;

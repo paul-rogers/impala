@@ -77,6 +77,7 @@ public class SelectStmt extends QueryStmt {
 
   // SQL string of this SelectStmt before inline-view expression substitution.
   // Set in analyze().
+  protected String originalSelect_;
   protected String sqlString_;
 
   SelectStmt(SelectList selectList,
@@ -255,8 +256,8 @@ public class SelectStmt extends QueryStmt {
         } else {
           // Analyze the resultExpr before generating a label to ensure enforcement
           // of expr child and depth limits (toColumn() label may call toSql()).
+          item.analyze(analyzer_);
           Expr expr = item.getExpr();
-          expr.analyze(analyzer_);
           if (expr.contains(Predicates.instanceOf(Subquery.class))) {
             throw new AnalysisException(
                 "Subqueries are not supported in the select list.");
@@ -1011,7 +1012,7 @@ public class SelectStmt extends QueryStmt {
   @Override
   public String toSql(boolean rewritten) {
     // Return the SQL string before inline-view expression substitution.
-    if (!rewritten && sqlString_ != null) return sqlString_;
+//    if (!rewritten && sqlString_ != null) return sqlString_;
 
     StringBuilder strBuilder = new StringBuilder();
     if (withClause_ != null) {
@@ -1028,7 +1029,7 @@ public class SelectStmt extends QueryStmt {
       strBuilder.append(ToSqlUtils.getPlanHintsSql(selectList_.getPlanHints()) + " ");
     }
     for (int i = 0; i < selectList_.getItems().size(); ++i) {
-      strBuilder.append(selectList_.getItems().get(i).toSql());
+      strBuilder.append(selectList_.getItems().get(i).toSql(rewritten));
       strBuilder.append((i+1 != selectList_.getItems().size()) ? ", " : "");
     }
     // From clause
