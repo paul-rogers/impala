@@ -104,9 +104,7 @@ public class EqualityDisjunctsToInRule implements ExprRewriteRule {
     if (!Expr.IS_EXPR_EQ_LITERAL_PREDICATE.apply(child1)) return null;
 
     if (!child0.getChild(0).equals(child1.getChild(0))) return null;
-    Expr newExpr = new InPredicate(child0.getChild(0),
+    return new InPredicate(child0.getChild(0),
         Lists.newArrayList(child0.getChild(1), child1.getChild(1)), false);
-    return newExpr;
   }
-
 }

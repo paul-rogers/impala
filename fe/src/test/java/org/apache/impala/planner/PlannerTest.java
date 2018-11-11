@@ -299,12 +299,12 @@ public class PlannerTest extends PlannerTestBase {
             PlannerTestOption.VALIDATE_RESOURCES));
   }
 
-//  @Test
-//  public void testAdHoc() {
-//    runPlannerTestFile("ad-hoc", "tpch_nested_parquet",
-//        ImmutableSet.of(PlannerTestOption.INCLUDE_RESOURCE_HEADER,
-//            PlannerTestOption.VALIDATE_RESOURCES));
-//  }
+  @Test
+  public void testAdHoc() {
+    runPlannerTestFile("ad-hoc", "tpch",
+        ImmutableSet.of(PlannerTestOption.INCLUDE_RESOURCE_HEADER,
+            PlannerTestOption.VALIDATE_RESOURCES));
+  }
 
   @Test
   public void testTpcds() {

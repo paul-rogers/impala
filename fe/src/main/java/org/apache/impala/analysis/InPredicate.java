@@ -84,6 +84,7 @@ public class InPredicate extends Predicate {
     children_.add(compareExpr);
     children_.addAll(inList);
     isNotIn_ = isNotIn;
+    type_ = Type.BOOLEAN;
   }
 
   // C'tor for initializing an [NOT] IN predicate with a subquery child.

@@ -182,6 +182,10 @@ public class SelectStmt extends QueryStmt {
       super(analyzer);
     }
 
+    private Expr rewrite(Expr expr) throws AnalysisException {
+      return analyzer_.getExprRewriter().rewrite(expr, analyzer_);
+    }
+
     private void analyze() throws AnalysisException {
       // Start out with table refs to establish aliases.
       fromClause_.analyze(analyzer_);
@@ -246,21 +250,24 @@ public class SelectStmt extends QueryStmt {
         } else {
           // Analyze the resultExpr before generating a label to ensure enforcement
           // of expr child and depth limits (toColumn() label may call toSql()).
-          item.getExpr().analyze(analyzer_);
-          if (item.getExpr().contains(Predicates.instanceOf(Subquery.class))) {
+          Expr expr = item.getExpr();
+          expr.analyze(analyzer_);
+          if (expr.contains(Predicates.instanceOf(Subquery.class))) {
             throw new AnalysisException(
                 "Subqueries are not supported in the select list.");
           }
-          resultExprs_.add(item.getExpr());
+          expr = rewrite(expr);
+          item.setExpr(expr);
+          resultExprs_.add(expr);
           String label = item.toColumnLabel(i, analyzer_.useHiveColLabels());
           SlotRef aliasRef = new SlotRef(label);
           Expr existingAliasExpr = aliasSmap_.get(aliasRef);
-          if (existingAliasExpr != null && !existingAliasExpr.equals(item.getExpr())) {
+          if (existingAliasExpr != null && !existingAliasExpr.equals(expr)) {
             // If we have already seen this alias, it refers to more than one column and
             // therefore is ambiguous.
             ambiguousAliasList_.add(aliasRef);
           }
-          aliasSmap_.put(aliasRef, item.getExpr().clone());
+          aliasSmap_.put(aliasRef, expr.clone());
           colLabels_.add(label);
         }
       }
@@ -310,6 +317,13 @@ public class SelectStmt extends QueryStmt {
     private void analyzeWhereClause() throws AnalysisException {
       if (whereClause_== null) return;
       whereClause_.analyze(analyzer_);
+
+      // Simplify the WHERE clause. Drop it if it is trivial.
+      whereClause_ = rewrite(whereClause_);
+      if (Expr.IS_TRUE_LITERAL.apply(whereClause_)) {
+        whereClause_ = null;
+        return;
+      }
       if (whereClause_.contains(Expr.isAggregatePredicate())) {
         throw new AnalysisException(
             "aggregate function not allowed in WHERE clause");
@@ -604,19 +618,21 @@ public class SelectStmt extends QueryStmt {
       substituteOrdinalsAndAliases(groupingExprsCopy_, "GROUP BY");
 
       for (int i = 0; i < groupingExprsCopy_.size(); ++i) {
-        groupingExprsCopy_.get(i).analyze(analyzer_);
-        if (groupingExprsCopy_.get(i).contains(Expr.isAggregatePredicate())) {
+        Expr expr = groupingExprsCopy_.get(i);
+        expr.analyze(analyzer_);
+        if (expr.contains(Expr.isAggregatePredicate())) {
           // reference the original expr in the error msg
           throw new AnalysisException(
               "GROUP BY expression must not contain aggregate functions: "
-                  + groupingExprs_.get(i).toSql());
+                  + expr.toSql());
         }
-        if (groupingExprsCopy_.get(i).contains(AnalyticExpr.class)) {
+        if (expr.contains(AnalyticExpr.class)) {
           // reference the original expr in the error msg
           throw new AnalysisException(
               "GROUP BY expression must not contain analytic expressions: "
-                  + groupingExprsCopy_.get(i).toSql());
+                  + expr.toSql());
         }
+        groupingExprsCopy_.set(i, rewrite(expr));
       }
     }
 
@@ -961,7 +977,7 @@ public class SelectStmt extends QueryStmt {
   @Override
   public void rewriteExprs(ExprRewriter rewriter) throws AnalysisException {
     Preconditions.checkState(isAnalyzed());
-    selectList_.rewriteExprs(rewriter, analyzer_);
+//    selectList_.rewriteExprs(rewriter, analyzer_);
     for (TableRef ref: fromClause_.getTableRefs()) ref.rewriteExprs(rewriter, analyzer_);
     if (whereClause_ != null) {
       whereClause_ = rewriter.rewrite(whereClause_, analyzer_);
@@ -973,12 +989,12 @@ public class SelectStmt extends QueryStmt {
     if (havingClause_ != null) {
       havingClause_ = rewriteCheckOrdinalResult(rewriter, havingClause_);
     }
-    if (groupingExprs_ != null) {
-      for (int i = 0; i < groupingExprs_.size(); ++i) {
-        groupingExprs_.set(i, rewriteCheckOrdinalResult(
-            rewriter, groupingExprs_.get(i)));
-      }
-    }
+//    if (groupingExprs_ != null) {
+//      for (int i = 0; i < groupingExprs_.size(); ++i) {
+//        groupingExprs_.set(i, rewriteCheckOrdinalResult(
+//            rewriter, groupingExprs_.get(i)));
+//      }
+//    }
     if (orderByElements_ != null) {
       for (OrderByElement orderByElem: orderByElements_) {
         orderByElem.setExpr(rewriteCheckOrdinalResult(rewriter, orderByElem.getExpr()));

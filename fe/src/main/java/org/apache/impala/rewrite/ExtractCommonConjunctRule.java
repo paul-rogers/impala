@@ -50,7 +50,7 @@ public class ExtractCommonConjunctRule implements ExprRewriteRule {
   public Expr apply(Expr expr, Analyzer analyzer) {
     if (!Expr.IS_OR_PREDICATE.apply(expr)) return expr;
 
-    // Get childrens' conjuncts and check
+    // Get children's conjuncts and check
     List<Expr> child0Conjuncts = expr.getChild(0).getConjuncts();
     List<Expr> child1Conjuncts = expr.getChild(1).getConjuncts();
     Preconditions.checkState(!child0Conjuncts.isEmpty() && !child1Conjuncts.isEmpty());

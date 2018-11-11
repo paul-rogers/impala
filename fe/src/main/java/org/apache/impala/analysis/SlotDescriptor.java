@@ -296,4 +296,7 @@ public class SlotDescriptor {
         .add("stats", stats_)
         .toString();
   }
+
+  @Override
+  public String toString() { return debugString(); }
 }

@@ -90,7 +90,7 @@ public class ExprRewriter {
       ++numChanges_;
 
     // If the node or its children changed, re-analyze the node.
-    if (numChanges_ > startPoint) rewrittenExpr.rewrittenFrom(expr);
+    if (numChanges_ > startPoint) rewrittenExpr.analyze(analyzer);
     return rewrittenExpr;
   }
 
