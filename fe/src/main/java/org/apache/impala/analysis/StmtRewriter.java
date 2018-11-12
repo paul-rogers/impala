@@ -804,9 +804,9 @@ public class StmtRewriter {
       // Update subquery's GROUP BY clause
       if (groupByExprs != null && !groupByExprs.isEmpty()) {
         if (stmt.hasGroupByClause()) {
-          stmt.groupingExprs_.addAll(groupByExprs);
+          stmt.groupByClause_.addAll(groupByExprs);
         } else {
-          stmt.groupingExprs_ = groupByExprs;
+          stmt.groupByClause_ = groupByExprs;
         }
       }
     }

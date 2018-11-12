@@ -86,6 +86,7 @@ import org.apache.impala.util.TSessionStateUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Predicates;
@@ -192,7 +193,8 @@ public class Analyzer {
   // TODO: Many maps here contain properties about tuples, e.g., whether
   // a tuple is outer/semi joined, etc. Remove the maps in favor of making
   // them properties of the tuple descriptor itself.
-  private static class GlobalState {
+  @VisibleForTesting
+  public static class GlobalState {
     public final TQueryCtx queryCtx;
     public final AuthorizationConfig authzConfig;
     public final DescriptorTable descTbl = new DescriptorTable();
@@ -689,6 +691,7 @@ public class Analyzer {
   public TableRef getTableRef(TupleId tid) { return tableRefMap_.get(tid); }
   public ExprRewriter getConstantFolder() { return globalState_.constantFolder_; }
   public ExprRewriter getExprRewriter() { return globalState_.exprRewriter_; }
+  public GlobalState getGlobalState() { return globalState_; }
 
   /**
    * Given a "table alias"."column alias", return the SlotDescriptor

@@ -17,11 +17,25 @@
 
 package org.apache.impala.common;
 
+import org.apache.impala.analysis.Expr;
+
 /**
  * Thrown for errors encountered during analysis of a SQL statement.
  *
  */
+@SuppressWarnings("serial")
 public class AnalysisException extends ImpalaException {
+
+  public static final String NOT_SUPPORTED_MSG =
+      "%s are not supported in the %s: %s";
+  public static final String AGG_FUNC_MSG = "Aggregate functions";
+  public static final String ANALYTIC_EXPRS_MSG = "Analytic expressions";
+  public static final String SUBQUERIES_MSG = "Subqueries";
+  public static final String SELECT_LIST_MSG = "SELECT list";
+  public static final String WHERE_CLAUSE_MSG = "WHERE clause";
+  public static final String GROUP_BY_CLAUSE_MSG = "GROUP BY clause";
+  public static final String ON_CLAUSE_MSG = "ON clause";
+
   public AnalysisException(String msg, Throwable cause) {
     super(msg, cause);
   }
@@ -32,5 +46,16 @@ public class AnalysisException extends ImpalaException {
 
   public AnalysisException(Throwable cause) {
     super(cause);
+  }
+
+  public static String notSupportedMsg(String feature,
+      String clause, String exprSql) {
+    return String.format(NOT_SUPPORTED_MSG, feature, clause, exprSql);
+  }
+
+  public static AnalysisException notSupported(String feature,
+      String clause, Expr expr) {
+    return new AnalysisException(
+        notSupportedMsg(feature, clause, expr.toSql()));
   }
 }

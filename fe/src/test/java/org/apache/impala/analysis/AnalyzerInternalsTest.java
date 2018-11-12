@@ -2,12 +2,21 @@ package org.apache.impala.analysis;
 
 import static org.junit.Assert.*;
 
+import java.util.List;
+
 import org.apache.impala.analysis.AnalysisFixture.QueryFixture;
 import org.apache.impala.catalog.ScalarType;
 import org.apache.impala.common.AnalysisException;
 import org.apache.impala.common.FrontendTestBase;
 import org.junit.Test;
 
+/**
+ * Test of analyzer internals around expression rewrites. In general,
+ * rewrites occur shortly after analysis. Checks of an expression
+ * occur before rewrite, and any error messages include the user's
+ * original expression. Semantic processing occurs after rewrites
+ * and so the rewritten form will appear in the derived structures.
+ */
 public class AnalyzerInternalsTest extends FrontendTestBase {
 
   public AnalysisFixture fixture = new AnalysisFixture(frontend_);
@@ -60,6 +69,13 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
         stmt.toSql(true));
   }
 
+  private void expectUnsupported(AnalysisException e, String feature,
+      String clause, String exprSql) {
+    String expected =
+        AnalysisException.notSupportedMsg(feature, clause, exprSql);
+    assertEquals(expected, e.getMessage());
+  }
+
   /**
    * Analyzer checks for nested subqueries in the SELECT clause.
    */
@@ -72,9 +88,10 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
       analyze(stmtText);
       fail();
     } catch (AnalysisException e) {
-      assertTrue(e.getMessage().contains("Subqueries are not supported"));
-      // Message contains original expression
-      assertTrue(e.getMessage().contains("count(*) + 0"));
+      expectUnsupported(e,
+          AnalysisException.SUBQUERIES_MSG,
+          AnalysisException.SELECT_LIST_MSG,
+          "(SELECT count(*) + 0 FROM functional.alltypestiny)");
     }
   }
 
@@ -149,7 +166,7 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
    * Analyzer checks for aggregates in the WHERE clause.
    */
   @Test
-  public void testWhereAggregate() {
+  public void testAggregateInWhereClause() {
     try {
       String stmtText =
           "select id from functional.alltypestiny" +
@@ -157,9 +174,10 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
       analyze(stmtText);
       fail();
     } catch (AnalysisException e) {
-      assertTrue(e.getMessage().contains("Aggregate functions are not supported"));
-      // Message contains original expression
-      assertTrue(e.getMessage().contains("count(id) < 10 + 2"));
+      expectUnsupported(e,
+          AnalysisException.AGG_FUNC_MSG,
+          AnalysisException.WHERE_CLAUSE_MSG,
+          "count(id) < 10 + 2");
     }
   }
 
@@ -175,17 +193,21 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
       analyze(stmtText);
       fail();
     } catch (AnalysisException e) {
-      assertTrue(e.getMessage().contains("requires type BOOLEAN"));
-      // Message contains original expression
-      assertTrue(e.getMessage().contains("0 + 2 + id"));
+      expectRequiresBoolean(e, "0 + 2 + id");
     }
+  }
+
+  private void expectRequiresBoolean(AnalysisException e, String exprSql) {
+    assertTrue(e.getMessage().contains("requires type BOOLEAN"));
+    // Message contains original expression
+    assertTrue(e.getMessage().contains(exprSql));
   }
 
   /**
    * WHERE clause cannot contain window functions.
    */
   @Test
-  public void testWhereAnalytic() {
+  public void testAnalyticInWhereClause() {
     try {
       String stmtText =
           "select id from functional.alltypestiny" +
@@ -193,9 +215,10 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
       analyze(stmtText);
       fail();
     } catch (AnalysisException e) {
-      assertTrue(e.getMessage().contains("Analytic expressions are not supported"));
-      // Message contains original expression
-      assertTrue(e.getMessage().contains("count(id) OVER (PARTITION BY id / (1 + 3))"));
+      expectUnsupported(e,
+          AnalysisException.ANALYTIC_EXPRS_MSG,
+          AnalysisException.WHERE_CLAUSE_MSG,
+          "count(id) OVER (PARTITION BY id / (1 + 3))");
     }
   }
 
@@ -219,6 +242,16 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
     assertTrue(expr.isAnalyzed());
     assertEquals(ScalarType.BOOLEAN, expr.getType());
     assertEquals(15.0, expr.getCost(), 0.1);
+    // TODO: Should have accessor
+    assertTrue(expr.isOnClauseConjunct_);
+    // TODO: Should have accessor
+    assertEquals(0, expr.id_.asInt());
+
+    // Rewritten conjunct should be registered. There
+    // is only one conjunct, so we just grab that.
+    // TODO: Should have accessor
+    assertTrue(
+        stmt.getAnalyzer().getGlobalState().conjuncts.values().contains(expr));
 
     // Statement's toSql should be before substitution
 
@@ -243,7 +276,7 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
    * ON clause cannot contain aggregates.
    */
   @Test
-  public void testOnAggregate() {
+  public void testAggregateOnClause() {
     try {
       String stmtText =
           "select t1.id" +
@@ -253,9 +286,10 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
       analyze(stmtText);
       fail();
     } catch (AnalysisException e) {
-      assertTrue(e.getMessage().contains("Aggregate functions are not supported"));
-      // Message contains original expression
-      assertTrue(e.getMessage().contains("1 + 1 + count(t1.id) = 2 * 1 + count(t2.id)"));
+      expectUnsupported(e,
+          AnalysisException.AGG_FUNC_MSG,
+          AnalysisException.ON_CLAUSE_MSG,
+          "1 + 1 + count(t1.id) = 2 * 1 + count(t2.id)");
     }
   }
 
@@ -263,7 +297,7 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
    * ON clause cannot contain window functions.
    */
   @Test
-  public void testOnAnalytic() {
+  public void testAnalyticOnClause() {
     try {
       String stmtText =
           "select t1.id" +
@@ -273,18 +307,18 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
       analyze(stmtText);
       fail();
     } catch (AnalysisException e) {
-      assertTrue(e.getMessage().contains("Analytic expressions are not supported"));
-      // Message contains original expression
-      assertTrue(e.getMessage().contains("count(t1.id) OVER (PARTITION BY t1.id / (1 + 3)) = t2.id"));
+      expectUnsupported(e,
+          AnalysisException.ANALYTIC_EXPRS_MSG,
+          AnalysisException.ON_CLAUSE_MSG,
+          "count(t1.id) OVER (PARTITION BY t1.id / (1 + 3)) = t2.id");
     }
   }
-
 
   /**
    * ON clause cannot contain window functions.
    */
   @Test
-  public void testOnBoolean() {
+  public void testBooleanOnClause() {
     try {
       String stmtText =
           "select t1.id" +
@@ -294,10 +328,150 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
       analyze(stmtText);
       fail();
     } catch (AnalysisException e) {
-      assertTrue(e.getMessage().contains("requires type BOOLEAN"));
-      // Message contains original expression
-      assertTrue(e.getMessage().contains("1 + 1 + t1.id + t2.id"));
+      expectRequiresBoolean(e, "1 + 1 + t1.id + t2.id");
     }
   }
+
+  /**
+   * If On clause is trivial, discard it, but keep the original
+   * for toSql().
+   */
+  @Test
+  public void testTrivialOn() throws AnalysisException {
+    String stmtText =
+        "select t1.id" +
+        " from functional.alltypestiny t1" +
+        " join functional.alltypestiny t2" +
+        " on 1 + 1 = 4 - 2";
+    SelectStmt stmt = analyze(stmtText);
+    assertNull(stmt.getWhereClause());
+
+    stmtText =
+        "SELECT t1.id" +
+        " FROM functional.alltypestiny t1" +
+        " INNER JOIN functional.alltypestiny t2" +
+        " ON 1 + 1 = 4 - 2";
+    assertEquals(stmtText,  stmt.toSql());
+    assertEquals(stmtText,  stmt.toSql(false));
+
+    // Rewritten should have no ON clause
+    // TODO: Should the plan include a CROSS JOIN?
+    stmtText =
+        "SELECT t1.id" +
+        " FROM functional.alltypestiny t1" +
+        " INNER JOIN functional.alltypestiny t2";
+    assertEquals(stmtText, stmt.toSql(true));
+  }
+
+  /**
+   * Sanity test of GROUP BY rewrite
+   */
+  @Test
+  public void testGroupBy() throws AnalysisException {
+    String stmtText =
+        "select 2 + int_col, 2 + 3 + id, count(*)" +
+        " from functional.alltypestiny" +
+        " group by 1 + 1 + int_col, 2 + 3 + id";
+
+    // Above will pass muster because both SELECT and
+    // GROUP BY are rewritten before we match up clauses.
+    // Note that one SELECT expr is in rewritten form, the
+    // other is in non-rewritten form.
+    SelectStmt stmt = analyze(stmtText);
+    List<Expr> groupBy = stmt.getGroupByClause();
+
+    // Expressions should have been rewritten
+    assertEquals("2 + int_col", groupBy.get(0).toSql());
+    assertEquals("5 + id", groupBy.get(1).toSql());
+
+    // Should have been re-analyzed after rewrite
+    assertTrue(groupBy.get(0).isAnalyzed());
+    assertEquals(ScalarType.BIGINT, groupBy.get(0).getType());
+    assertEquals(7.0, groupBy.get(0).getCost(), 0.1);
+    assertTrue(groupBy.get(1).isAnalyzed());
+    assertEquals(ScalarType.BIGINT, groupBy.get(1).getType());
+    assertEquals(7.0, groupBy.get(1).getCost(), 0.1);
+
+    // Statement's toSql should be before substitution
+
+    String origSql =
+        "SELECT 2 + int_col, 2 + 3 + id, count(*)" +
+        " FROM functional.alltypestiny" +
+        " GROUP BY 1 + 1 + int_col, 2 + 3 + id";
+    assertEquals(origSql, stmt.toSql());
+    assertEquals(origSql, stmt.toSql(false));
+
+    // Rewritten should be available when requested
+    String rewrittenSql =
+        "SELECT 2 + int_col, 5 + id, count(*)" +
+        " FROM functional.alltypestiny" +
+        " GROUP BY 2 + int_col, 5 + id";
+    assertEquals(rewrittenSql, stmt.toSql(true));
+  }
+
+
+  /**
+   * GROUP BY clause cannot contain aggregates.
+   */
+  @Test
+  public void testAggregateInGroupBy() {
+    try {
+      String stmtText =
+          "select 2 + count(*)" +
+          " from functional.alltypestiny" +
+          " group by 1 + 1 + count(*)";
+      analyze(stmtText);
+      fail();
+    } catch (AnalysisException e) {
+      expectUnsupported(e,
+          AnalysisException.AGG_FUNC_MSG,
+          AnalysisException.GROUP_BY_CLAUSE_MSG,
+          "1 + 1 + count(*)");
+    }
+  }
+
+  /**
+   * GROUP BY clause cannot contain window functions.
+   */
+  @Test
+  public void testAnalyticInGroupBy() {
+    try {
+      String stmtText =
+          "select count(id)" +
+          " from functional.alltypestiny" +
+          " group by count(id) over(partition by id / (1 + 3))";
+      analyze(stmtText);
+      fail();
+    } catch (AnalysisException e) {
+      expectUnsupported(e,
+          AnalysisException.ANALYTIC_EXPRS_MSG,
+          AnalysisException.GROUP_BY_CLAUSE_MSG,
+          "count(id) OVER (PARTITION BY id / (1 + 3))");
+    }
+  }
+
+  /**
+   * GROUP BY cannot contain subqueries.
+   */
+  @Test
+  public void testSubqueryInGroupBy() {
+    try {
+      String stmtText =
+          "select count(id)" +
+          " from functional.alltypestiny" +
+          " group by (select count(*) + 0 from functional.alltypestiny)";
+       analyze(stmtText);
+      fail();
+    } catch (AnalysisException e) {
+      expectUnsupported(e,
+          AnalysisException.SUBQUERIES_MSG,
+          AnalysisException.GROUP_BY_CLAUSE_MSG,
+          "(SELECT count(*) + 0 FROM functional.alltypestiny)");
+    }
+  }
+
+  // TODO: HAVING
+  // TODO: ORDER BY
+
 
 }

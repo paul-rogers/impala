@@ -23,6 +23,7 @@ import org.apache.impala.common.AnalysisException;
 
 import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
+import com.google.common.base.Predicates;
 
 class SelectListItem {
   // Original expression, before rewrites
@@ -67,6 +68,16 @@ class SelectListItem {
   public void analyze(Analyzer analyzer) throws AnalysisException {
     expr_.analyze(analyzer);
     originalExpr_ = expr_.toSql();
+
+    // Do error checks before rewrite, include unrewritten expression
+    // in error message.
+    if (expr_.contains(Predicates.instanceOf(Subquery.class))) {
+      throw AnalysisException.notSupported(
+          AnalysisException.SUBQUERIES_MSG,
+          AnalysisException.SELECT_LIST_MSG, expr_);
+    }
+
+    expr_ = analyzer.rewrite(expr_);
   }
 
   @Override

@@ -541,6 +541,7 @@ public class TableRef implements ParseNode {
       semiJoinedTupleId = leftTblRef_.getId();
     }
 
+    // User provided an ON clause
     if (onClause_ != null) {
       Preconditions.checkState(joinOp_ != JoinOperator.CROSS_JOIN);
       analyzer.setVisibleSemiJoinedTuple(semiJoinedTupleId);
@@ -548,27 +549,31 @@ public class TableRef implements ParseNode {
       originalOnClause_ = origOnClause == null ? null : origOnClause.toSql();
       analyzer.setVisibleSemiJoinedTuple(null);
       if (onClause_.contains(Expr.isAggregatePredicate())) {
-        throw new AnalysisException(
-            "Aggregate functions are not supported in ON clause: " +
-            onClause_.toSql());
+        throw AnalysisException.notSupported(
+            AnalysisException.AGG_FUNC_MSG,
+            AnalysisException.ON_CLAUSE_MSG, onClause_);
       }
       if (onClause_.contains(AnalyticExpr.class)) {
-        throw new AnalysisException(
-            "Analytic expressions are not supported in ON clause: " +
-            onClause_.toSql());
+        throw AnalysisException.notSupported(
+            AnalysisException.ANALYTIC_EXPRS_MSG,
+            AnalysisException.ON_CLAUSE_MSG, onClause_);
       }
       if (onClause_.contains(Subquery.class)) {
-        throw new AnalysisException(
-            "Subquery is not supported in ON clause: " +
-            onClause_.toSql());
+        throw AnalysisException.notSupported(
+            AnalysisException.SUBQUERIES_MSG,
+            AnalysisException.ON_CLAUSE_MSG, onClause_);
       }
       // Check after above since this check precludes the above
       onClause_.checkReturnsBool("ON clause", true);
+
+      // Perform rewrite after checks. Rewrite may render the
+      // ON clause trivial: 1 = 1. If so, remove it.
       onClause_ = analyzer.rewrite(onClause_);
       if (Expr.IS_TRUE_LITERAL.apply(onClause_)) {
         onClause_ = null;
       }
     }
+    // ON clause provided and non-trivial
     if (onClause_ != null) {
       Set<TupleId> onClauseTupleIds = Sets.newHashSet();
       List<Expr> conjuncts = onClause_.getConjuncts();
