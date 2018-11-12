@@ -549,16 +549,20 @@ public class TableRef implements ParseNode {
       analyzer.setVisibleSemiJoinedTuple(null);
       if (onClause_.contains(Expr.isAggregatePredicate())) {
         throw new AnalysisException(
-            "Aggregate function not supported in ON clause: " + toSql());
+            "Aggregate functions are not supported in ON clause: " +
+            onClause_.toSql());
       }
       if (onClause_.contains(AnalyticExpr.class)) {
         throw new AnalysisException(
-            "Analytic expression not supported in ON clause: " + toSql());
+            "Analytic expressions are not supported in ON clause: " +
+            onClause_.toSql());
       }
       if (onClause_.contains(Subquery.class)) {
         throw new AnalysisException(
-            "Subquery is not supported in ON clause: " + toSql());
+            "Subquery is not supported in ON clause: " +
+            onClause_.toSql());
       }
+      // Check after above since this check precludes the above
       onClause_.checkReturnsBool("ON clause", true);
       onClause_ = analyzer.rewrite(onClause_);
       if (Expr.IS_TRUE_LITERAL.apply(onClause_)) {

@@ -199,7 +199,6 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
     }
   }
 
-
   /**
    * Sanity test of JOIN ... ON rewrite
    */
@@ -219,14 +218,14 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
     // Should have been re-analyzed after rewrite
     assertTrue(expr.isAnalyzed());
     assertEquals(ScalarType.BOOLEAN, expr.getType());
-    assertEquals(7.0, expr.getCost(), 0.1);
+    assertEquals(15.0, expr.getCost(), 0.1);
 
     // Statement's toSql should be before substitution
 
     String origSql =
         "SELECT t1.id" +
         " FROM functional.alltypestiny t1" +
-        " JOIN functiona.alltypestiny t2" +
+        " INNER JOIN functional.alltypestiny t2" +
         " ON 1 + 1 + t1.id = 2 * 1 + t2.id";
     assertEquals(origSql, stmt.toSql());
     assertEquals(origSql, stmt.toSql(false));
@@ -235,9 +234,70 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
     String rewrittenSql =
         "SELECT t1.id" +
         " FROM functional.alltypestiny t1" +
-        " JOIN functiona.alltypestiny t2" +
+        " INNER JOIN functional.alltypestiny t2" +
         " ON 2 + t1.id = 2 + t2.id";
     assertEquals(rewrittenSql, stmt.toSql(true));
+  }
+
+  /**
+   * ON clause cannot contain aggregates.
+   */
+  @Test
+  public void testOnAggregate() {
+    try {
+      String stmtText =
+          "select t1.id" +
+          " from functional.alltypestiny t1" +
+          " join functional.alltypestiny t2" +
+          " on 1 + 1 + count(t1.id) = 2 * 1 + count(t2.id)";
+      analyze(stmtText);
+      fail();
+    } catch (AnalysisException e) {
+      assertTrue(e.getMessage().contains("Aggregate functions are not supported"));
+      // Message contains original expression
+      assertTrue(e.getMessage().contains("1 + 1 + count(t1.id) = 2 * 1 + count(t2.id)"));
+    }
+  }
+
+  /**
+   * ON clause cannot contain window functions.
+   */
+  @Test
+  public void testOnAnalytic() {
+    try {
+      String stmtText =
+          "select t1.id" +
+          " from functional.alltypestiny t1" +
+          " join functional.alltypestiny t2" +
+          " on count(t1.id) over(partition by t1.id / (1 + 3)) = t2.id";
+      analyze(stmtText);
+      fail();
+    } catch (AnalysisException e) {
+      assertTrue(e.getMessage().contains("Analytic expressions are not supported"));
+      // Message contains original expression
+      assertTrue(e.getMessage().contains("count(t1.id) OVER (PARTITION BY t1.id / (1 + 3)) = t2.id"));
+    }
+  }
+
+
+  /**
+   * ON clause cannot contain window functions.
+   */
+  @Test
+  public void testOnBoolean() {
+    try {
+      String stmtText =
+          "select t1.id" +
+          " from functional.alltypestiny t1" +
+          " join functional.alltypestiny t2" +
+          " on 1 + 1 + t1.id + t2.id";
+      analyze(stmtText);
+      fail();
+    } catch (AnalysisException e) {
+      assertTrue(e.getMessage().contains("requires type BOOLEAN"));
+      // Message contains original expression
+      assertTrue(e.getMessage().contains("1 + 1 + t1.id + t2.id"));
+    }
   }
 
 }
