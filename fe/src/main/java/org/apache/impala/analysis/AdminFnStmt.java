@@ -17,6 +17,7 @@
 
 package org.apache.impala.analysis;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.impala.authorization.PrivilegeRequestBuilder;
@@ -63,7 +64,7 @@ public class AdminFnStmt extends StatementBase {
   public String toSql() {
     StringBuilder sb = new StringBuilder();
     sb.append(":").append(fnName_).append("(");
-    List<String> paramsSql = Lists.newArrayList();
+    List<String> paramsSql = new ArrayList<>();
     for (Expr param: params_) paramsSql.add(param.toSql());
     sb.append(Joiner.on(", ").join(paramsSql));
     sb.append(")");

@@ -145,7 +145,7 @@ public class HBaseTable extends Table implements FeHBaseTable {
    * Hive returns the columns in order of their declaration for HBase tables.
    */
   @Override
-  public ArrayList<Column> getColumnsInHiveOrder() {
+  public List<Column> getColumnsInHiveOrder() {
     return getColumns();
   }
 

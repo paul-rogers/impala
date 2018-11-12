@@ -41,7 +41,7 @@ public class KuduTableSink extends TableSink {
 
   // Optional list of referenced Kudu table column indices. The position of a result
   // expression i matches a column index into the Kudu schema at targetColdIdxs[i].
-  private final ArrayList<Integer> targetColIdxs_;
+  private final List<Integer> targetColIdxs_;
 
   public KuduTableSink(FeTable targetTable, Op sinkOp,
       List<Integer> referencedColumns) {

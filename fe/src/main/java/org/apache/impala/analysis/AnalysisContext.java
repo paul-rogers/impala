@@ -17,6 +17,7 @@
 
 package org.apache.impala.analysis;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -464,7 +465,7 @@ public class AnalysisContext {
     // types and column labels to restore them after the rewritten stmt has been
     // reset() and re-analyzed. For a CTAS statement, the types represent column types
     // of the table that will be created, including the partition columns, if any.
-    List<Type> origResultTypes = Lists.newArrayList();
+    List<Type> origResultTypes = new ArrayList<>();
     for (Expr e : analysisResult_.stmt_.getResultExprs()) {
       origResultTypes.add(e.getType());
     }
@@ -525,7 +526,7 @@ public class AnalysisContext {
       LinkedHashMap<String, List<PrivilegeRequest>> tablePrivReqs =
           Maps.newLinkedHashMap();
       // Privilege requests that are not column or table-level.
-      List<PrivilegeRequest> otherPrivReqs = Lists.newArrayList();
+      List<PrivilegeRequest> otherPrivReqs = new ArrayList<>();
       // Group the registered privilege requests based on the table they reference.
       for (PrivilegeRequest privReq: analyzer.getPrivilegeReqs()) {
         String tableName = privReq.getAuthorizeable().getFullTableName();
@@ -534,7 +535,7 @@ public class AnalysisContext {
         } else {
           List<PrivilegeRequest> requests = tablePrivReqs.get(tableName);
           if (requests == null) {
-            requests = Lists.newArrayList();
+            requests = new ArrayList<>();
             tablePrivReqs.put(tableName, requests);
           }
           // The table-level SELECT must be the first table-level request, and it

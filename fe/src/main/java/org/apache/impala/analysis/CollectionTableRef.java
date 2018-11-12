@@ -80,7 +80,19 @@ public class CollectionTableRef extends TableRef {
   @Override
   public void analyze(Analyzer analyzer) throws AnalysisException {
     if (isAnalyzed_) return;
-    desc_ = analyzer.registerTableRef(this);
+    CollectionTableAnalyzer tableAnalyzer = new CollectionTableAnalyzer(analyzer);
+    tableAnalyzer.analyze();
+    isAnalyzed_ = true;
+  }
+
+  private class CollectionTableAnalyzer extends TableAnalyzer {
+    private CollectionTableAnalyzer(Analyzer analyzer) {
+      super(analyzer);
+    }
+
+  @Override
+  protected void analyze() throws AnalysisException {
+    desc_ = analyzer.registerTableRef(CollectionTableRef.this);
     if (isRelative() && !analyzer.hasWithClause()) {
       SlotDescriptor parentSlotDesc = analyzer.registerSlotRef(resolvedPath_);
       parentSlotDesc.setItemTupleDesc(desc_);
@@ -110,15 +122,13 @@ public class CollectionTableRef extends TableRef {
           desc_.getTableName().getTbl(), desc_.getPath().getRawPath().get(0))
           .toRequest());
     }
-    isAnalyzed_ = true;
-    analyzeTableSample(analyzer);
-    analyzeHints(analyzer);
 
     // TODO: For joins on nested collections some join ops can be simplified
     // due to the containment relationship of the parent and child. For example,
     // a FULL OUTER JOIN would become a LEFT OUTER JOIN, or a RIGHT SEMI JOIN
     // would become an INNER or CROSS JOIN.
-    analyzeJoin(analyzer);
+    super.analyze();
+  }
   }
 
   @Override

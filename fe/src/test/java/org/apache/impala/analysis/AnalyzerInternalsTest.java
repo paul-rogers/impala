@@ -199,4 +199,45 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
     }
   }
 
+
+  /**
+   * Sanity test of JOIN ... ON rewrite
+   */
+  @Test
+  public void testOnClause() throws AnalysisException {
+    String stmtText =
+        "select t1.id" +
+        " from functional.alltypestiny t1" +
+        " join functional.alltypestiny t2" +
+        " on 1 + 1 + t1.id = 2 * 1 + t2.id";
+    SelectStmt stmt = analyze(stmtText);
+    Expr expr = stmt.getFromClause().get(1).getOnClause();
+
+    // Expression should have been rewritten
+    assertEquals("2 + t1.id = 2 + t2.id", expr.toSql());
+
+    // Should have been re-analyzed after rewrite
+    assertTrue(expr.isAnalyzed());
+    assertEquals(ScalarType.BOOLEAN, expr.getType());
+    assertEquals(7.0, expr.getCost(), 0.1);
+
+    // Statement's toSql should be before substitution
+
+    String origSql =
+        "SELECT t1.id" +
+        " FROM functional.alltypestiny t1" +
+        " JOIN functiona.alltypestiny t2" +
+        " ON 1 + 1 + t1.id = 2 * 1 + t2.id";
+    assertEquals(origSql, stmt.toSql());
+    assertEquals(origSql, stmt.toSql(false));
+
+    // Rewritten should be available when requested
+    String rewrittenSql =
+        "SELECT t1.id" +
+        " FROM functional.alltypestiny t1" +
+        " JOIN functiona.alltypestiny t2" +
+        " ON 2 + t1.id = 2 + t2.id";
+    assertEquals(rewrittenSql, stmt.toSql(true));
+  }
+
 }

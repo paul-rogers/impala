@@ -253,7 +253,7 @@ public class ParserTest extends FrontendTestBase {
   private void TestJoinHints(String stmt, String... expectedHints) {
     SelectStmt selectStmt = (SelectStmt) ParsesOk(stmt);
     Preconditions.checkState(selectStmt.getTableRefs().size() > 1);
-    List<String> actualHints = Lists.newArrayList();
+    List<String> actualHints = new ArrayList<>();
     assertTrue(selectStmt.getTableRefs().get(0).getJoinHints().isEmpty());
     for (int i = 1; i < selectStmt.getTableRefs().size(); ++i) {
       List<PlanHint> hints = selectStmt.getTableRefs().get(i).getJoinHints();
@@ -266,7 +266,7 @@ public class ParserTest extends FrontendTestBase {
   private void TestTableHints(String stmt, String... expectedHints) {
     SelectStmt selectStmt = (SelectStmt) ParsesOk(stmt);
     Preconditions.checkState(selectStmt.getTableRefs().size() > 0);
-    List<String> actualHints = Lists.newArrayList();
+    List<String> actualHints = new ArrayList<>();
     for (int i = 0; i < selectStmt.getTableRefs().size(); ++i) {
       List<PlanHint> hints = selectStmt.getTableRefs().get(i).getTableHints();
       for (PlanHint hint: hints) actualHints.add(hint.toString());
@@ -278,7 +278,7 @@ public class ParserTest extends FrontendTestBase {
   private void TestTableAndJoinHints(String stmt, String... expectedHints) {
     SelectStmt selectStmt = (SelectStmt) ParsesOk(stmt);
     Preconditions.checkState(selectStmt.getTableRefs().size() > 0);
-    List<String> actualHints = Lists.newArrayList();
+    List<String> actualHints = new ArrayList<>();
     for (int i = 0; i < selectStmt.getTableRefs().size(); ++i) {
       List<PlanHint> joinHints = selectStmt.getTableRefs().get(i).getJoinHints();
       for (PlanHint hint: joinHints) actualHints.add(hint.toString());
@@ -295,7 +295,7 @@ public class ParserTest extends FrontendTestBase {
    */
   private void TestSelectListHints(String stmt, String... expectedHints) {
     SelectStmt selectStmt = (SelectStmt) ParsesOk(stmt);
-    List<String> actualHints = Lists.newArrayList();
+    List<String> actualHints = new ArrayList<>();
     List<PlanHint> hints = selectStmt.getSelectList().getPlanHints();
     for (PlanHint hint: hints) actualHints.add(hint.toString());
     if (actualHints.isEmpty()) actualHints = Lists.newArrayList((String) null);

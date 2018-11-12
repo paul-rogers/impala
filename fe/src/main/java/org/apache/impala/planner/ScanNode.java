@@ -17,6 +17,7 @@
 
 package org.apache.impala.planner;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.impala.analysis.SlotDescriptor;
@@ -126,7 +127,7 @@ abstract public class ScanNode extends PlanNode {
    */
   protected String getColumnStatsExplainString(String prefix) {
     StringBuilder output = new StringBuilder();
-    List<String> columnsMissingStats = Lists.newArrayList();
+    List<String> columnsMissingStats = new ArrayList<>();
     for (SlotDescriptor slot: desc_.getSlots()) {
       if (!slot.getStats().hasStats() && slot.getColumn() != null) {
         columnsMissingStats.add(slot.getColumn().getName());
@@ -214,7 +215,7 @@ abstract public class ScanNode extends PlanNode {
   @Override
   protected String getDisplayLabelDetail() {
     FeTable table = desc_.getTable();
-    List<String> path = Lists.newArrayList();
+    List<String> path = new ArrayList<>();
     path.add(table.getDb().getName());
     path.add(table.getName());
     Preconditions.checkNotNull(desc_.getPath());

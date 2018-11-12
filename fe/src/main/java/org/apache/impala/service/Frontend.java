@@ -748,7 +748,7 @@ public class Frontend {
       User user) throws InternalException {
     Preconditions.checkNotNull(table);
     Preconditions.checkNotNull(matcher);
-    List<Column> columns = Lists.newArrayList();
+    List<Column> columns = new ArrayList<>();
     for (Column column: table.getColumnsInHiveOrder()) {
       String colName = column.getName();
       if (!matcher.matches(colName)) continue;
@@ -1049,10 +1049,10 @@ public class Frontend {
   private TPlanExecInfo createPlanExecInfo(PlanFragment planRoot, Planner planner,
       TQueryCtx queryCtx, TQueryExecRequest queryExecRequest) {
     TPlanExecInfo result = new TPlanExecInfo();
-    ArrayList<PlanFragment> fragments = planRoot.getNodesPreOrder();
+    List<PlanFragment> fragments = planRoot.getNodesPreOrder();
 
     // collect ScanNodes
-    List<ScanNode> scanNodes = Lists.newArrayList();
+    List<ScanNode> scanNodes = new ArrayList<>();
     for (PlanFragment fragment: fragments) {
       Preconditions.checkNotNull(fragment.getPlanRoot());
       fragment.getPlanRoot().collect(Predicates.instanceOf(ScanNode.class), scanNodes);
@@ -1109,7 +1109,7 @@ public class Frontend {
         && queryCtx.client_request.query_options.isSetMt_dop()
         && queryCtx.client_request.query_options.mt_dop > 0;
 
-    List<PlanFragment> planRoots = Lists.newArrayList();
+    List<PlanFragment> planRoots = new ArrayList<>();
     TQueryExecRequest result = new TQueryExecRequest();
     if (isMtExec) {
       LOG.trace("create mt plan");
@@ -1147,7 +1147,7 @@ public class Frontend {
 
     // create EXPLAIN output after setting everything else
     result.setQuery_ctx(queryCtx);  // needed by getExplainString()
-    ArrayList<PlanFragment> allFragments = planRoots.get(0).getNodesPreOrder();
+    List<PlanFragment> allFragments = planRoots.get(0).getNodesPreOrder();
     explainString.append(planner.getExplainString(allFragments, result));
     result.setQuery_plan(explainString.toString());
 
@@ -1442,7 +1442,7 @@ public class Frontend {
     // create the explain result set - split the explain string into one line per row
     String[] explainStringArray = explainString.split("\n");
     TExplainResult explainResult = new TExplainResult();
-    explainResult.results = Lists.newArrayList();
+    explainResult.results = new ArrayList<>();
     for (int i = 0; i < explainStringArray.length; ++i) {
       TColumnValue col = new TColumnValue();
       col.setString_val(explainStringArray[i]);

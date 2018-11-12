@@ -74,7 +74,7 @@ public class AggregateFunction extends Function {
   // empty input in BE).
   private boolean returnsNonNullOnEmpty_;
 
-  public AggregateFunction(FunctionName fnName, ArrayList<Type> argTypes, Type retType,
+  public AggregateFunction(FunctionName fnName, List<Type> argTypes, Type retType,
       boolean hasVarArgs) {
     super(fnName, argTypes, retType, hasVarArgs);
   }
@@ -210,7 +210,7 @@ public class AggregateFunction extends Function {
    */
   public static List<Expr> getCanonicalDistinctAggChildren(FunctionCallExpr aggFn) {
     Preconditions.checkState(aggFn.isDistinct());
-    List<Expr> result = Lists.newArrayList();
+    List<Expr> result = new ArrayList<>();
     if (aggFn.getFnName().getFunction().equalsIgnoreCase("group_concat")) {
       result.add(aggFn.getChild(0).ignoreImplicitCast());
     } else {

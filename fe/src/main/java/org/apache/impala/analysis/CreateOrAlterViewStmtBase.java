@@ -119,7 +119,7 @@ public abstract class CreateOrAlterViewStmtBase extends StatementBase {
       }
     } else {
       // Create list of column definitions from the view-definition statement.
-      finalColDefs_ = Lists.newArrayList();
+      finalColDefs_ = new ArrayList<>();
       List<Expr> exprs = viewDefStmt_.getBaseTblResultExprs();
       List<String> labels = viewDefStmt_.getColLabels();
       Preconditions.checkState(exprs.size() == labels.size());
@@ -170,7 +170,7 @@ public abstract class CreateOrAlterViewStmtBase extends StatementBase {
    */
   protected void computeLineageGraph(Analyzer analyzer) {
     ColumnLineageGraph graph = analyzer.getColumnLineageGraph();
-    List<String> colDefs = Lists.newArrayList();
+    List<String> colDefs = new ArrayList<>();
     for (ColumnDef colDef: finalColDefs_) {
       colDefs.add(dbName_ + "." + getTbl() + "." + colDef.getColName());
     }
@@ -217,7 +217,7 @@ public abstract class CreateOrAlterViewStmtBase extends StatementBase {
    */
   protected String getColumnNames() {
     Preconditions.checkNotNull(columnDefs_);
-    List<String> columnNames = Lists.newArrayList();
+    List<String> columnNames = new ArrayList<>();
     for (ColumnDef colDef : columnDefs_) {
       columnNames.add(colDef.getColName());
     }

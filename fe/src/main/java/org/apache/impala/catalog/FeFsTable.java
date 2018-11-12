@@ -16,6 +16,7 @@
 // under the License.
 package org.apache.impala.catalog;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -346,7 +347,7 @@ public interface FeFsTable extends FeTable {
         Long partId = Long.valueOf(part.getId());
         List<FileDescriptor> sampleFileIdxs = result.get(partId);
         if (sampleFileIdxs == null) {
-          sampleFileIdxs = Lists.newArrayList();
+          sampleFileIdxs = new ArrayList<>();
           result.put(partId, sampleFileIdxs);
         }
         FileDescriptor fd = part.getFileDescriptors().get(fileIdxs[selectedIdx]);
@@ -365,7 +366,7 @@ public interface FeFsTable extends FeTable {
      */
     public static List<? extends FeFsPartition> getPartitionsFromPartitionSet(
         FeFsTable table, List<List<TPartitionKeyValue>> partitionSet) {
-      List<Long> partitionIds = Lists.newArrayList();
+      List<Long> partitionIds = new ArrayList<>();
       for (List<TPartitionKeyValue> kv : partitionSet) {
         PrunablePartition partition = getPartitionFromThriftPartitionSpec(table, kv);
         if (partition != null) partitionIds.add(partition.getId());
@@ -382,7 +383,7 @@ public interface FeFsTable extends FeTable {
         List<TPartitionKeyValue> partitionSpec) {
       // First, build a list of the partition values to search for in the same order they
       // are defined in the table.
-      List<String> targetValues = Lists.newArrayList();
+      List<String> targetValues = new ArrayList<>();
       Set<String> keys = Sets.newHashSet();
       for (FieldSchema fs: table.getMetaStoreTable().getPartitionKeys()) {
         for (TPartitionKeyValue kv: partitionSpec) {

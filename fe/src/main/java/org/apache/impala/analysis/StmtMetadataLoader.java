@@ -17,6 +17,7 @@
 
 package org.apache.impala.analysis;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -272,7 +273,7 @@ public class StmtMetadataLoader {
    */
   private Set<TableName> collectTableCandidates(StatementBase stmt) {
     Preconditions.checkNotNull(stmt);
-    List<TableRef> tblRefs = Lists.newArrayList();
+    List<TableRef> tblRefs = new ArrayList<>();
     stmt.collectTableRefs(tblRefs);
     Set<TableName> tableNames = Sets.newHashSet();
     for (TableRef ref: tblRefs) {

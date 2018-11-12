@@ -60,7 +60,7 @@ public class JdbcTest {
   private static Connection con_;
 
   // Test-local list of test tables. These are cleaned up in @After.
-  private final List<String> testTableNames_ = Lists.newArrayList();
+  private final List<String> testTableNames_ = new ArrayList<>();
 
   @BeforeClass
   public static void setUp() throws Exception {

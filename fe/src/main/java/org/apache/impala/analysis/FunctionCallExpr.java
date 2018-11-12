@@ -17,6 +17,7 @@
 
 package org.apache.impala.analysis;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.impala.authorization.Privilege;
@@ -299,7 +300,7 @@ public class FunctionCallExpr extends Expr {
   protected void toThrift(TExprNode msg) {
     if (isAggregateFunction() || isAnalyticFnCall_) {
       msg.node_type = TExprNodeType.AGGREGATE_EXPR;
-      List<TColumnType> aggFnArgTypes = Lists.newArrayList();
+      List<TColumnType> aggFnArgTypes = new ArrayList<>();
       FunctionCallExpr inputAggFn = isMergeAggFn() ? mergeAggInputFn_ : this;
       for (Expr child: inputAggFn.children_) {
         aggFnArgTypes.add(child.getType().toThrift());

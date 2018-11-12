@@ -38,7 +38,7 @@ public class PlanHint {
 
   public PlanHint(String name) {
     name_ = name;
-    args_ = Lists.newArrayList();
+    args_ = new ArrayList<>();
   }
 
   public PlanHint(String name, List<String> args) {

@@ -17,6 +17,7 @@
 
 package org.apache.impala.planner;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.impala.analysis.BinaryPredicate;
@@ -36,7 +37,7 @@ public class JoinBuildSink extends DataSink {
   // id of join's build-side table assigned during planning
   private final JoinTableId joinTableId_;
 
-  private final List<Expr> buildExprs_ = Lists.newArrayList();
+  private final List<Expr> buildExprs_ = new ArrayList<>();
 
   /**
    * Creates sink for build side of 'joinNode' (extracts buildExprs_ from joinNode).

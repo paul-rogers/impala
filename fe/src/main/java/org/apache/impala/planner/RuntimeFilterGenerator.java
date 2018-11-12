@@ -17,6 +17,7 @@
 
 package org.apache.impala.planner;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Iterator;
@@ -165,7 +166,7 @@ public final class RuntimeFilterGenerator {
     // The operator comparing 'srcExpr_' and 'origTargetExpr_'.
     private final Operator exprCmpOp_;
     // Runtime filter targets
-    private final List<RuntimeFilterTarget> targets_ = Lists.newArrayList();
+    private final List<RuntimeFilterTarget> targets_ = new ArrayList<>();
     // Slots from base table tuples that have value transfer from the slots
     // of 'origTargetExpr_'. The slots are grouped by tuple id.
     private final Map<TupleId, List<SlotId>> targetSlotsByTid_;
@@ -219,7 +220,7 @@ public final class RuntimeFilterGenerator {
         TRuntimeFilterTargetDesc tFilterTarget = new TRuntimeFilterTargetDesc();
         tFilterTarget.setNode_id(node.getId().asInt());
         tFilterTarget.setTarget_expr(expr.treeToThrift());
-        List<SlotId> sids = Lists.newArrayList();
+        List<SlotId> sids = new ArrayList<>();
         expr.getIds(null, sids);
         List<Integer> tSlotIds = Lists.newArrayListWithCapacity(sids.size());
         for (SlotId sid: sids) tSlotIds.add(sid.asInt());
@@ -346,8 +347,8 @@ public final class RuntimeFilterGenerator {
     private static Map<TupleId, List<SlotId>> getTargetSlots(Analyzer analyzer,
         Expr expr) {
       // 'expr' is not a SlotRef and may contain multiple SlotRefs
-      List<TupleId> tids = Lists.newArrayList();
-      List<SlotId> sids = Lists.newArrayList();
+      List<TupleId> tids = new ArrayList<>();
+      List<SlotId> sids = new ArrayList<>();
       expr.getIds(tids, sids);
 
       // IMPALA-6286: If the target expression evaluates to a non-NULL value for
@@ -415,7 +416,7 @@ public final class RuntimeFilterGenerator {
         if (tupleDesc.getTable() == null) continue;
         List<SlotId> sids = slotsByTid.get(tupleDesc.getId());
         if (sids == null) {
-          sids = Lists.newArrayList();
+          sids = new ArrayList<>();
           slotsByTid.put(tupleDesc.getId(), sids);
         }
         sids.add(targetSid);
@@ -580,7 +581,7 @@ public final class RuntimeFilterGenerator {
   private void generateFilters(PlannerContext ctx, PlanNode root) {
     if (root instanceof HashJoinNode) {
       HashJoinNode joinNode = (HashJoinNode) root;
-      List<Expr> joinConjuncts = Lists.newArrayList();
+      List<Expr> joinConjuncts = new ArrayList<>();
       if (!joinNode.getJoinOp().isLeftOuterJoin()
           && !joinNode.getJoinOp().isFullOuterJoin()
           && !joinNode.getJoinOp().isAntiJoin()) {
@@ -590,7 +591,7 @@ public final class RuntimeFilterGenerator {
         joinConjuncts.addAll(joinNode.getEqJoinConjuncts());
       }
       joinConjuncts.addAll(joinNode.getConjuncts());
-      List<RuntimeFilter> filters = Lists.newArrayList();
+      List<RuntimeFilter> filters = new ArrayList<>();
       for (TRuntimeFilterType type : TRuntimeFilterType.values()) {
         for (Expr conjunct : joinConjuncts) {
           RuntimeFilter filter = RuntimeFilter.create(filterIdGenerator,
@@ -634,7 +635,7 @@ public final class RuntimeFilterGenerator {
     Preconditions.checkState(filter.getTargetSlots().containsKey(targetTid));
     List<RuntimeFilter> filters = runtimeFiltersByTid_.get(targetTid);
     if (filters == null) {
-      filters = Lists.newArrayList();
+      filters = new ArrayList<>();
       runtimeFiltersByTid_.put(targetTid, filters);
     }
     Preconditions.checkState(!filter.isFinalized());
@@ -736,7 +737,7 @@ public final class RuntimeFilterGenerator {
     TupleDescriptor baseTblDesc = targetNode.getTupleDesc();
     FeTable tbl = baseTblDesc.getTable();
     if (tbl.getNumClusteringCols() == 0) return false;
-    List<SlotId> sids = Lists.newArrayList();
+    List<SlotId> sids = new ArrayList<>();
     targetExpr.getIds(null, sids);
     for (SlotId sid : sids) {
       SlotDescriptor slotDesc = analyzer.getSlotDesc(sid);
@@ -760,7 +761,7 @@ public final class RuntimeFilterGenerator {
       // Modify the filter target expr using the equivalent slots from the scan node
       // on which the filter will be applied.
       ExprSubstitutionMap smap = new ExprSubstitutionMap();
-      List<SlotRef> exprSlots = Lists.newArrayList();
+      List<SlotRef> exprSlots = new ArrayList<>();
       targetExpr.collect(SlotRef.class, exprSlots);
       List<SlotId> sids = filter.getTargetSlots().get(targetTid);
       for (SlotRef slotRef: exprSlots) {

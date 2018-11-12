@@ -18,6 +18,7 @@
 package org.apache.impala.analysis;
 
 import java.util.ArrayList;
+import java.util.List;
 
 import jline.internal.Preconditions;
 
@@ -45,7 +46,7 @@ public class CollectionStructType extends StructType {
   // Field that can be skipped by implicit paths if its type is a struct.
   private final StructField optionalField_;
 
-  private CollectionStructType(ArrayList<StructField> fields, boolean isMapStruct) {
+  private CollectionStructType(List<StructField> fields, boolean isMapStruct) {
     super(fields);
     isMapStruct_ = isMapStruct;
     if (isMapStruct_) {
@@ -58,7 +59,7 @@ public class CollectionStructType extends StructType {
 
   public static CollectionStructType createArrayStructType(ArrayType arrayType) {
     Type itemType = arrayType.getItemType();
-    ArrayList<StructField> fields = Lists.newArrayListWithCapacity(2);
+    List<StructField> fields = Lists.newArrayListWithCapacity(2);
     // The item field name comes before the pos field name so that a path to the
     // stored item corresponds to its physical path.
     fields.add(new StructField(Path.ARRAY_ITEM_FIELD_NAME, itemType));
@@ -67,7 +68,7 @@ public class CollectionStructType extends StructType {
   }
 
   public static CollectionStructType createMapStructType(MapType mapType) {
-    ArrayList<StructField> mapFields = Lists.newArrayListWithCapacity(2);
+    List<StructField> mapFields = Lists.newArrayListWithCapacity(2);
     mapFields.add(new StructField(Path.MAP_KEY_FIELD_NAME, mapType.getKeyType()));
     mapFields.add(new StructField(Path.MAP_VALUE_FIELD_NAME, mapType.getValueType()));
     return new CollectionStructType(mapFields, true);

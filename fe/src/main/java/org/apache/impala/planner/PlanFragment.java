@@ -17,6 +17,7 @@
 
 package org.apache.impala.planner;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import org.apache.impala.analysis.Analyzer;
@@ -143,7 +144,7 @@ public class PlanFragment extends TreeNode<PlanFragment> {
    * Collect and return all PlanNodes that belong to the exec tree of this fragment.
    */
   public List<PlanNode> collectPlanNodes() {
-    List<PlanNode> nodes = Lists.newArrayList();
+    List<PlanNode> nodes = new ArrayList<>();
     collectPlanNodesHelper(planRoot_, nodes);
     return nodes;
   }
@@ -190,11 +191,11 @@ public class PlanFragment extends TreeNode<PlanFragment> {
     if (node instanceof HashJoinNode
         && ((JoinNode) node).getDistributionMode() == DistributionMode.PARTITIONED) {
       // Contains all exchange nodes in this fragment below the current join node.
-      List<ExchangeNode> exchNodes = Lists.newArrayList();
+      List<ExchangeNode> exchNodes = new ArrayList<>();
       node.collect(ExchangeNode.class, exchNodes);
 
       // Contains partition-expr lists of all hash-partitioning sender fragments.
-      List<List<Expr>> senderPartitionExprs = Lists.newArrayList();
+      List<List<Expr>> senderPartitionExprs = new ArrayList<>();
       for (ExchangeNode exchNode: exchNodes) {
         Preconditions.checkState(!exchNode.getChildren().isEmpty());
         PlanFragment senderFragment = exchNode.getChild(0).getFragment();
@@ -504,7 +505,7 @@ public class PlanFragment extends TreeNode<PlanFragment> {
   public void verifyTree() {
     // PlanNode.fragment_ is set correctly
     List<PlanNode> nodes = collectPlanNodes();
-    List<PlanNode> exchNodes = Lists.newArrayList();
+    List<PlanNode> exchNodes = new ArrayList<>();
     for (PlanNode node: nodes) {
       if (node instanceof ExchangeNode) exchNodes.add(node);
       Preconditions.checkState(node.getFragment() == this);
@@ -512,7 +513,7 @@ public class PlanFragment extends TreeNode<PlanFragment> {
 
     // all ExchangeNodes have registered input fragments
     Preconditions.checkState(exchNodes.size() == getChildren().size());
-    List<PlanFragment> childFragments = Lists.newArrayList();
+    List<PlanFragment> childFragments = new ArrayList<>();
     for (PlanNode exchNode: exchNodes) {
       PlanFragment childFragment = exchNode.getChild(0).getFragment();
       Preconditions.checkState(!childFragments.contains(childFragment));

@@ -95,12 +95,12 @@ public class Planner {
    *    that such an expr substitution during plan generation never fails. If it does,
    *    that typically means there is a bug in analysis, or a broken/missing smap.
    */
-  public ArrayList<PlanFragment> createPlan() throws ImpalaException {
+  public List<PlanFragment> createPlan() throws ImpalaException {
     SingleNodePlanner singleNodePlanner = new SingleNodePlanner(ctx_);
     DistributedPlanner distributedPlanner = new DistributedPlanner(ctx_);
     PlanNode singleNodePlan = singleNodePlanner.createSingleNodePlan();
     ctx_.getTimeline().markEvent("Single node plan created");
-    ArrayList<PlanFragment> fragments = null;
+    List<PlanFragment> fragments = null;
 
     checkForSmallQueryOptimization(singleNodePlan);
 
@@ -181,7 +181,7 @@ public class Planner {
       // Compute the column lineage graph
       if (ctx_.isInsertOrCtas()) {
         InsertStmt insertStmt = ctx_.getAnalysisResult().getInsertStmt();
-        List<Expr> exprs = Lists.newArrayList();
+        List<Expr> exprs = new ArrayList<>();
         FeTable targetTable = insertStmt.getTargetTable();
         Preconditions.checkNotNull(targetTable);
         if (targetTable instanceof FeKuduTable) {
@@ -190,7 +190,7 @@ public class Planner {
             // the labels of columns mentioned in the column list.
             List<String> mentionedColumns = insertStmt.getMentionedColumns();
             Preconditions.checkState(!mentionedColumns.isEmpty());
-            List<String> targetColLabels = Lists.newArrayList();
+            List<String> targetColLabels = new ArrayList<>();
             String tblFullName = targetTable.getFullName();
             for (String column: mentionedColumns) {
               targetColLabels.add(tblFullName + "." + column);
@@ -227,7 +227,7 @@ public class Planner {
    */
   public List<PlanFragment> createParallelPlans() throws ImpalaException {
     Preconditions.checkState(ctx_.getQueryOptions().mt_dop > 0);
-    ArrayList<PlanFragment> distrPlan = createPlan();
+    List<PlanFragment> distrPlan = createPlan();
     Preconditions.checkNotNull(distrPlan);
     ParallelPlanner planner = new ParallelPlanner(ctx_);
     List<PlanFragment> parallelPlans = planner.createPlans(distrPlan.get(0));
@@ -244,7 +244,7 @@ public class Planner {
    * Uses a default level of EXTENDED, unless overriden by the
    * 'explain_level' query option.
    */
-  public String getExplainString(ArrayList<PlanFragment> fragments,
+  public String getExplainString(List<PlanFragment> fragments,
       TQueryExecRequest request) {
     // use EXTENDED by default for all non-explain statements
     TExplainLevel explainLevel = TExplainLevel.EXTENDED;
@@ -260,7 +260,7 @@ public class Planner {
    * explicit explain level.
    * Includes the estimated resource requirements from the request if set.
    */
-  public String getExplainString(ArrayList<PlanFragment> fragments,
+  public String getExplainString(List<PlanFragment> fragments,
       TQueryExecRequest request, TExplainLevel explainLevel) {
     StringBuilder str = new StringBuilder();
     boolean hasHeader = false;
@@ -285,7 +285,7 @@ public class Planner {
     if (!request.query_ctx.isSetParent_query_id() &&
         request.query_ctx.isSetTables_with_corrupt_stats() &&
         !request.query_ctx.getTables_with_corrupt_stats().isEmpty()) {
-      List<String> tableNames = Lists.newArrayList();
+      List<String> tableNames = new ArrayList<>();
       for (TTableName tableName: request.query_ctx.getTables_with_corrupt_stats()) {
         tableNames.add(tableName.db_name + "." + tableName.table_name);
       }
@@ -301,7 +301,7 @@ public class Planner {
     if (!request.query_ctx.isSetParent_query_id() &&
         request.query_ctx.isSetTables_missing_stats() &&
         !request.query_ctx.getTables_missing_stats().isEmpty()) {
-      List<String> tableNames = Lists.newArrayList();
+      List<String> tableNames = new ArrayList<>();
       for (TTableName tableName: request.query_ctx.getTables_missing_stats()) {
         tableNames.add(tableName.db_name + "." + tableName.table_name);
       }
@@ -311,7 +311,7 @@ public class Planner {
     }
 
     if (request.query_ctx.isSetTables_missing_diskids()) {
-      List<String> tableNames = Lists.newArrayList();
+      List<String> tableNames = new ArrayList<>();
       for (TTableName tableName: request.query_ctx.getTables_missing_diskids()) {
         tableNames.add(tableName.db_name + "." + tableName.table_name);
       }
@@ -618,7 +618,7 @@ public class Planner {
    */
   public void createPreInsertSort(InsertStmt insertStmt, PlanFragment inputFragment,
        Analyzer analyzer) throws ImpalaException {
-    List<Expr> orderingExprs = Lists.newArrayList();
+    List<Expr> orderingExprs = new ArrayList<>();
 
     boolean partialSort = false;
     if (insertStmt.getTargetTable() instanceof FeKuduTable) {

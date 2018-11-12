@@ -17,6 +17,7 @@
 
 package org.apache.impala.util;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.regex.Matcher;
@@ -77,7 +78,7 @@ public class PatternMatcher implements Predicate<String> {
     if (hivePattern == null) return MATCHER_MATCH_ALL;
     if (hivePattern.isEmpty()) return MATCHER_MATCH_NONE;
     PatternMatcher result = new PatternMatcher();
-    result.patterns_ = Lists.newArrayList();
+    result.patterns_ = new ArrayList<>();
     // Hive ignores pretty much all metacharacters, so we have to escape them.
     final String metaCharacters = "+?.^()]\\/{}";
     final Pattern regex = Pattern.compile("([" + Pattern.quote(metaCharacters) + "])");
@@ -106,7 +107,7 @@ public class PatternMatcher implements Predicate<String> {
         .replaceAll("\\\\_", "_")
         .replaceAll("^_", ".");
     PatternMatcher matcher = new PatternMatcher();
-    matcher.patterns_ = Lists.newArrayList();
+    matcher.patterns_ = new ArrayList<>();
     matcher.patterns_.add(Pattern.compile(result));
     return matcher;
   }

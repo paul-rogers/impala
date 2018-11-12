@@ -17,6 +17,7 @@
 
 package org.apache.impala.analysis;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
@@ -135,7 +136,7 @@ public class TupleIsNullPredicate extends Predicate {
   public static Expr wrapExpr(Expr expr, List<TupleId> tids, Analyzer analyzer)
       throws InternalException {
     if (!requiresNullWrapping(expr, analyzer)) return expr;
-    List<Expr> params = Lists.newArrayList();
+    List<Expr> params = new ArrayList<>();
     params.add(new TupleIsNullPredicate(tids));
     params.add(new NullLiteral());
     params.add(expr);

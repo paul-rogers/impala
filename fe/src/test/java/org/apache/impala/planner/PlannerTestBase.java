@@ -347,7 +347,7 @@ public class PlannerTestBase extends FrontendTestBase {
    * The accepted format for error messages is the exception string. We currently
    * support only NotImplementedException and InternalException.
    */
-  private String getExpectedErrorMessage(ArrayList<String> expectedPlan) {
+  private String getExpectedErrorMessage(List<String> expectedPlan) {
     if (expectedPlan == null || expectedPlan.isEmpty()) return null;
     if (!expectedPlan.get(0).contains("NotImplementedException") &&
         !expectedPlan.get(0).contains("InternalException")) return null;
@@ -501,7 +501,7 @@ public class PlannerTestBase extends FrontendTestBase {
       // Set mt_dop to force production of parallel plans.
       queryCtx.client_request.query_options.setMt_dop(2);
     }
-    ArrayList<String> expectedPlan = testCase.getSectionContents(section);
+    List<String> expectedPlan = testCase.getSectionContents(section);
     boolean sectionExists = expectedPlan != null && !expectedPlan.isEmpty();
     String expectedErrorMsg = getExpectedErrorMessage(expectedPlan);
 
@@ -591,7 +591,7 @@ public class PlannerTestBase extends FrontendTestBase {
 
     // compare scan range locations
     LOG.info("scan range locations: " + locationsStr);
-    ArrayList<String> expectedLocations =
+    List<String> expectedLocations =
         testCase.getSectionContents(Section.SCANRANGELOCATIONS);
 
     if (expectedLocations.size() > 0 && locationsStr != null) {
@@ -607,8 +607,8 @@ public class PlannerTestBase extends FrontendTestBase {
       // Print the locations out sorted since the order is random and messed up
       // the diffs. The values in locationStr contains "Node X" labels as well
       // as paths.
-      ArrayList<String> locations = Lists.newArrayList(locationsStr.split("\n"));
-      ArrayList<String> perNodeLocations = Lists.newArrayList();
+      List<String> locations = Lists.newArrayList(locationsStr.split("\n"));
+      List<String> perNodeLocations = new ArrayList<>();
 
       for (int i = 0; i < locations.size(); ++i) {
         if (locations.get(i).startsWith("NODE")) {
@@ -709,7 +709,7 @@ public class PlannerTestBase extends FrontendTestBase {
   private void checkColumnLineage(TestCase testCase, TExecRequest execRequest,
       StringBuilder errorLog, StringBuilder actualOutput) {
     String query = testCase.getQuery();
-    ArrayList<String> expectedLineage = testCase.getSectionContents(Section.LINEAGE);
+    List<String> expectedLineage = testCase.getSectionContents(Section.LINEAGE);
     if (expectedLineage == null || expectedLineage.isEmpty()) return;
     TLineageGraph lineageGraph = null;
     if (execRequest == null) return;
@@ -718,7 +718,7 @@ public class PlannerTestBase extends FrontendTestBase {
     } else if (execRequest.isSetCatalog_op_request()) {
       lineageGraph = execRequest.catalog_op_request.lineage_graph;
     }
-    ArrayList<String> expected =
+    List<String> expected =
       testCase.getSectionContents(Section.LINEAGE);
     if (expected.size() > 0 && lineageGraph != null) {
       String serializedGraph = Joiner.on("\n").join(expected);

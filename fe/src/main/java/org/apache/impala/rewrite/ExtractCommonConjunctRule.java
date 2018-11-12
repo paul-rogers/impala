@@ -17,6 +17,7 @@
 
 package org.apache.impala.rewrite;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.impala.analysis.Analyzer;
@@ -60,7 +61,7 @@ public class ExtractCommonConjunctRule implements ExprRewriteRule {
     }
 
     // Find common conjuncts.
-    List<Expr> commonConjuncts = Lists.newArrayList();
+    List<Expr> commonConjuncts = new ArrayList<>();
     for (Expr conjunct: child0Conjuncts) {
       if (child1Conjuncts.contains(conjunct)) {
         // The conjunct may have parenthesis but there's no need to preserve them.

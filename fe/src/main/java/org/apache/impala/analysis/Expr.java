@@ -648,7 +648,7 @@ abstract public class Expr extends TreeNode<Expr> implements ParseNode, Cloneabl
       Type targetType) throws AnalysisException {
     if (!targetType.isFloatingPointType() && !targetType.isIntegerType()) return child;
     if (targetType.isIntegerType()) targetType = Type.DOUBLE;
-    List<NumericLiteral> literals = Lists.newArrayList();
+    List<NumericLiteral> literals = new ArrayList<>();
     child.collectAll(Predicates.instanceOf(NumericLiteral.class), literals);
     ExprSubstitutionMap smap = new ExprSubstitutionMap();
     for (NumericLiteral l: literals) {
@@ -796,7 +796,7 @@ abstract public class Expr extends TreeNode<Expr> implements ParseNode, Cloneabl
   }
 
   public static List<TExpr> treesToThrift(List<? extends Expr> exprs) {
-    List<TExpr> result = Lists.newArrayList();
+    List<TExpr> result = new ArrayList<>();
     for (Expr expr: exprs) {
       result.add(expr.treeToThrift());
     }
@@ -812,7 +812,7 @@ abstract public class Expr extends TreeNode<Expr> implements ParseNode, Cloneabl
   }
 
   public List<String> childrenToSql() {
-    List<String> result = Lists.newArrayList();
+    List<String> result = new ArrayList<>();
     for (Expr child: children_) {
       result.add(child.toSql());
     }
@@ -825,7 +825,7 @@ abstract public class Expr extends TreeNode<Expr> implements ParseNode, Cloneabl
 
   public static String debugString(List<? extends Expr> exprs) {
     if (exprs == null || exprs.isEmpty()) return "";
-    List<String> strings = Lists.newArrayList();
+    List<String> strings = new ArrayList<>();
     for (Expr expr: exprs) {
       strings.add(expr.debugString());
     }
@@ -834,7 +834,7 @@ abstract public class Expr extends TreeNode<Expr> implements ParseNode, Cloneabl
 
   public static String toSql(List<? extends Expr> exprs) {
     if (exprs == null || exprs.isEmpty()) return "";
-    List<String> strings = Lists.newArrayList();
+    List<String> strings = new ArrayList<>();
     for (Expr expr: exprs) {
       strings.add(expr.toSql());
     }
@@ -939,7 +939,7 @@ abstract public class Expr extends TreeNode<Expr> implements ParseNode, Cloneabl
    * SlotRefs, etc. Hence, this method is placed here and not in Predicate.
    */
   public List<Expr> getConjuncts() {
-    List<Expr> list = Lists.newArrayList();
+    List<Expr> list = new ArrayList<>();
     if (this instanceof CompoundPredicate
         && ((CompoundPredicate) this).getOp() == CompoundPredicate.Operator.AND) {
       // TODO: we have to convert CompoundPredicate.AND to two expr trees for
@@ -995,18 +995,18 @@ abstract public class Expr extends TreeNode<Expr> implements ParseNode, Cloneabl
     }
   }
 
-  public static ArrayList<Expr> trySubstituteList(Iterable<? extends Expr> exprs,
+  public static List<Expr> trySubstituteList(Iterable<? extends Expr> exprs,
       ExprSubstitutionMap smap, Analyzer analyzer, boolean preserveRootTypes)
           throws AnalysisException {
     if (exprs == null) return null;
-    ArrayList<Expr> result = new ArrayList<Expr>();
+    List<Expr> result = new ArrayList<Expr>();
     for (Expr e: exprs) {
       result.add(e.trySubstitute(smap, analyzer, preserveRootTypes));
     }
     return result;
   }
 
-  public static ArrayList<Expr> substituteList(Iterable<? extends Expr> exprs,
+  public static List<Expr> substituteList(Iterable<? extends Expr> exprs,
       ExprSubstitutionMap smap, Analyzer analyzer, boolean preserveRootTypes) {
     try {
       return trySubstituteList(exprs, smap, analyzer, preserveRootTypes);
@@ -1066,7 +1066,7 @@ abstract public class Expr extends TreeNode<Expr> implements ParseNode, Cloneabl
     return this;
   }
 
-  public static ArrayList<Expr> resetList(ArrayList<Expr> l) {
+  public static List<Expr> resetList(List<Expr> l) {
     for (int i = 0; i < l.size(); ++i) {
       l.set(i, l.get(i).reset());
     }
@@ -1084,9 +1084,9 @@ abstract public class Expr extends TreeNode<Expr> implements ParseNode, Cloneabl
    * Create a deep copy of 'l'. The elements of the returned list are of the same
    * type as the input list.
    */
-  public static <C extends Expr> ArrayList<C> cloneList(List<C> l) {
+  public static <C extends Expr> List<C> cloneList(List<C> l) {
     Preconditions.checkNotNull(l);
-    ArrayList<C> result = new ArrayList<C>(l.size());
+    List<C> result = new ArrayList<C>(l.size());
     for (Expr element: l) {
       result.add((C) element.clone());
     }
@@ -1108,7 +1108,7 @@ abstract public class Expr extends TreeNode<Expr> implements ParseNode, Cloneabl
    */
   public static <C extends Expr> List<C> removeDuplicates(List<C> l,
       SlotRef.Comparator cmp) {
-    List<C> newList = Lists.newArrayList();
+    List<C> newList = new ArrayList<>();
     for (C expr: l) {
       boolean exists = false;
       for (C newExpr : newList) {
@@ -1531,7 +1531,7 @@ abstract public class Expr extends TreeNode<Expr> implements ParseNode, Cloneabl
    */
   public Subquery getSubquery() {
     if (!contains(Subquery.class)) return null;
-    List<Subquery> subqueries = Lists.newArrayList();
+    List<Subquery> subqueries = new ArrayList<>();
     collect(Subquery.class, subqueries);
     Preconditions.checkState(subqueries.size() == 1);
     return subqueries.get(0);

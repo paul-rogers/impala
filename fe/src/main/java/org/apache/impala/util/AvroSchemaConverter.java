@@ -16,6 +16,7 @@
 // under the License.
 package org.apache.impala.util;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -82,7 +83,7 @@ public class AvroSchemaConverter {
   }
 
   private Schema convertColumnsImpl(List<Column> columns, String schemaName) {
-    List<Schema.Field> avroFields = Lists.newArrayList();
+    List<Schema.Field> avroFields = new ArrayList<>();
     for (Column column: columns) {
       final Schema.Field avroField = new Schema.Field(column.getName(),
           createAvroSchema(column.getType()), column.getComment(), null);
@@ -92,7 +93,7 @@ public class AvroSchemaConverter {
   }
 
   private Schema convertColumnDefsImpl(List<ColumnDef> colDefs, String schemaName) {
-    List<Schema.Field> avroFields = Lists.newArrayList();
+    List<Schema.Field> avroFields = new ArrayList<>();
     for (ColumnDef colDef: colDefs) {
       final Schema.Field avroField = new Schema.Field(colDef.getColName(),
           createAvroSchema(colDef.getType()), colDef.getComment(), null);
@@ -103,7 +104,7 @@ public class AvroSchemaConverter {
 
   private Schema convertFieldSchemasImpl(
       List<FieldSchema> fieldSchemas, String schemaName) {
-    List<Schema.Field> avroFields = Lists.newArrayList();
+    List<Schema.Field> avroFields = new ArrayList<>();
     JsonNode nullDefault = JsonNodeFactory.instance.nullNode();
     for (FieldSchema fs: fieldSchemas) {
       Type impalaType = Type.parseColumnType(fs.getType());
@@ -188,7 +189,7 @@ public class AvroSchemaConverter {
   }
 
   private Schema createRecordSchema(StructType impalaStructType) {
-    List<Schema.Field> schemaFields = Lists.newArrayList();
+    List<Schema.Field> schemaFields = new ArrayList<>();
     for (StructField structField : impalaStructType.getFields()) {
       Schema.Field avroField = new Schema.Field(structField.getName(),
           createAvroSchema(structField.getType()), structField.getComment(), null);

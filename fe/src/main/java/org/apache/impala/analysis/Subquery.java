@@ -121,7 +121,7 @@ public class Subquery extends Expr {
    */
   private StructType createStructTypeFromExprList() {
     List<Expr> stmtResultExprs = stmt_.getResultExprs();
-    ArrayList<StructField> structFields = Lists.newArrayList();
+    List<StructField> structFields = new ArrayList<>();
     // Check if we have unique labels
     List<String> labels = stmt_.getColLabels();
     boolean hasUniqueLabels = true;

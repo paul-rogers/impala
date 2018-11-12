@@ -61,7 +61,7 @@ public class InlineViewRef extends TableRef {
   protected Analyzer inlineViewAnalyzer_;
 
   // list of tuple ids materialized by queryStmt
-  protected final ArrayList<TupleId> materializedTupleIds_ = Lists.newArrayList();
+  protected final List<TupleId> materializedTupleIds_ = new ArrayList<>();
 
   // Map inline view's output slots to the corresponding resultExpr of queryStmt.
   protected final ExprSubstitutionMap smap_;
@@ -141,7 +141,18 @@ public class InlineViewRef extends TableRef {
 
     // Analyze the inline view query statement with its own analyzer
     inlineViewAnalyzer_ = new Analyzer(analyzer);
+    InlineViewTableAnalyzer tableAnalyzer = new InlineViewTableAnalyzer(inlineViewAnalyzer_);
+    tableAnalyzer.analyze();
+    isAnalyzed_ = true;  // true now that we have assigned desc
+  }
 
+  private class InlineViewTableAnalyzer extends TableAnalyzer {
+    private InlineViewTableAnalyzer(Analyzer analyzer) {
+      super(analyzer);
+    }
+
+  @Override
+  protected void analyze() throws AnalysisException {
     // Catalog views refs require special analysis settings for authorization.
     boolean isCatalogView = (view_ != null && !view_.isLocalView());
     if (isCatalogView) {
@@ -173,8 +184,7 @@ public class InlineViewRef extends TableRef {
     inlineViewAnalyzer_.setHasLimitOffsetClause(
         queryStmt_.hasLimit() || queryStmt_.hasOffset());
     queryStmt_.getMaterializedTupleIds(materializedTupleIds_);
-    desc_ = analyzer.registerTableRef(this);
-    isAnalyzed_ = true;  // true now that we have assigned desc
+    desc_ = analyzer.registerTableRef(InlineViewRef.this);
 
     // For constant selects we materialize its exprs into a tuple.
     if (materializedTupleIds_.isEmpty()) {
@@ -216,10 +226,9 @@ public class InlineViewRef extends TableRef {
           baseTblSmap_.debugString());
     }
 
-    analyzeTableSample(analyzer);
-    analyzeHints(analyzer);
     // Now do the remaining join analysis
-    analyzeJoin(analyzer);
+    super.analyze();
+  }
   }
 
   /**
@@ -247,7 +256,7 @@ public class InlineViewRef extends TableRef {
     int numColLabels = getColLabels().size();
     Preconditions.checkState(numColLabels > 0);
     HashSet<String> uniqueColAliases = Sets.newHashSetWithExpectedSize(numColLabels);
-    ArrayList<StructField> fields = Lists.newArrayListWithCapacity(numColLabels);
+    List<StructField> fields = Lists.newArrayListWithCapacity(numColLabels);
     for (int i = 0; i < numColLabels; ++i) {
       // inline view select statement has been analyzed. Col label should be filled.
       Expr selectItemExpr = queryStmt_.getResultExprs().get(i);

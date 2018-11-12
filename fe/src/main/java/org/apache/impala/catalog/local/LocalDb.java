@@ -17,6 +17,7 @@
 
 package org.apache.impala.catalog.local;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -242,7 +243,7 @@ class LocalDb implements FeDb {
   public List<Function> getFunctions(
       TFunctionCategory category, PatternMatcher matcher) {
     loadFunctionNames();
-    List<Function> result = Lists.newArrayList();
+    List<Function> result = new ArrayList<>();
     Iterable<String> fnNames = Iterables.filter(functions_.keySet(), matcher);
     for (String fnName : fnNames) {
       result.addAll(getFunctions(category, fnName));

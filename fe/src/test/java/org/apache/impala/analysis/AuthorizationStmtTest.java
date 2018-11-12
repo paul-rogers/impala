@@ -2598,7 +2598,7 @@ public class AuthorizationStmtTest extends FrontendTestBase {
     // IMPALA-6086: Make sure use of a permanent function requires SELECT (or higher)
     // privilege on the database, and expr rewrite/constant-folding preserves
     // privilege requests for functions.
-    ArrayList<Type> argTypes = new ArrayList<Type>();
+    List<Type> argTypes = new ArrayList<Type>();
     argTypes.add(Type.STRING);
     fn = addFunction("functional", "to_lower", argTypes, Type.STRING,
         "/test-warehouse/libTestUdf.so",
@@ -2699,7 +2699,7 @@ public class AuthorizationStmtTest extends FrontendTestBase {
     return "User '%s' does not have privileges to DROP functions in: " + object;
   }
 
-  private ScalarFunction addFunction(String db, String fnName, ArrayList<Type> argTypes,
+  private ScalarFunction addFunction(String db, String fnName, List<Type> argTypes,
       Type retType, String uriPath, String symbolName) {
     ScalarFunction fn = ScalarFunction.createForTesting(db, fnName, argTypes, retType,
         uriPath, symbolName, null, null, TFunctionBinaryType.NATIVE);

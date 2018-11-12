@@ -21,6 +21,8 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 
 import org.apache.impala.common.AnalysisException;
+
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
@@ -97,7 +99,7 @@ public class PartitionKeyValue {
    */
   public static List<String> getPartitionKeyValueStringList(
       List<LiteralExpr> literals, String nullPartitionKeyValue) {
-    List<String> partValues = Lists.newArrayList();
+    List<String> partValues = new ArrayList<>();
     for (LiteralExpr partValue : literals) {
       partValues.add(getPartitionKeyValueString(partValue, nullPartitionKeyValue));
     }

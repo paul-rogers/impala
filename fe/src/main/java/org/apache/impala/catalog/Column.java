@@ -133,7 +133,7 @@ public class Column {
   }
 
   public static List<String> toColumnNames(List<Column> columns) {
-    List<String> colNames = Lists.newArrayList();
+    List<String> colNames = new ArrayList<>();
     for (Column col: columns) colNames.add(col.getName());
     return colNames;
   }
@@ -141,7 +141,7 @@ public class Column {
    * Returns a struct type from the table columns passed in as a parameter.
    */
   public static StructType columnsToStruct(List<Column> columns) {
-    ArrayList<StructField> fields = Lists.newArrayListWithCapacity(columns.size());
+    List<StructField> fields = Lists.newArrayListWithCapacity(columns.size());
     for (Column col: columns) {
       fields.add(new StructField(col.getName(), col.getType(), col.getComment()));
     }

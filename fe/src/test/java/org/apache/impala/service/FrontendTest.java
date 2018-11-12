@@ -21,6 +21,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
@@ -326,7 +327,7 @@ public class FrontendTest extends FrontendTestBase {
     }
     assertEquals(3, fns.size());
 
-    List<String> expectedResult = Lists.newArrayList();
+    List<String> expectedResult = new ArrayList<>();
     expectedResult.add("subdate");
     expectedResult.add("substr");
     expectedResult.add("substring");

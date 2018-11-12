@@ -17,6 +17,7 @@
 
 package org.apache.impala.analysis;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
@@ -65,7 +66,7 @@ public class SortInfo {
     sortExprs_ = sortExprs;
     isAscOrder_ = isAscOrder;
     nullsFirstParams_ = nullsFirstParams;
-    materializedExprs_ = Lists.newArrayList();
+    materializedExprs_ = new ArrayList<>();
     outputSmap_ = new ExprSubstitutionMap();
   }
 
@@ -94,7 +95,7 @@ public class SortInfo {
    */
   public List<Boolean> getNullsFirst() {
     Preconditions.checkState(sortExprs_.size() == nullsFirstParams_.size());
-    List<Boolean> nullsFirst = Lists.newArrayList();
+    List<Boolean> nullsFirst = new ArrayList<>();
     for (int i = 0; i < sortExprs_.size(); ++i) {
       nullsFirst.add(OrderByElement.nullsFirst(nullsFirstParams_.get(i),
           isAscOrder_.get(i)));
@@ -112,7 +113,7 @@ public class SortInfo {
     Preconditions.checkState(sortTupleDesc_.isMaterialized());
     analyzer.materializeSlots(sortExprs_);
     List<SlotDescriptor> sortTupleSlotDescs = sortTupleDesc_.getSlots();
-    List<Expr> materializedExprs = Lists.newArrayList();
+    List<Expr> materializedExprs = new ArrayList<>();
     for (int i = 0; i < sortTupleSlotDescs.size(); ++i) {
       if (sortTupleSlotDescs.get(i).isMaterialized()) {
         materializedExprs.add(materializedExprs_.get(i));
@@ -197,7 +198,7 @@ public class SortInfo {
     addMaterializedExprs(inputSlotRefs, analyzer);
 
     // Case 3: Materialize TupleIsNullPredicates.
-    List<Expr> tupleIsNullPreds = Lists.newArrayList();
+    List<Expr> tupleIsNullPreds = new ArrayList<>();
     TreeNode.collect(resultExprs, Predicates.instanceOf(TupleIsNullPredicate.class),
         tupleIsNullPreds);
     Expr.removeDuplicates(tupleIsNullPreds);
@@ -255,7 +256,7 @@ public class SortInfo {
    * - does not have a cost set
    */
   private List<Expr> getMaterializedSortExprs() {
-    List<Expr> result = Lists.newArrayList();
+    List<Expr> result = new ArrayList<>();
     for (Expr sortExpr : sortExprs_) {
       if (!sortExpr.hasCost()
           || sortExpr.getCost() > SORT_MATERIALIZATION_COST_THRESHOLD

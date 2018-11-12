@@ -214,7 +214,7 @@ public class Analyzer {
     public final LinkedHashMap<ExprId, Expr> conjuncts = Maps.newLinkedHashMap();
 
     // all registered conjuncts bound by a single tuple id; used in getBoundPredicates()
-    public final ArrayList<ExprId> singleTidConjuncts = Lists.newArrayList();
+    public final List<ExprId> singleTidConjuncts = new ArrayList<>();
 
     // eqJoinConjuncts[tid] contains all conjuncts of the form
     // "<lhs> = <rhs>" in which either lhs or rhs is fully bound by tid
@@ -272,7 +272,7 @@ public class Analyzer {
     // Tracks all privilege requests on catalog objects that need a custom
     // error message returned to avoid exposing existence of catalog objects.
     private final List<Pair<PrivilegeRequest, String>> maskedPrivilegeReqs =
-        Lists.newArrayList();
+        new ArrayList<>();
 
     // accesses to catalog objects
     // TODO: This can be inferred from privilegeReqs. They should be coalesced.
@@ -294,7 +294,7 @@ public class Analyzer {
     private SccCondensedGraph valueTransferGraph;
 
     private final List<Pair<SlotId, SlotId>> registeredValueTransfers =
-        Lists.newArrayList();
+        new ArrayList<>();
 
     // Bidirectional map between Integer index and TNetworkAddress.
     // Decreases the size of the scan range locations.
@@ -316,7 +316,7 @@ public class Analyzer {
       this.queryCtx = queryCtx;
       this.authzConfig = authzConfig;
       this.lineageGraph = new ColumnLineageGraph();
-      List<ExprRewriteRule> rules = Lists.newArrayList();
+      List<ExprRewriteRule> rules = new ArrayList<>();
       // BetweenPredicates must be rewritten to be executable. Other non-essential
       // expr rewrites can be disabled via a query option. When rewrites are enabled
       // BetweenPredicates should be rewritten first to help trigger other rules.
@@ -347,7 +347,7 @@ public class Analyzer {
   // a top level select statement, or an inline view select block.
   // ancestors contains the Analyzers of the enclosing select blocks of 'this'
   // (ancestors[0] contains the immediate parent, etc.).
-  private final ArrayList<Analyzer> ancestors_;
+  private final List<Analyzer> ancestors_;
 
   // map from lowercase table alias to a view definition in this analyzer's scope
   private final Map<String, FeView> localViews_ = Maps.newHashMap();
@@ -380,7 +380,7 @@ public class Analyzer {
 
   public Analyzer(StmtTableCache stmtTableCache, TQueryCtx queryCtx,
       AuthorizationConfig authzConfig) {
-    ancestors_ = Lists.newArrayList();
+    ancestors_ = new ArrayList<>();
     globalState_ = new GlobalState(stmtTableCache, queryCtx, authzConfig);
     user_ = new User(TSessionStateUtil.getEffectiveUser(queryCtx.session));
   }
@@ -615,7 +615,7 @@ public class Analyzer {
   public void registerFullOuterJoinedConjunct(Expr e) {
     Preconditions.checkState(
         !globalState_.fullOuterJoinedConjuncts.containsKey(e.getId()));
-    List<TupleId> tids = Lists.newArrayList();
+    List<TupleId> tids = new ArrayList<>();
     e.getIds(tids, null);
     for (TupleId tid: tids) {
       if (!globalState_.fullOuterJoinedTupleIds.containsKey(tid)) continue;
@@ -750,7 +750,7 @@ public class Analyzer {
       resolveInAncestors = isSubquery_;
     }
     // Convert all path elements to lower case.
-    ArrayList<String> lcRawPath = Lists.newArrayListWithCapacity(rawPath.size());
+    List<String> lcRawPath = Lists.newArrayListWithCapacity(rawPath.size());
     for (String s: rawPath) lcRawPath.add(s.toLowerCase());
     return resolvePath(lcRawPath, pathType, resolveInAncestors);
   }
@@ -808,7 +808,7 @@ public class Analyzer {
    */
   public List<Path> getTupleDescPaths(List<String> rawPath)
       throws AnalysisException {
-    ArrayList<Path> result = Lists.newArrayList();
+    List<Path> result = new ArrayList<>();
 
     // Path rooted at a tuple desc with an explicit or implicit unqualified alias.
     TupleDescriptor rootDesc = getDescriptor(rawPath.get(0));
@@ -849,7 +849,7 @@ public class Analyzer {
       pathStr += ".*";
     }
 
-    List<Path> legalPaths = Lists.newArrayList();
+    List<Path> legalPaths = new ArrayList<>();
     for (Path p: paths) {
       if (!p.resolve()) continue;
 
@@ -1027,7 +1027,7 @@ public class Analyzer {
     if (rhsRef.getJoinOp().isOuterJoin()) {
       ojConjuncts = globalState_.conjunctsByOjClause.get(rhsRef.getId());
       if (ojConjuncts == null) {
-        ojConjuncts = Lists.newArrayList();
+        ojConjuncts = new ArrayList<>();
         globalState_.conjunctsByOjClause.put(rhsRef.getId(), ojConjuncts);
       }
     }
@@ -1108,8 +1108,8 @@ public class Analyzer {
     e.setId(globalState_.conjunctIdGenerator.getNextId());
     globalState_.conjuncts.put(e.getId(), e);
 
-    ArrayList<TupleId> tupleIds = Lists.newArrayList();
-    ArrayList<SlotId> slotIds = Lists.newArrayList();
+    List<TupleId> tupleIds = new ArrayList<>();
+    List<SlotId> slotIds = new ArrayList<>();
     e.getIds(tupleIds, slotIds);
     registerFullOuterJoinedConjunct(e);
 
@@ -1139,11 +1139,11 @@ public class Analyzer {
 
     // examine children and update eqJoinConjuncts
     for (int i = 0; i < 2; ++i) {
-      tupleIds = Lists.newArrayList();
+      tupleIds = new ArrayList<>();
       binaryPred.getChild(i).getIds(tupleIds, null);
       if (tupleIds.size() == 1) {
         if (!globalState_.eqJoinConjuncts.containsKey(tupleIds.get(0))) {
-          List<ExprId> conjunctIds = Lists.newArrayList();
+          List<ExprId> conjunctIds = new ArrayList<>();
           conjunctIds.add(e.getId());
           globalState_.eqJoinConjuncts.put(tupleIds.get(0), conjunctIds);
         } else {
@@ -1198,7 +1198,7 @@ public class Analyzer {
    */
   public List<Expr> getUnassignedConjuncts(
       List<TupleId> tupleIds, boolean inclOjConjuncts) {
-    List<Expr> result = Lists.newArrayList();
+    List<Expr> result = new ArrayList<>();
     for (Expr e: globalState_.conjuncts.values()) {
       if (e.isBoundByTupleIds(tupleIds)
           && !e.isAuxExpr()
@@ -1249,7 +1249,7 @@ public class Analyzer {
    * Outer Join clause.
    */
   public List<Expr> getUnassignedConjuncts(List<TupleId> tupleIds) {
-    List<Expr> result = Lists.newArrayList();
+    List<Expr> result = new ArrayList<>();
     for (Expr e: getUnassignedConjuncts(tupleIds, true)) {
       if (canEvalPredicate(tupleIds, e)) result.add(e);
     }
@@ -1262,7 +1262,7 @@ public class Analyzer {
    * evaluated again by or after a join.
    */
   public boolean evalAfterJoin(Expr e) {
-    List<TupleId> tids = Lists.newArrayList();
+    List<TupleId> tids = new ArrayList<>();
     e.getIds(tids, null);
     if (tids.isEmpty()) return false;
     if (tids.size() > 1 || isOjConjunct(e) || isFullOuterJoined(e)
@@ -1280,7 +1280,7 @@ public class Analyzer {
    */
   public List<Expr> getUnassignedOjConjuncts(TableRef ref) {
     Preconditions.checkState(ref.getJoinOp().isOuterJoin());
-    List<Expr> result = Lists.newArrayList();
+    List<Expr> result = new ArrayList<>();
     List<ExprId> candidates = globalState_.conjunctsByOjClause.get(ref.getId());
     if (candidates == null) return result;
     for (ExprId conjunctId: candidates) {
@@ -1327,7 +1327,7 @@ public class Analyzer {
       List<TupleId> rhsTblRefIds) {
     // Contains all equi-join conjuncts that have one child fully bound by one of the
     // rhs table ref ids (the other child is not bound by that rhs table ref id).
-    List<ExprId> conjunctIds = Lists.newArrayList();
+    List<ExprId> conjunctIds = new ArrayList<>();
     for (TupleId rhsId: rhsTblRefIds) {
       List<ExprId> cids = globalState_.eqJoinConjuncts.get(rhsId);
       if (cids == null) continue;
@@ -1347,7 +1347,7 @@ public class Analyzer {
     // List of table ref ids that the join node will 'materialize'.
     List<TupleId> nodeTblRefIds = Lists.newArrayList(lhsTblRefIds);
     nodeTblRefIds.addAll(rhsTblRefIds);
-    List<Expr> result = Lists.newArrayList();
+    List<Expr> result = new ArrayList<>();
     for (ExprId conjunctId: conjunctIds) {
       Expr e = globalState_.conjuncts.get(conjunctId);
       Preconditions.checkState(e != null);
@@ -1412,7 +1412,7 @@ public class Analyzer {
    */
   public boolean canEvalPredicate(List<TupleId> tupleIds, Expr e) {
     if (!e.isBoundByTupleIds(tupleIds)) return false;
-    ArrayList<TupleId> tids = Lists.newArrayList();
+    List<TupleId> tids = new ArrayList<>();
     e.getIds(tids, null);
     if (tids.isEmpty()) return true;
 
@@ -1466,7 +1466,7 @@ public class Analyzer {
   public boolean canEvalAntiJoinedConjunct(Expr e, List<TupleId> nodeTupleIds) {
     TableRef antiJoinRef = getAntiJoinRef(e);
     if (antiJoinRef == null) return true;
-    List<TupleId> tids = Lists.newArrayList();
+    List<TupleId> tids = new ArrayList<>();
     e.getIds(tids, null);
     if (tids.size() > 1) {
       return nodeTupleIds.containsAll(antiJoinRef.getAllTableRefIds())
@@ -1495,15 +1495,15 @@ public class Analyzer {
    * TODO: exclude UDFs from predicate propagation? their overloaded variants could
    * have very different semantics
    */
-  public ArrayList<Expr> getBoundPredicates(TupleId destTid, Set<SlotId> ignoreSlots,
+  public List<Expr> getBoundPredicates(TupleId destTid, Set<SlotId> ignoreSlots,
       boolean markAssigned) {
-    ArrayList<Expr> result = Lists.newArrayList();
+    List<Expr> result = new ArrayList<>();
     for (ExprId srcConjunctId: globalState_.singleTidConjuncts) {
       Expr srcConjunct = globalState_.conjuncts.get(srcConjunctId);
       if (srcConjunct instanceof SlotRef) continue;
       Preconditions.checkNotNull(srcConjunct);
-      List<TupleId> srcTids = Lists.newArrayList();
-      List<SlotId> srcSids = Lists.newArrayList();
+      List<TupleId> srcTids = new ArrayList<>();
+      List<SlotId> srcSids = new ArrayList<>();
       srcConjunct.getIds(srcTids, srcSids);
       Preconditions.checkState(srcTids.size() == 1);
 
@@ -1627,7 +1627,7 @@ public class Analyzer {
     return result;
   }
 
-  public ArrayList<Expr> getBoundPredicates(TupleId destTid) {
+  public List<Expr> getBoundPredicates(TupleId destTid) {
     return getBoundPredicates(destTid, new HashSet<SlotId>(), true);
   }
 
@@ -1842,7 +1842,7 @@ public class Analyzer {
         if (g.sccMembersBySccId(sccId).length <= 1) continue;
         List<SlotId> slotIds = result.get(sccId);
         if (slotIds == null) {
-          slotIds = Lists.newArrayList();
+          slotIds = new ArrayList<>();
           result.put(sccId, slotIds);
         }
         slotIds.add(slotDesc.getId());
@@ -1860,7 +1860,7 @@ public class Analyzer {
    */
   private List<List<SlotId>> getValueTransferDestSlotIds(TupleId srcTid,
       List<SlotId> srcSids, TupleId destTid, Set<SlotId> ignoreSlots) {
-    List<List<SlotId>> allDestSids = Lists.newArrayList();
+    List<List<SlotId>> allDestSids = new ArrayList<>();
     TupleDescriptor destTupleDesc = getTupleDesc(destTid);
     if (srcSids.size() == 1) {
       // Generate all mappings to propagate predicates of the form <slot> <op> <constant>
@@ -1889,7 +1889,7 @@ public class Analyzer {
       // TODO: This approach is not guaranteed to find the best slot mapping
       // (e.g., against partition columns) or all non-redundant mappings.
       // The limitations are show in predicate-propagation.test.
-      List<SlotId> destSids = Lists.newArrayList();
+      List<SlotId> destSids = new ArrayList<>();
       for (SlotId srcSid: srcSids) {
         for (SlotDescriptor destSlot: destTupleDesc.getSlots()) {
           if (ignoreSlots.contains(destSlot.getId())) continue;
@@ -1911,7 +1911,7 @@ public class Analyzer {
    */
   public boolean isTrueWithNullSlots(Expr p) throws InternalException {
     // Construct predicate with all SlotRefs substituted by NullLiterals.
-    List<SlotRef> slotRefs = Lists.newArrayList();
+    List<SlotRef> slotRefs = new ArrayList<>();
     p.collect(Predicates.instanceOf(SlotRef.class), slotRefs);
 
     // Map for substituting SlotRefs with NullLiterals.
@@ -2085,7 +2085,7 @@ public class Analyzer {
   public List<SlotId> getEquivClass(SlotId sid) {
     SccCondensedGraph g = globalState_.valueTransferGraph;
     if (sid.asInt() >= g.numVertices()) return Collections.singletonList(sid);
-    ArrayList<SlotId> result = new ArrayList<>();
+    List<SlotId> result = new ArrayList<>();
     for (int dst: g.sccMembersByVid(sid.asInt())) {
       result.add(new SlotId(dst));
     }
@@ -2099,7 +2099,7 @@ public class Analyzer {
   public List<SlotId> getValueTransferTargets(SlotId srcSid) {
     SccCondensedGraph g = globalState_.valueTransferGraph;
     if (srcSid.asInt() >= g.numVertices()) return Collections.singletonList(srcSid);
-    ArrayList<SlotId> result = new ArrayList<>();
+    List<SlotId> result = new ArrayList<>();
     for (IntIterator dstIt = g.dstIter(srcSid.asInt()); dstIt.hasNext(); dstIt.next()) {
       result.add(new SlotId(dstIt.peek()));
     }
@@ -2221,7 +2221,7 @@ public class Analyzer {
    * Mark all slots that are referenced in exprs as materialized.
    */
   public void materializeSlots(List<Expr> exprs) {
-    List<SlotId> slotIds = Lists.newArrayList();
+    List<SlotId> slotIds = new ArrayList<>();
     for (Expr e: exprs) {
       Preconditions.checkState(e.isAnalyzed());
       e.getIds(null, slotIds);
@@ -2230,7 +2230,7 @@ public class Analyzer {
   }
 
   public void materializeSlots(Expr e) {
-    List<SlotId> slotIds = Lists.newArrayList();
+    List<SlotId> slotIds = new ArrayList<>();
     Preconditions.checkState(e.isAnalyzed());
     e.getIds(null, slotIds);
     globalState_.descTbl.markSlotsMaterialized(slotIds);
@@ -2690,4 +2690,9 @@ public class Analyzer {
     return getAuthzConfig().isEnabled() ? getAuthzConfig().getServerName().intern() :
         null;
   }
+
+  public Expr rewrite(Expr expr) throws AnalysisException {
+    return getExprRewriter().rewrite(expr, this);
+  }
+
 }

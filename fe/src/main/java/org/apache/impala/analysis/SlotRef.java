@@ -41,7 +41,7 @@ public class SlotRef extends Expr {
   // Results of analysis.
   private SlotDescriptor desc_;
 
-  public SlotRef(ArrayList<String> rawPath) {
+  public SlotRef(List<String> rawPath) {
     super();
     rawPath_ = rawPath;
     label_ = ToSqlUtils.getPathSql(rawPath_);

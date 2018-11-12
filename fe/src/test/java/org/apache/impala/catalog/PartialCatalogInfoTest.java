@@ -22,6 +22,7 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
@@ -97,7 +98,7 @@ public class PartialCatalogInfoTest {
     Preconditions.checkState(requestCount > 0);
     final ExecutorService threadPoolExecutor = Executors.newFixedThreadPool(requestCount);
     final List<Future<TGetPartialCatalogObjectResponse>> tasksToWaitFor =
-        Lists.newArrayList();
+        new ArrayList<>();
     for (int i = 0; i < requestCount; ++i) {
       tasksToWaitFor.add(threadPoolExecutor.submit(new
           CallableGetPartialCatalogObjectRequest(request)));

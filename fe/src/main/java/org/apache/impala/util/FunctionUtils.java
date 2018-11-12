@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.lang.reflect.Method;
 import java.net.URL;
 import java.net.URLClassLoader;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -69,8 +70,8 @@ public abstract class FunctionUtils {
       org.apache.hadoop.hive.metastore.api.Function function,
       String localLibPath)
       throws ImpalaRuntimeException{
-    List<Function> result = Lists.newArrayList();
-    List<String> addedSignatures = Lists.newArrayList();
+    List<Function> result = new ArrayList<>();
+    List<String> addedSignatures = new ArrayList<>();
     StringBuilder warnMessage = new StringBuilder();
     if (!FunctionUtils.isFunctionCompatible(function, warnMessage)) {
       LOG.warn("Skipping load of incompatible function: " +
@@ -147,7 +148,7 @@ public abstract class FunctionUtils {
 
   public static List<Function> deserializeNativeFunctionsFromDbParams(
       Map<String, String> dbParams) {
-    List<Function> results = Lists.newArrayList();
+    List<Function> results = new ArrayList<>();
     TCompactProtocol.Factory protocolFactory = new TCompactProtocol.Factory();
     for (Map.Entry<String, String> entry: dbParams.entrySet()) {
       if (!entry.getKey().startsWith(Db.FUNCTION_INDEX_PREFIX)) continue;
@@ -191,7 +192,7 @@ public abstract class FunctionUtils {
           "specifying a 'location' in the function create statement.");
     } else if (fn.getResourceUrisSize() != 1) {
       isCompatible = false;
-      List<String> resourceUris = Lists.newArrayList();
+      List<String> resourceUris = new ArrayList<>();
       for (ResourceUri resource: fn.getResourceUris()) {
         resourceUris.add(resource.getUri());
       }
@@ -240,7 +241,7 @@ public abstract class FunctionUtils {
 
   public static List<Function> getVisibleFunctionsInCategory(
       Iterable<Function> candidates, TFunctionCategory category) {
-    List<Function> result = Lists.newArrayList();
+    List<Function> result = new ArrayList<>();
     for (Function fn: candidates) {
       if (fn.userVisible() && Function.categoryMatch(fn, category)) {
         result.add(fn);
@@ -250,7 +251,7 @@ public abstract class FunctionUtils {
   }
 
   public static List<Function> getVisibleFunctions(Iterable<Function> candidates) {
-    List<Function> result = Lists.newArrayList();
+    List<Function> result = new ArrayList<>();
     for (Function fn: candidates) {
       if (fn.userVisible()) result.add(fn);
     }

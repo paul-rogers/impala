@@ -192,5 +192,5 @@ public abstract class CreateFunctionStmtBase extends StatementBase {
    * Creates a concrete function.
    */
   protected abstract Function createFunction(FunctionName fnName,
-      ArrayList<Type> argTypes, Type retType, boolean hasVarArgs);
+      List<Type> argTypes, Type retType, boolean hasVarArgs);
 }

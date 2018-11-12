@@ -51,12 +51,12 @@ public class WithClause implements ParseNode {
   /////////////////////////////////////////
   // BEGIN: Members that need to be reset()
 
-  private final ArrayList<View> views_;
+  private final List<View> views_;
 
   // END: Members that need to be reset()
   /////////////////////////////////////////
 
-  public WithClause(ArrayList<View> views) {
+  public WithClause(List<View> views) {
     Preconditions.checkNotNull(views);
     Preconditions.checkState(!views.isEmpty());
     views_ = views;
@@ -101,7 +101,7 @@ public class WithClause implements ParseNode {
    */
   private WithClause(WithClause other) {
     Preconditions.checkNotNull(other);
-    views_ = Lists.newArrayList();
+    views_ = new ArrayList<>();
     for (View view: other.views_) {
       views_.add(new View(view.getName(), view.getQueryStmt().clone(),
           view.getOriginalColLabels()));
@@ -121,7 +121,7 @@ public class WithClause implements ParseNode {
   }
 
   public String toSql(boolean rewritten) {
-    List<String> viewStrings = Lists.newArrayList();
+    List<String> viewStrings = new ArrayList<>();
     for (View view: views_) {
       // Enclose the view alias and explicit labels in quotes if Hive cannot parse it
       // without quotes. This is needed for view compatibility between Impala and Hive.

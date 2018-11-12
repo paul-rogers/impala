@@ -17,6 +17,8 @@
 
 package org.apache.impala.planner;
 
+import java.util.ArrayList;
+
 import org.apache.impala.analysis.Analyzer;
 import org.apache.impala.common.InternalException;
 import org.apache.impala.thrift.TExecNodePhase;
@@ -120,7 +122,7 @@ public class SubplanNode extends PlanNode {
   @Override
   public void computePipelineMembership() {
     children_.get(0).computePipelineMembership();
-    pipelines_ = Lists.newArrayList();
+    pipelines_ = new ArrayList<>();
     for (PipelineMembership leftPipeline : children_.get(0).getPipelines()) {
       if (leftPipeline.getPhase() == TExecNodePhase.GETNEXT) {
           pipelines_.add(new PipelineMembership(

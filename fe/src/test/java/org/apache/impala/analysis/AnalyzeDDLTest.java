@@ -775,7 +775,7 @@ public class AnalyzeDDLTest extends FrontendTestBase {
   public void TestAlterTableSetColumnStats() {
     // Contains entries of the form 'statsKey'='statsValue' for every
     // stats key. A dummy value is used for 'statsValue'.
-    List<String> testKeyValues = Lists.newArrayList();
+    List<String> testKeyValues = new ArrayList<>();
     for (ColumnStats.StatsKey statsKey: ColumnStats.StatsKey.values()) {
       testKeyValues.add(String.format("'%s'='10'", statsKey));
     }

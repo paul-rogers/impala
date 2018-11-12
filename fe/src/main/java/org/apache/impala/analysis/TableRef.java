@@ -17,6 +17,7 @@
 
 package org.apache.impala.analysis;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
@@ -85,10 +86,10 @@ public class TableRef implements ParseNode {
   protected TableSampleClause sampleParams_;
 
   protected JoinOperator joinOp_;
-  protected List<PlanHint> joinHints_ = Lists.newArrayList();
+  protected List<PlanHint> joinHints_ = new ArrayList<>();
   protected List<String> usingColNames_;
 
-  protected List<PlanHint> tableHints_ = Lists.newArrayList();
+  protected List<PlanHint> tableHints_ = new ArrayList<>();
   protected TReplicaPreference replicaPreference_;
   protected boolean randomReplica_;
 
@@ -103,6 +104,7 @@ public class TableRef implements ParseNode {
   protected Path resolvedPath_;
 
   protected Expr onClause_;
+  protected String originalOnClause_;
 
   // the ref to the left of us, if we're part of a JOIN clause
   protected TableRef leftTblRef_;
@@ -116,14 +118,14 @@ public class TableRef implements ParseNode {
   // we may alter the chain of table refs during plan generation, but we still rely
   // on the original list of ids for correct predicate assignment.
   // Populated in analyzeJoin().
-  protected List<TupleId> allTableRefIds_ = Lists.newArrayList();
-  protected List<TupleId> allMaterializedTupleIds_ = Lists.newArrayList();
+  protected List<TupleId> allTableRefIds_ = new ArrayList<>();
+  protected List<TupleId> allMaterializedTupleIds_ = new ArrayList<>();
 
   // All physical tuple ids that this table ref is correlated with:
   // Tuple ids of root descriptors from outer query blocks that this table ref
   // (if a CollectionTableRef) or contained CollectionTableRefs (if an InlineViewRef)
   // are rooted at. Populated during analysis.
-  protected List<TupleId> correlatedTupleIds_ = Lists.newArrayList();
+  protected List<TupleId> correlatedTupleIds_ = new ArrayList<>();
 
   // analysis output
   protected TupleDescriptor desc_;
@@ -358,27 +360,40 @@ public class TableRef implements ParseNode {
     return allTableRefIds_;
   }
 
-  protected void analyzeTableSample(Analyzer analyzer) throws AnalysisException {
+  protected class TableAnalyzer {
+    protected Analyzer analyzer;
+
+    protected TableAnalyzer(Analyzer analyzer) {
+      this.analyzer = analyzer;
+    }
+
+    protected void analyze() throws AnalysisException {
+      analyzeTableSample();
+      analyzeHints();
+      analyzeJoin();
+    }
+
+  protected void analyzeTableSample() throws AnalysisException {
     if (sampleParams_ == null) return;
     sampleParams_.analyze(analyzer);
-    if (!(this instanceof BaseTableRef)
+    if (!(TableRef.this instanceof BaseTableRef)
         || !(resolvedPath_.destTable() instanceof FeFsTable)) {
       throw new AnalysisException(
           "TABLESAMPLE is only supported on HDFS tables: " + getUniqueAlias());
     }
   }
 
-  protected void analyzeHints(Analyzer analyzer) throws AnalysisException {
+  protected void analyzeHints() throws AnalysisException {
     // We prefer adding warnings over throwing exceptions here to maintain view
     // compatibility with Hive.
     Preconditions.checkState(isResolved());
-    analyzeTableHints(analyzer);
-    analyzeJoinHints(analyzer);
+    analyzeTableHints();
+    analyzeJoinHints();
   }
 
-  private void analyzeTableHints(Analyzer analyzer) {
+  private void analyzeTableHints() {
     if (tableHints_.isEmpty()) return;
-    if (!(this instanceof BaseTableRef)) {
+    if (!(TableRef.this instanceof BaseTableRef)) {
       analyzer.addWarning("Table hints not supported for inline view and collections");
       return;
     }
@@ -409,7 +424,7 @@ public class TableRef implements ParseNode {
     }
   }
 
-  private void analyzeJoinHints(Analyzer analyzer) throws AnalysisException {
+  private void analyzeJoinHints() throws AnalysisException {
     if (joinHints_.isEmpty()) return;
     for (PlanHint hint: joinHints_) {
       if (hint.is("BROADCAST")) {
@@ -445,7 +460,7 @@ public class TableRef implements ParseNode {
    * The join clause can only be analyzed after the left table has been analyzed
    * and the TupleDescriptor (desc) of this table has been created.
    */
-  public void analyzeJoin(Analyzer analyzer) throws AnalysisException {
+  public void analyzeJoin() throws AnalysisException {
     Preconditions.checkState(leftTblRef_ == null || leftTblRef_.isAnalyzed_);
     Preconditions.checkState(desc_ != null);
 
@@ -464,6 +479,7 @@ public class TableRef implements ParseNode {
       distrMode_ = DistributionMode.BROADCAST;
     }
 
+    Expr origOnClause = onClause_;
     if (usingColNames_ != null) {
       Preconditions.checkState(joinOp_ != JoinOperator.CROSS_JOIN);
       // Turn USING clause into equivalent ON clause.
@@ -476,14 +492,14 @@ public class TableRef implements ParseNode {
         if (!leftColPath.resolve()) {
           throw new AnalysisException(
               "unknown column " + colName + " for alias "
-              + leftTblRef_.getUniqueAlias() + " (in \"" + this.toSql() + "\")");
+              + leftTblRef_.getUniqueAlias() + " (in \"" + toSql() + "\")");
         }
         Path rightColPath = new Path(desc_,
             Lists.newArrayList(colName.toLowerCase()));
         if (!rightColPath.resolve()) {
           throw new AnalysisException(
               "unknown column " + colName + " for alias "
-              + getUniqueAlias() + " (in \"" + this.toSql() + "\")");
+              + getUniqueAlias() + " (in \"" + toSql() + "\")");
         }
 
         // create predicate "<left>.colName = <right>.colName"
@@ -499,29 +515,29 @@ public class TableRef implements ParseNode {
     // register the tuple ids of the TableRefs on the nullable side of an outer join
     if (joinOp_ == JoinOperator.LEFT_OUTER_JOIN
         || joinOp_ == JoinOperator.FULL_OUTER_JOIN) {
-      analyzer.registerOuterJoinedTids(getId().asList(), this);
+      analyzer.registerOuterJoinedTids(getId().asList(), TableRef.this);
     }
     if (joinOp_ == JoinOperator.RIGHT_OUTER_JOIN
         || joinOp_ == JoinOperator.FULL_OUTER_JOIN) {
-      analyzer.registerOuterJoinedTids(leftTblRef_.getAllTableRefIds(), this);
+      analyzer.registerOuterJoinedTids(leftTblRef_.getAllTableRefIds(), TableRef.this);
     }
     // register the tuple ids of a full outer join
     if (joinOp_ == JoinOperator.FULL_OUTER_JOIN) {
-      analyzer.registerFullOuterJoinedTids(leftTblRef_.getAllTableRefIds(), this);
-      analyzer.registerFullOuterJoinedTids(getId().asList(), this);
+      analyzer.registerFullOuterJoinedTids(leftTblRef_.getAllTableRefIds(), TableRef.this);
+      analyzer.registerFullOuterJoinedTids(getId().asList(), TableRef.this);
     }
     // register the tuple id of the rhs of a left semi join
     TupleId semiJoinedTupleId = null;
     if (joinOp_ == JoinOperator.LEFT_SEMI_JOIN
         || joinOp_ == JoinOperator.LEFT_ANTI_JOIN
         || joinOp_ == JoinOperator.NULL_AWARE_LEFT_ANTI_JOIN) {
-      analyzer.registerSemiJoinedTid(getId(), this);
+      analyzer.registerSemiJoinedTid(getId(), TableRef.this);
       semiJoinedTupleId = getId();
     }
     // register the tuple id of the lhs of a right semi join
     if (joinOp_ == JoinOperator.RIGHT_SEMI_JOIN
         || joinOp_ == JoinOperator.RIGHT_ANTI_JOIN) {
-      analyzer.registerSemiJoinedTid(leftTblRef_.getId(), this);
+      analyzer.registerSemiJoinedTid(leftTblRef_.getId(), TableRef.this);
       semiJoinedTupleId = leftTblRef_.getId();
     }
 
@@ -529,20 +545,27 @@ public class TableRef implements ParseNode {
       Preconditions.checkState(joinOp_ != JoinOperator.CROSS_JOIN);
       analyzer.setVisibleSemiJoinedTuple(semiJoinedTupleId);
       onClause_.analyze(analyzer);
+      originalOnClause_ = origOnClause == null ? null : origOnClause.toSql();
       analyzer.setVisibleSemiJoinedTuple(null);
-      onClause_.checkReturnsBool("ON clause", true);
       if (onClause_.contains(Expr.isAggregatePredicate())) {
         throw new AnalysisException(
-            "aggregate function not allowed in ON clause: " + toSql());
+            "Aggregate function not supported in ON clause: " + toSql());
       }
       if (onClause_.contains(AnalyticExpr.class)) {
         throw new AnalysisException(
-            "analytic expression not allowed in ON clause: " + toSql());
+            "Analytic expression not supported in ON clause: " + toSql());
       }
       if (onClause_.contains(Subquery.class)) {
         throw new AnalysisException(
-            "Subquery is not allowed in ON clause: " + toSql());
+            "Subquery is not supported in ON clause: " + toSql());
       }
+      onClause_.checkReturnsBool("ON clause", true);
+      onClause_ = analyzer.rewrite(onClause_);
+      if (Expr.IS_TRUE_LITERAL.apply(onClause_)) {
+        onClause_ = null;
+      }
+    }
+    if (onClause_ != null) {
       Set<TupleId> onClauseTupleIds = Sets.newHashSet();
       List<Expr> conjuncts = onClause_.getConjuncts();
       // Outer join clause conjuncts are registered for this particular table ref
@@ -550,9 +573,9 @@ public class TableRef implements ParseNode {
       // The exception are conjuncts that only pertain to the nullable side
       // of the outer join; those can be evaluated directly when materializing tuples
       // without violating outer join semantics.
-      analyzer.registerOnClauseConjuncts(conjuncts, this);
+      analyzer.registerOnClauseConjuncts(conjuncts, TableRef.this);
       for (Expr e: conjuncts) {
-        List<TupleId> tupleIds = Lists.newArrayList();
+        List<TupleId> tupleIds = new ArrayList<>();
         e.getIds(tupleIds, null);
         onClauseTupleIds.addAll(tupleIds);
       }
@@ -562,8 +585,9 @@ public class TableRef implements ParseNode {
           joinOp_.toString() + " requires an ON or USING clause.");
     } else {
       // Indicate that this table ref has an empty ON-clause.
-      analyzer.registerOnClauseConjuncts(Collections.<Expr>emptyList(), this);
+      analyzer.registerOnClauseConjuncts(Collections.<Expr>emptyList(), TableRef.this);
     }
+  }
   }
 
   public void rewriteExprs(ExprRewriter rewriter, Analyzer analyzer)
@@ -602,8 +626,16 @@ public class TableRef implements ParseNode {
     output.append(tableRefToSql(rewritten));
     if (usingColNames_ != null) {
       output.append(" USING (").append(Joiner.on(", ").join(usingColNames_)).append(")");
-    } else if (onClause_ != null) {
-      output.append(" ON ").append(onClause_.toSql());
+    } else {
+      String onExpr;
+      if (rewritten) {
+        onExpr = onClause_ == null ? null : onClause_.toSql();
+      } else {
+        onExpr = originalOnClause_;
+      }
+      if (onExpr != null) {
+        output.append(" ON ").append(onExpr);
+      }
     }
     return output.toString();
   }

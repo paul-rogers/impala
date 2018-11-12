@@ -819,7 +819,7 @@ public class CatalogOpExecutor {
   private List<HdfsPartition> updatePartitionStats(TAlterTableUpdateStatsParams params,
       HdfsTable table) throws ImpalaException {
     Preconditions.checkState(params.isSetPartition_stats());
-    List<HdfsPartition> modifiedParts = Lists.newArrayList();
+    List<HdfsPartition> modifiedParts = new ArrayList<>();
     // TODO(todd) only load the partitions that were modified in 'params'.
     Collection<? extends FeFsPartition> parts =
         FeCatalogUtils.loadAllPartitions(table);
@@ -1076,7 +1076,7 @@ public class CatalogOpExecutor {
         }
       }
 
-      List<TCatalogObject> addedFunctions = Lists.newArrayList();
+      List<TCatalogObject> addedFunctions = new ArrayList<>();
       if (isPersistentJavaFn) {
         // For persistent Java functions we extract all supported function signatures from
         // the corresponding Jar and add each signature to the catalog.
@@ -1272,7 +1272,7 @@ public class CatalogOpExecutor {
     Preconditions.checkNotNull(hdfsTable);
 
     // List of partitions that were modified as part of this operation.
-    List<HdfsPartition> modifiedParts = Lists.newArrayList();
+    List<HdfsPartition> modifiedParts = new ArrayList<>();
     Collection<? extends FeFsPartition> parts =
         FeCatalogUtils.loadAllPartitions(hdfsTable);
     for (FeFsPartition fePart: parts) {
@@ -1358,8 +1358,8 @@ public class CatalogOpExecutor {
   private void dropTablesFromKudu(Db db) throws ImpalaException {
     // If the table format isn't available, because the table hasn't been loaded yet,
     // the metadata must be fetched from the Hive Metastore.
-    List<String> incompleteTableNames = Lists.newArrayList();
-    List<org.apache.hadoop.hive.metastore.api.Table> msTables = Lists.newArrayList();
+    List<String> incompleteTableNames = new ArrayList<>();
+    List<org.apache.hadoop.hive.metastore.api.Table> msTables = new ArrayList<>();
     for (Table table: db.getTables()) {
       org.apache.hadoop.hive.metastore.api.Table msTable = table.getMetaStoreTable();
       if (msTable == null) {
@@ -1605,7 +1605,7 @@ public class CatalogOpExecutor {
         addSummary(resp, "Database does not exist.");
         return;
       }
-      List<TCatalogObject> removedFunctions = Lists.newArrayList();
+      List<TCatalogObject> removedFunctions = new ArrayList<>();
       if (!params.isSetSignature()) {
         dropJavaFunctionFromHms(fName.getDb(), fName.getFunction(), params.if_exists);
         for (Function fn: db.getFunctions(fName.getFunction())) {
@@ -1617,7 +1617,7 @@ public class CatalogOpExecutor {
           removedFunctions.add(fn.toTCatalogObject());
         }
       } else {
-        ArrayList<Type> argTypes = Lists.newArrayList();
+        List<Type> argTypes = new ArrayList<>();
         for (TColumnType t: params.arg_types) {
           argTypes.add(Type.fromThrift(t));
         }
@@ -2112,7 +2112,7 @@ public class CatalogOpExecutor {
     TableName tableName = tbl.getTableName();
     org.apache.hadoop.hive.metastore.api.Table msTbl = tbl.getMetaStoreTable().deepCopy();
     boolean ifNotExists = addPartParams.isIf_not_exists();
-    List<Partition> allHmsPartitionsToAdd = Lists.newArrayList();
+    List<Partition> allHmsPartitionsToAdd = new ArrayList<>();
     Map<List<String>, THdfsCachingOp> partitionCachingOpMap = Maps.newHashMap();
     for (TPartitionDef partParams: addPartParams.getPartitions()) {
       List<TPartitionKeyValue> partitionSpec = partParams.getPartition_spec();
@@ -2139,7 +2139,7 @@ public class CatalogOpExecutor {
     if (allHmsPartitionsToAdd.isEmpty()) return null;
 
     try (MetaStoreClient msClient = catalog_.getMetaStoreClient()) {
-      List<Partition> addedHmsPartitions = Lists.newArrayList();
+      List<Partition> addedHmsPartitions = new ArrayList<>();
 
       for (List<Partition> hmsSublist :
           Lists.partition(allHmsPartitionsToAdd, MAX_PARTITION_UPDATES_PER_RPC)) {
@@ -2180,7 +2180,7 @@ public class CatalogOpExecutor {
     Set<List<String>> bSet = Sets.newHashSet();
     for (Partition b: bList) bSet.add(b.getValues());
 
-    List<Partition> diffList = Lists.newArrayList();
+    List<Partition> diffList = new ArrayList<>();
     for (Partition a: aList) {
       if (!bSet.contains(a.getValues())) diffList.add(a);
     }
@@ -2194,7 +2194,7 @@ public class CatalogOpExecutor {
       org.apache.hadoop.hive.metastore.api.Table msTbl, MetaStoreClient msClient,
       TableName tableName, List<Partition> hmsPartitions)
       throws ImpalaException {
-    List<String> partitionCols = Lists.newArrayList();
+    List<String> partitionCols = new ArrayList<>();
     for (FieldSchema fs: msTbl.getPartitionKeys()) partitionCols.add(fs.getName());
 
     List<String> partitionNames = Lists.newArrayListWithCapacity(hmsPartitions.size());
@@ -2223,8 +2223,8 @@ public class CatalogOpExecutor {
       Map<List<String>, THdfsCachingOp> partitionCachingOpMap)
       throws ImpalaException {
     // Handle HDFS cache
-    List<Long> cacheIds = Lists.newArrayList();
-    List<Partition> hmsPartitionsToCache = Lists.newArrayList();
+    List<Long> cacheIds = new ArrayList<>();
+    List<Partition> hmsPartitionsToCache = new ArrayList<>();
     Long parentTblCacheDirId = HdfsCachingUtil.getCacheDirectiveId(msTbl.getParameters());
     for (Partition partition: hmsPartitions) {
       THdfsCachingOp cacheOp = partitionCachingOpMap.get(partition.getValues());
@@ -2423,7 +2423,7 @@ public class CatalogOpExecutor {
       Preconditions.checkArgument(tbl instanceof HdfsTable);
       List<HdfsPartition> partitions =
           ((HdfsTable) tbl).getPartitionsFromPartitionSet(partitionSet);
-      List<HdfsPartition> modifiedParts = Lists.newArrayList();
+      List<HdfsPartition> modifiedParts = new ArrayList<>();
       for(HdfsPartition partition: partitions) {
         partition.setFileFormat(HdfsFileFormat.fromThrift(fileFormat));
         modifiedParts.add(partition);
@@ -2461,7 +2461,7 @@ public class CatalogOpExecutor {
     } else {
       List<HdfsPartition> partitions =
           ((HdfsTable) tbl).getPartitionsFromPartitionSet(partitionSet);
-      List<HdfsPartition> modifiedParts = Lists.newArrayList();
+      List<HdfsPartition> modifiedParts = new ArrayList<>();
       for(HdfsPartition partition: partitions) {
         HiveStorageDescriptorFactory.setSerdeInfo(rowFormat, partition.getSerdeInfo());
         modifiedParts.add(partition);
@@ -2528,7 +2528,7 @@ public class CatalogOpExecutor {
       List<HdfsPartition> partitions =
           ((HdfsTable) tbl).getPartitionsFromPartitionSet(params.getPartition_set());
 
-      List<HdfsPartition> modifiedParts = Lists.newArrayList();
+      List<HdfsPartition> modifiedParts = new ArrayList<>();
       for(HdfsPartition partition: partitions) {
         switch (params.getTarget()) {
           case TBL_PROPERTY:
@@ -2616,7 +2616,7 @@ public class CatalogOpExecutor {
     if (cacheOp.isSet_cached()) {
       // List of cache directive IDs that were submitted as part of this
       // ALTER TABLE operation.
-      List<Long> cacheDirIds = Lists.newArrayList();
+      List<Long> cacheDirIds = new ArrayList<>();
       short cacheReplication = HdfsCachingUtil.getReplicationOrDefault(cacheOp);
       // If the table was not previously cached (cacheDirId == null) we issue a new
       // directive for this table. If the table was already cached, we validate
@@ -2732,14 +2732,14 @@ public class CatalogOpExecutor {
     Preconditions.checkArgument(tbl instanceof HdfsTable);
     List<HdfsPartition> partitions =
         ((HdfsTable) tbl).getPartitionsFromPartitionSet(params.getPartition_set());
-    List<HdfsPartition> modifiedParts = Lists.newArrayList();
+    List<HdfsPartition> modifiedParts = new ArrayList<>();
     if (cacheOp.isSet_cached()) {
       for (HdfsPartition partition : partitions) {
         // The directive is null if the partition is not cached
         Long directiveId =
             HdfsCachingUtil.getCacheDirectiveId(partition.getParameters());
         short replication = HdfsCachingUtil.getReplicationOrDefault(cacheOp);
-        List<Long> cacheDirs = Lists.newArrayList();
+        List<Long> cacheDirs = new ArrayList<>();
         if (directiveId == null) {
           cacheDirs.add(HdfsCachingUtil.submitCachePartitionDirective(
               partition, cacheOp.getCache_pool_name(), replication));
@@ -2792,7 +2792,7 @@ public class CatalogOpExecutor {
     List<List<String>> partitionsNotInHms = hdfsTable.getPathsWithoutPartitions();
     if (partitionsNotInHms.isEmpty()) return;
 
-    List<Partition> hmsPartitions = Lists.newArrayList();
+    List<Partition> hmsPartitions = new ArrayList<>();
     org.apache.hadoop.hive.metastore.api.Table msTbl =
         tbl.getMetaStoreTable().deepCopy();
     TableName tableName = tbl.getTableName();
@@ -2803,7 +2803,7 @@ public class CatalogOpExecutor {
 
     String cachePoolName = null;
     Short replication = null;
-    List<Long> cacheIds = Lists.newArrayList();
+    List<Long> cacheIds = new ArrayList<>();
     Long parentTblCacheDirId =
         HdfsCachingUtil.getCacheDirectiveId(msTbl.getParameters());
     if (parentTblCacheDirId != null) {
@@ -2947,7 +2947,7 @@ public class CatalogOpExecutor {
   private static Partition createHmsPartition(List<TPartitionKeyValue> partitionSpec,
       org.apache.hadoop.hive.metastore.api.Table msTbl, TableName tableName,
       String location) {
-    List<String> values = Lists.newArrayList();
+    List<String> values = new ArrayList<>();
     // Need to add in the values in the same order they are defined in the table.
     for (FieldSchema fs: msTbl.getPartitionKeys()) {
       for (TPartitionKeyValue kv: partitionSpec) {
@@ -3280,7 +3280,7 @@ public class CatalogOpExecutor {
   private void bulkAlterPartitions(String dbName, String tableName,
       List<HdfsPartition> modifiedParts) throws ImpalaException {
     List<org.apache.hadoop.hive.metastore.api.Partition> hmsPartitions =
-        Lists.newArrayList();
+        new ArrayList<>();
     for (HdfsPartition p: modifiedParts) {
       org.apache.hadoop.hive.metastore.api.Partition msPart = p.toHmsPartition();
       if (msPart != null) hmsPartitions.add(msPart);
@@ -3334,7 +3334,7 @@ public class CatalogOpExecutor {
   }
 
   private static List<FieldSchema> buildFieldSchemaList(List<TColumn> columns) {
-    List<FieldSchema> fsList = Lists.newArrayList();
+    List<FieldSchema> fsList = new ArrayList<>();
     // Add in all the columns
     for (TColumn col: columns) {
       Type type = Type.fromThrift(col.getColumnType());
@@ -3369,8 +3369,8 @@ public class CatalogOpExecutor {
       // This is a "refresh functions" operation.
       synchronized (metastoreDdlLock_) {
         try (MetaStoreClient msClient = catalog_.getMetaStoreClient()) {
-          List<TCatalogObject> addedFuncs = Lists.newArrayList();
-          List<TCatalogObject> removedFuncs = Lists.newArrayList();
+          List<TCatalogObject> addedFuncs = new ArrayList<>();
+          List<TCatalogObject> removedFuncs = new ArrayList<>();
           catalog_.refreshFunctions(msClient, req.getDb_name(), addedFuncs, removedFuncs);
           resp.result.setUpdated_catalog_objects(addedFuncs);
           resp.result.setRemoved_catalog_objects(removedFuncs);
@@ -3500,7 +3500,7 @@ public class CatalogOpExecutor {
       Short cacheReplication = cacheInfo.second;
 
       TableName tblName = new TableName(table.getDb().getName(), table.getName());
-      List<String> errorMessages = Lists.newArrayList();
+      List<String> errorMessages = new ArrayList<>();
       HashSet<String> partsToLoadMetadata = null;
       if (table.getNumClusteringCols() > 0) {
         // Set of all partition names targeted by the insert that need to be created
@@ -3537,7 +3537,7 @@ public class CatalogOpExecutor {
             org.apache.hadoop.hive.metastore.api.Table msTbl =
                 table.getMetaStoreTable().deepCopy();
             List<org.apache.hadoop.hive.metastore.api.Partition> hmsParts =
-                Lists.newArrayList();
+                new ArrayList<>();
             HiveConf hiveConf = new HiveConf(this.getClass());
             Warehouse warehouse = new Warehouse(hiveConf);
             for (String partName: partsToCreate) {
@@ -3566,7 +3566,7 @@ public class CatalogOpExecutor {
             if (addedHmsParts.size() > 0) {
               if (cachePoolName != null) {
                 List<org.apache.hadoop.hive.metastore.api.Partition> cachedHmsParts =
-                    Lists.newArrayList();
+                    new ArrayList<>();
                 // Submit a new cache directive and update the partition metadata with
                 // the directive id.
                 for (org.apache.hadoop.hive.metastore.api.Partition part: addedHmsParts) {

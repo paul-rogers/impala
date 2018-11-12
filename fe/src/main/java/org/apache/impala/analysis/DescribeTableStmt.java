@@ -54,7 +54,7 @@ public class DescribeTableStmt extends StatementBase {
   private final TDescribeOutputStyle outputStyle_;
 
   /// "."-separated path from the describe statement.
-  private final ArrayList<String> rawPath_;
+  private final List<String> rawPath_;
 
   /// The resolved path to describe, set after analysis.
   private Path path_;
@@ -66,7 +66,7 @@ public class DescribeTableStmt extends StatementBase {
   /// Only set when describing a path to a nested collection.
   private StructType resultStruct_;
 
-  public DescribeTableStmt(ArrayList<String> rawPath, TDescribeOutputStyle outputStyle) {
+  public DescribeTableStmt(List<String> rawPath, TDescribeOutputStyle outputStyle) {
     Preconditions.checkNotNull(rawPath);
     Preconditions.checkArgument(!rawPath.isEmpty());
     rawPath_ = rawPath;

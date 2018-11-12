@@ -17,6 +17,7 @@
 
 package org.apache.impala.analysis;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -65,11 +66,11 @@ class TableDef {
   private final TableName tableName_;
 
   // List of column definitions
-  private final List<ColumnDef> columnDefs_ = Lists.newArrayList();
+  private final List<ColumnDef> columnDefs_ = new ArrayList<>();
 
   // Names of primary key columns. Populated by the parser. An empty value doesn't
   // mean no primary keys were specified as the columnDefs_ could contain primary keys.
-  private final List<String> primaryKeyColNames_ = Lists.newArrayList();
+  private final List<String> primaryKeyColNames_ = new ArrayList<>();
 
   // If true, the table's data will be preserved if dropped.
   private final boolean isExternal_;
@@ -84,7 +85,7 @@ class TableDef {
   // BEGIN: Members that need to be reset()
 
   // Authoritative list of primary key column definitions populated during analysis.
-  private final List<ColumnDef> primaryKeyColDefs_ = Lists.newArrayList();
+  private final List<ColumnDef> primaryKeyColDefs_ = new ArrayList<>();
 
   // True if analyze() has been called.
   private boolean isAnalyzed_ = false;

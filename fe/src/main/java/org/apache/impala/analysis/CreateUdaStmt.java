@@ -19,6 +19,7 @@ package org.apache.impala.analysis;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 
 import org.apache.impala.catalog.AggregateFunction;
 import org.apache.impala.catalog.Function;
@@ -201,7 +202,7 @@ public class CreateUdaStmt extends CreateFunctionStmtBase {
   }
 
   @Override
-  protected Function createFunction(FunctionName fnName, ArrayList<Type> argTypes,
+  protected Function createFunction(FunctionName fnName, List<Type> argTypes,
       Type retType, boolean hasVarArgs) {
     return new AggregateFunction(fnName_, args_.getArgTypes(), retTypeDef_.getType(),
         args_.hasVarArgs());

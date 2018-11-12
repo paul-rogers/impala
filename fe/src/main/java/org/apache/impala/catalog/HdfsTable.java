@@ -175,21 +175,21 @@ public class HdfsTable extends Table implements FeFsTable {
   // Array of sorted maps storing the association between partition values and
   // partition ids. There is one sorted map per partition key. It is only populated if
   // this table object is stored in ImpaladCatalog.
-  private final ArrayList<TreeMap<LiteralExpr, HashSet<Long>>> partitionValuesMap_ =
-      Lists.newArrayList();
+  private final List<TreeMap<LiteralExpr, HashSet<Long>>> partitionValuesMap_ =
+      new ArrayList<>();
 
   // Array of partition id sets that correspond to partitions with null values
   // in the partition keys; one set per partition key. It is not populated if the table is
   // stored in the catalog server.
-  private final ArrayList<HashSet<Long>> nullPartitionIds_ = Lists.newArrayList();
+  private final List<HashSet<Long>> nullPartitionIds_ = new ArrayList<>();
 
   // Map of partition ids to HdfsPartitions.
-  private final HashMap<Long, HdfsPartition> partitionMap_ = Maps.newHashMap();
+  private final Map<Long, HdfsPartition> partitionMap_ = Maps.newHashMap();
 
   // Map of partition name to HdfsPartition object. Used for speeding up
   // table metadata loading. It is only populated if this table object is stored in
   // catalog server.
-  private final HashMap<String, HdfsPartition> nameToPartitionMap_ = Maps.newHashMap();
+  private final Map<String, HdfsPartition> nameToPartitionMap_ = Maps.newHashMap();
 
   // The partition used as a prototype when creating new partitions during
   // insertion. New partitions inherit file format and other settings from
@@ -223,7 +223,7 @@ public class HdfsTable extends Table implements FeFsTable {
   // List of FieldSchemas that correspond to the non-partition columns. Used when
   // describing this table and its partitions to the HMS (e.g. as part of an alter table
   // operation), when only non-partition columns are required.
-  private final List<FieldSchema> nonPartFieldSchemas_ = Lists.newArrayList();
+  private final List<FieldSchema> nonPartFieldSchemas_ = new ArrayList<>();
 
   // Flag to check if the table schema has been loaded. Used as a precondition
   // for setAvroSchema().
@@ -448,7 +448,7 @@ public class HdfsTable extends Table implements FeFsTable {
       FileMetadataLoadStats loadStats) throws IOException {
     boolean supportsBlocks = FileSystemUtil.supportsStorageIds(fs);
     Reference<Long> numUnknownDiskIds = new Reference<Long>(Long.valueOf(0));
-    List<FileDescriptor> newFileDescs = Lists.newArrayList();
+    List<FileDescriptor> newFileDescs = new ArrayList<>();
     while (fileStatusIter.hasNext()) {
       LocatedFileStatus fileStatus = fileStatusIter.next();
       if (!FileSystemUtil.isValidDataFile(fileStatus)) {
@@ -501,7 +501,7 @@ public class HdfsTable extends Table implements FeFsTable {
     if (fileStatuses == null) return loadStats;
     boolean supportsBlocks = FileSystemUtil.supportsStorageIds(fs);
     Reference<Long> numUnknownDiskIds = new Reference<Long>(Long.valueOf(0));
-    List<FileDescriptor> newFileDescs = Lists.newArrayList();
+    List<FileDescriptor> newFileDescs = new ArrayList<>();
     // If there is a cached partition mapped to this path, we recompute the block
     // locations even if the underlying files have not changed (hasFileChanged()).
     // This is done to keep the cached block metadata up to date.
@@ -668,7 +668,7 @@ public class HdfsTable extends Table implements FeFsTable {
 
   public static PrunablePartition getPartition(FeFsTable table,
       List<PartitionKeyValue> partitionSpec) {
-    List<TPartitionKeyValue> partitionKeyValues = Lists.newArrayList();
+    List<TPartitionKeyValue> partitionKeyValues = new ArrayList<>();
     for (PartitionKeyValue kv: partitionSpec) {
       Preconditions.checkArgument(kv.isStatic(), "unexpected dynamic partition: %s",
           kv);
@@ -857,7 +857,7 @@ public class HdfsTable extends Table implements FeFsTable {
         threadPoolSize));
     ExecutorService partitionLoadingPool = Executors.newFixedThreadPool(threadPoolSize);
     try {
-      List<Future<FileMetadataLoadStats>> pendingMdLoadTasks = Lists.newArrayList();
+      List<Future<FileMetadataLoadStats>> pendingMdLoadTasks = new ArrayList<>();
       for (Path p: partsByPath.keySet()) {
         FileMetadataLoadRequest blockMdLoadReq =
             new FileMetadataLoadRequest(p, partsByPath.get(p), reuseFileMd);
@@ -955,7 +955,7 @@ public class HdfsTable extends Table implements FeFsTable {
       List<org.apache.hadoop.hive.metastore.api.Partition> msPartitions)
       throws CatalogException {
     HashMap<Path, List<HdfsPartition>> partsByPath = Maps.newHashMap();
-    List<HdfsPartition> addedParts = Lists.newArrayList();
+    List<HdfsPartition> addedParts = new ArrayList<>();
     FsPermissionCache permCache = preloadPermissionsCache(msPartitions);
     for (org.apache.hadoop.hive.metastore.api.Partition partition: msPartitions) {
       HdfsPartition hdfsPartition = createPartition(partition.getSd(), partition,
@@ -1137,7 +1137,7 @@ public class HdfsTable extends Table implements FeFsTable {
    */
   public List<HdfsPartition> dropPartitions(List<HdfsPartition> partitions,
       boolean removeCacheDirective) {
-    ArrayList<HdfsPartition> droppedPartitions = Lists.newArrayList();
+    List<HdfsPartition> droppedPartitions = new ArrayList<>();
     for (HdfsPartition partition: partitions) {
       HdfsPartition hdfsPartition = dropPartition(partition, removeCacheDirective);
       if (hdfsPartition != null) droppedPartitions.add(hdfsPartition);
@@ -1308,9 +1308,9 @@ public class HdfsTable extends Table implements FeFsTable {
     // Partitions for which file metadata must be loaded, grouped by partition paths.
     Map<Path, List<HdfsPartition>> partitionsToUpdateFileMdByPath = Maps.newHashMap();
     // Partitions that need to be dropped and recreated from scratch
-    List<HdfsPartition> dirtyPartitions = Lists.newArrayList();
+    List<HdfsPartition> dirtyPartitions = new ArrayList<>();
     // Partitions removed from the Hive Metastore.
-    List<HdfsPartition> removedPartitions = Lists.newArrayList();
+    List<HdfsPartition> removedPartitions = new ArrayList<>();
     // Identify dirty partitions that need to be loaded from the Hive Metastore and
     // partitions that no longer exist in the Hive Metastore.
     for (HdfsPartition partition: partitionMap_.values()) {
@@ -1461,7 +1461,7 @@ public class HdfsTable extends Table implements FeFsTable {
         || hasAvroData_) {
       // Look for Avro schema in TBLPROPERTIES and in SERDEPROPERTIES, with the latter
       // taking precedence.
-      List<Map<String, String>> schemaSearchLocations = Lists.newArrayList();
+      List<Map<String, String>> schemaSearchLocations = new ArrayList<>();
       schemaSearchLocations.add(
           getMetaStoreTable().getSd().getSerdeInfo().getParameters());
       schemaSearchLocations.add(getMetaStoreTable().getParameters());
@@ -1556,7 +1556,7 @@ public class HdfsTable extends Table implements FeFsTable {
     if (partitionNames.isEmpty()) return;
     // Load partition metadata from Hive Metastore.
     List<org.apache.hadoop.hive.metastore.api.Partition> msPartitions =
-        Lists.newArrayList();
+        new ArrayList<>();
     msPartitions.addAll(MetaStoreUtil.fetchPartitionsByName(client,
         Lists.newArrayList(partitionNames), db_.getName(), name_));
 
@@ -1633,7 +1633,7 @@ public class HdfsTable extends Table implements FeFsTable {
 
   @Override
   protected List<String> getColumnNamesWithHmsStats() {
-    List<String> ret = Lists.newArrayList();
+    List<String> ret = new ArrayList<>();
     // Only non-partition columns have column stats in the HMS.
     for (Column column: getColumns().subList(numClusteringCols_, getColumns().size())) {
       ret.add(column.getName().toLowerCase());
@@ -1869,7 +1869,7 @@ public class HdfsTable extends Table implements FeFsTable {
       existingPartitions.add(partition.getPartitionValues());
     }
 
-    List<String> partitionKeys = Lists.newArrayList();
+    List<String> partitionKeys = new ArrayList<>();
     for (int i = 0; i < numClusteringCols_; ++i) {
       partitionKeys.add(getColumns().get(i).getName());
     }
@@ -1893,8 +1893,8 @@ public class HdfsTable extends Table implements FeFsTable {
       HashSet<List<LiteralExpr>> existingPartitions,
       List<List<String>> partitionsNotInHms) throws IOException {
     FileSystem fs = path.getFileSystem(CONF);
-    List<String> partitionValues = Lists.newArrayList();
-    List<LiteralExpr> partitionExprs = Lists.newArrayList();
+    List<String> partitionValues = new ArrayList<>();
+    List<LiteralExpr> partitionExprs = new ArrayList<>();
     getAllPartitionsNotInHms(path, partitionKeys, 0, fs, partitionValues,
         partitionExprs, existingPartitions, partitionsNotInHms);
   }
@@ -2120,8 +2120,8 @@ public class HdfsTable extends Table implements FeFsTable {
    * Constructs a partition name from a list of TPartitionKeyValue objects.
    */
   public static String constructPartitionName(List<TPartitionKeyValue> partitionSpec) {
-    List<String> partitionCols = Lists.newArrayList();
-    List<String> partitionVals = Lists.newArrayList();
+    List<String> partitionCols = new ArrayList<>();
+    List<String> partitionVals = new ArrayList<>();
     for (TPartitionKeyValue kv: partitionSpec) {
       partitionCols.add(kv.getName());
       partitionVals.add(kv.getValue());

@@ -17,6 +17,7 @@
 
 package org.apache.impala.util;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -448,7 +449,7 @@ public class SentryProxy {
     }
 
     // This is a list of privileges that were added, to be returned.
-    List<PrincipalPrivilege> rolePrivileges = Lists.newArrayList();
+    List<PrincipalPrivilege> rolePrivileges = new ArrayList<>();
     // Do the grants first
     sentryPolicyService_.grantRolePrivileges(user, roleName, privileges);
     // Update the catalog
@@ -493,7 +494,7 @@ public class SentryProxy {
   public synchronized List<PrincipalPrivilege> revokeRolePrivileges(User user,
       String roleName, List<TPrivilege> privileges, boolean hasGrantOption,
       List<PrincipalPrivilege> addedPrivileges) throws ImpalaException {
-    List<PrincipalPrivilege> rolePrivileges = Lists.newArrayList();
+    List<PrincipalPrivilege> rolePrivileges = new ArrayList<>();
     if (!hasGrantOption) {
       sentryPolicyService_.revokeRolePrivileges(user, roleName, privileges);
       // Update the catalog. The catalog should only have one privilege whether it has
@@ -521,7 +522,7 @@ public class SentryProxy {
       // of the name of the catalog object. Sentry does not yet provide an
       // "alter privilege" API so we need to revoke the privileges and re-grant them.
       sentryPolicyService_.revokeRolePrivileges(user, roleName, privileges);
-      List<TPrivilege> newPrivs = Lists.newArrayList();
+      List<TPrivilege> newPrivs = new ArrayList<>();
       for (TPrivilege privilege: privileges) {
         PrincipalPrivilege existingPriv = catalog_.getPrincipalPrivilege(roleName,
             privilege);

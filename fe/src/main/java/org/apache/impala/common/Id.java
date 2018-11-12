@@ -56,14 +56,14 @@ public class Id<IdType extends Id<IdType>> implements Comparable<Id<IdType>> {
     return id_ - cmp.id_;
   }
 
-  public ArrayList<IdType> asList() {
-    ArrayList<IdType> list = new ArrayList<IdType>();
+  public List<IdType> asList() {
+    List<IdType> list = new ArrayList<IdType>();
     list.add((IdType) this);
     return list;
   }
 
   public static <C extends Id> String printIds(List<C> ids) {
-    ArrayList<String> l = Lists.newArrayList();
+    List<String> l = new ArrayList<>();
     for (C id: ids) {
       l.add(id.toString());
     }

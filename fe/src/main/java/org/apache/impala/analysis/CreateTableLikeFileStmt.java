@@ -51,8 +51,8 @@ public class CreateTableLikeFileStmt extends CreateTableStmt {
 
   @Override
   public String toSql() {
-    ArrayList<String> colsSql = Lists.newArrayList();
-    ArrayList<String> partitionColsSql = Lists.newArrayList();
+    List<String> colsSql = new ArrayList<>();
+    List<String> partitionColsSql = new ArrayList<>();
     HdfsCompression compression = HdfsCompression.fromFileName(
         schemaLocation_.toString());
     String s = ToSqlUtils.getCreateTableSql(getDb(),

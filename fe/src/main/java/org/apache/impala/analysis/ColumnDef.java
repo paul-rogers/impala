@@ -18,6 +18,7 @@
 package org.apache.impala.analysis;
 
 import java.math.BigInteger;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -379,7 +380,7 @@ public class ColumnDef {
   }
 
   static List<String> toColumnNames(Collection<ColumnDef> colDefs) {
-    List<String> colNames = Lists.newArrayList();
+    List<String> colNames = new ArrayList<>();
     for (ColumnDef colDef: colDefs) {
       colNames.add(colDef.getColName());
     }

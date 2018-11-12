@@ -19,6 +19,7 @@ package org.apache.impala.catalog.local;
 
 import java.lang.management.ManagementFactory;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -651,7 +652,7 @@ public class CatalogdMetaProvider implements MetaProvider {
     final int numMisses = partitionRefs.size() - numHits;
 
     // Load the remainder from the catalogd.
-    List<PartitionRef> missingRefs = Lists.newArrayList();
+    List<PartitionRef> missingRefs = new ArrayList<>();
     for (PartitionRef ref: partitionRefs) {
       if (!refToMeta.containsKey(ref)) missingRefs.add(ref);
     }
@@ -1048,7 +1049,7 @@ public class CatalogdMetaProvider implements MetaProvider {
    */
   @VisibleForTesting
   void invalidateCacheForObject(TCatalogObject obj) {
-    List<String> invalidated = Lists.newArrayList();
+    List<String> invalidated = new ArrayList<>();
     switch (obj.type) {
     case TABLE:
     case VIEW:

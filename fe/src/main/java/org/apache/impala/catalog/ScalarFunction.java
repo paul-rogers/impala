@@ -49,7 +49,7 @@ public class ScalarFunction extends Function {
   private String prepareFnSymbol_;
   private String closeFnSymbol_;
 
-  public ScalarFunction(FunctionName fnName, ArrayList<Type> argTypes, Type retType,
+  public ScalarFunction(FunctionName fnName, List<Type> argTypes, Type retType,
       boolean hasVarArgs) {
     super(fnName, argTypes, retType, hasVarArgs);
   }
@@ -68,7 +68,7 @@ public class ScalarFunction extends Function {
    * Creates a builtin scalar function. This is a helper that wraps a few steps
    * into one call.
    */
-  public static ScalarFunction createBuiltin(String name, ArrayList<Type> argTypes,
+  public static ScalarFunction createBuiltin(String name, List<Type> argTypes,
       boolean hasVarArgs, Type retType, String symbol,
       String prepareFnSymbol, String closeFnSymbol, boolean userVisible) {
     Preconditions.checkNotNull(symbol);
@@ -123,7 +123,7 @@ public class ScalarFunction extends Function {
     // Currently we only support certain primitive types.
     JavaUdfDataType javaRetType = JavaUdfDataType.getType(fnRetType);
     if (javaRetType == JavaUdfDataType.INVALID_TYPE) return null;
-    List<Type> fnArgsList = Lists.newArrayList();
+    List<Type> fnArgsList = new ArrayList<>();
     for (Class<?> argClass: fnArgs) {
       JavaUdfDataType javaUdfType = JavaUdfDataType.getType(argClass);
       if (javaUdfType == JavaUdfDataType.INVALID_TYPE) return null;
@@ -161,7 +161,7 @@ public class ScalarFunction extends Function {
    * implementations. (gen_functions.py). Is there a better way to coordinate this.
    */
   public static ScalarFunction createBuiltinOperator(String name,
-      ArrayList<Type> argTypes, Type retType) {
+      List<Type> argTypes, Type retType) {
     // Operators have a well defined symbol based on the function name and type.
     // Convert Add(TINYINT, TINYINT) --> Add_TinyIntVal_TinyIntVal
     String beFn = Character.toUpperCase(name.charAt(0)) + name.substring(1);
@@ -214,12 +214,12 @@ public class ScalarFunction extends Function {
   }
 
   public static ScalarFunction createBuiltinOperator(String name, String symbol,
-      ArrayList<Type> argTypes, Type retType) {
+      List<Type> argTypes, Type retType) {
     return createBuiltin(name, symbol, argTypes, false, retType, false);
   }
 
   public static ScalarFunction createBuiltin(String name, String symbol,
-      ArrayList<Type> argTypes, boolean hasVarArgs, Type retType,
+      List<Type> argTypes, boolean hasVarArgs, Type retType,
       boolean userVisible) {
     ScalarFunction fn = new ScalarFunction(
         new FunctionName(BuiltinsDb.NAME, name), argTypes, retType, hasVarArgs);
@@ -244,7 +244,7 @@ public class ScalarFunction extends Function {
    * TFunctionBinaryType.
    */
   public static ScalarFunction createForTesting(String db,
-      String fnName, ArrayList<Type> args, Type retType, String uriPath,
+      String fnName, List<Type> args, Type retType, String uriPath,
       String symbolName, String initFnSymbol, String closeFnSymbol,
       TFunctionBinaryType type) {
     ScalarFunction fn = new ScalarFunction(new FunctionName(db, fnName), args,

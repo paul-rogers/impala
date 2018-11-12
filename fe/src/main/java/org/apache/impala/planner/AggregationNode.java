@@ -17,6 +17,7 @@
 
 package org.apache.impala.planner;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
@@ -333,9 +334,9 @@ public class AggregationNode extends PlanNode {
     }
     if (maxNumExprs == 0) return Collections.emptyList();
 
-    List<Expr> result = Lists.newArrayList();
+    List<Expr> result = new ArrayList<>();
     for (int i = 0; i < maxNumExprs; ++i) {
-      List<CaseWhenClause> caseWhenClauses = Lists.newArrayList();
+      List<CaseWhenClause> caseWhenClauses = new ArrayList<>();
       for (AggregateInfo aggInfo : aggInfos_) {
         TupleId tid;
         if (aggInfo.isDistinctAgg()) {
@@ -376,7 +377,7 @@ public class AggregationNode extends PlanNode {
     msg.agg_node.setEstimated_input_cardinality(getChild(0).getCardinality());
     for (int i = 0; i < aggInfos_.size(); ++i) {
       AggregateInfo aggInfo = aggInfos_.get(i);
-      List<TExpr> aggregateFunctions = Lists.newArrayList();
+      List<TExpr> aggregateFunctions = new ArrayList<>();
       for (FunctionCallExpr e : aggInfo.getMaterializedAggregateExprs()) {
         aggregateFunctions.add(e.treeToThrift());
       }

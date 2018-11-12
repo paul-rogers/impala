@@ -17,6 +17,7 @@
 
 package org.apache.impala.analysis;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.LinkedHashMap;
@@ -218,11 +219,11 @@ final class MultiEdge {
    * Encodes this MultiEdge object to a thrift object
    */
   public TMultiEdge toThrift() {
-    List<TVertex> sources = Lists.newArrayList();
+    List<TVertex> sources = new ArrayList<>();
     for (Vertex vertex: getOrderedSources()) {
       sources.add(vertex.toThrift());
     }
-    List<TVertex> targets = Lists.newArrayList();
+    List<TVertex> targets = new ArrayList<>();
     for (Vertex vertex: getOrderedTargets()) {
       targets.add(vertex.toThrift());
     }
@@ -293,9 +294,9 @@ public class ColumnLineageGraph {
   // Name of the user that issued this query
   private String user_;
 
-  private final List<Expr> resultDependencyPredicates_ = Lists.newArrayList();
+  private final List<Expr> resultDependencyPredicates_ = new ArrayList<>();
 
-  private final List<MultiEdge> edges_ = Lists.newArrayList();
+  private final List<MultiEdge> edges_ = new ArrayList<>();
 
   // Timestamp in seconds since epoch (GMT) this query was submitted for execution.
   private long timestamp_;
@@ -310,7 +311,7 @@ public class ColumnLineageGraph {
   // For an INSERT or a CTAS, these are the columns of the
   // destination table plus any partitioning columns (when dynamic partitioning is used).
   // For a SELECT stmt, they are the labels of the result exprs.
-  private final List<String> targetColumnLabels_ = Lists.newArrayList();
+  private final List<String> targetColumnLabels_ = new ArrayList<>();
 
   // Repository for tuple and slot descriptors for this query. Use it to construct the
   // column lineage graph.
@@ -409,7 +410,7 @@ public class ColumnLineageGraph {
     for (int i = 0; i < resultExprs.size(); ++i) {
       Expr expr = resultExprs.get(i);
       Set<String> sourceBaseCols = Sets.newHashSet();
-      List<Expr> dependentExprs = Lists.newArrayList();
+      List<Expr> dependentExprs = new ArrayList<>();
       getSourceBaseCols(expr, sourceBaseCols, dependentExprs, false);
       Set<String> targets = Sets.newHashSet(targetColumnLabels_.get(i));
       createMultiEdge(targets, sourceBaseCols, MultiEdge.EdgeType.PROJECTION);
@@ -464,7 +465,7 @@ public class ColumnLineageGraph {
     List<Expr> predicateDepExprs = getPredicateDeps(expr);
     if (directPredDeps != null) directPredDeps.addAll(predicateDepExprs);
     if (traversePredDeps) exprsToTraverse.addAll(predicateDepExprs);
-    List<SlotId> slotIds = Lists.newArrayList();
+    List<SlotId> slotIds = new ArrayList<>();
     for (Expr e: exprsToTraverse) {
       e.getIds(null, slotIds);
     }
@@ -492,7 +493,7 @@ public class ColumnLineageGraph {
    */
   private List<Expr> getProjectionDeps(Expr e) {
     Preconditions.checkNotNull(e);
-    List<Expr> outputExprs = Lists.newArrayList();
+    List<Expr> outputExprs = new ArrayList<>();
     if (e instanceof AnalyticExpr) {
       AnalyticExpr analytic = (AnalyticExpr) e;
       outputExprs.addAll(analytic.getChildren().subList(0,
@@ -509,7 +510,7 @@ public class ColumnLineageGraph {
    */
   private List<Expr> getPredicateDeps(Expr e) {
     Preconditions.checkNotNull(e);
-    List<Expr> outputExprs = Lists.newArrayList();
+    List<Expr> outputExprs = new ArrayList<>();
     if (e instanceof AnalyticExpr) {
       AnalyticExpr analyticExpr = (AnalyticExpr) e;
       outputExprs.addAll(analyticExpr.getPartitionExprs());
@@ -563,14 +564,14 @@ public class ColumnLineageGraph {
     graph.setUser(user_);
     graph.setStarted(timestamp_);
     // Add edges
-    List<TMultiEdge> edges = Lists.newArrayList();
+    List<TMultiEdge> edges = new ArrayList<>();
     for (MultiEdge edge: edges_) {
       edges.add(edge.toThrift());
     }
     graph.setEdges(edges);
     // Add vertices
     TreeSet<Vertex> sortedVertices = Sets.newTreeSet(vertices_.values());
-    List<TVertex> vertices = Lists.newArrayList();
+    List<TVertex> vertices = new ArrayList<>();
     for (Vertex vertex: sortedVertices) {
       vertices.add(vertex.toThrift());
     }

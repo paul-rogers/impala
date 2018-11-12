@@ -1005,7 +1005,7 @@ public class CatalogServiceCatalog extends Catalog {
     Db tmpDb;
     try {
       List<org.apache.hadoop.hive.metastore.api.Function> javaFns =
-          Lists.newArrayList();
+          new ArrayList<>();
       for (String javaFn : msClient.getHiveClient().getFunctions(dbName, "*")) {
         javaFns.add(msClient.getHiveClient().getFunction(dbName, javaFn));
       }
@@ -1067,7 +1067,7 @@ public class CatalogServiceCatalog extends Catalog {
       MetaStoreClient msClient, String dbName, Db existingDb) {
     try {
       List<org.apache.hadoop.hive.metastore.api.Function> javaFns =
-          Lists.newArrayList();
+          new ArrayList<>();
       for (String javaFn: msClient.getHiveClient().getFunctions(dbName, "*")) {
         javaFns.add(msClient.getHiveClient().getFunction(dbName, javaFn));
       }
@@ -1090,7 +1090,7 @@ public class CatalogServiceCatalog extends Catalog {
       loadJavaFunctions(newDb, javaFns);
       newDb.setCatalogVersion(incrementAndGetCatalogVersion());
 
-      List<TTableName> tblsToBackgroundLoad = Lists.newArrayList();
+      List<TTableName> tblsToBackgroundLoad = new ArrayList<>();
       for (String tableName: msClient.getHiveClient().getAllTables(dbName)) {
         Table incompleteTbl = IncompleteTable.createUninitializedTable(newDb, tableName);
         incompleteTbl.setCatalogVersion(incrementAndGetCatalogVersion());
@@ -1175,7 +1175,7 @@ public class CatalogServiceCatalog extends Catalog {
       // Build a new DB cache, populate it, and replace the existing cache in one
       // step.
       ConcurrentHashMap<String, Db> newDbCache = new ConcurrentHashMap<String, Db>();
-      List<TTableName> tblsToBackgroundLoad = Lists.newArrayList();
+      List<TTableName> tblsToBackgroundLoad = new ArrayList<>();
       try (MetaStoreClient msClient = getMetaStoreClient()) {
         for (String dbName: msClient.getHiveClient().getAllDatabases()) {
           dbName = dbName.toLowerCase();

@@ -71,7 +71,7 @@ public class DescribeResultFactory {
     TDescribeResult descResult = new TDescribeResult();
 
     org.apache.hadoop.hive.metastore.api.Database msDb = db.getMetaStoreDb();
-    descResult.results = Lists.newArrayList();
+    descResult.results = new ArrayList<>();
     String location = null;
     String comment = null;
     if(msDb != null) {
@@ -187,7 +187,7 @@ public class DescribeResultFactory {
   public static TDescribeResult buildDescribeFormattedResult(FeTable table,
       List<Column> filteredColumns) {
     TDescribeResult result = new TDescribeResult();
-    result.results = Lists.newArrayList();
+    result.results = new ArrayList<>();
 
     org.apache.hadoop.hive.metastore.api.Table msTable =
         table.getMetaStoreTable().deepCopy();
@@ -246,7 +246,7 @@ public class DescribeResultFactory {
    */
   public static TDescribeResult buildDescribeMinimalResult(StructType type) {
     TDescribeResult descResult = new TDescribeResult();
-    descResult.results = Lists.newArrayList();
+    descResult.results = new ArrayList<>();
     for (StructField field: type.getFields()) {
       TColumnValue colNameCol = new TColumnValue();
       colNameCol.setString_val(field.getName());
@@ -265,7 +265,7 @@ public class DescribeResultFactory {
    */
   public static TDescribeResult buildKuduDescribeMinimalResult(List<Column> columns) {
     TDescribeResult descResult = new TDescribeResult();
-    descResult.results = Lists.newArrayList();
+    descResult.results = new ArrayList<>();
     for (Column c: columns) {
       Preconditions.checkState(c instanceof KuduColumn);
       KuduColumn kuduColumn = (KuduColumn) c;

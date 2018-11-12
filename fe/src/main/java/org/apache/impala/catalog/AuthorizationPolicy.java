@@ -17,6 +17,7 @@
 
 package org.apache.impala.catalog;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -268,7 +269,7 @@ public class AuthorizationPolicy implements PrivilegeCache {
    * Gets all roles granted to the specified group.
    */
   public synchronized List<Role> getGrantedRoles(String groupName) {
-    List<Role> grantedRoles = Lists.newArrayList();
+    List<Role> grantedRoles = new ArrayList<>();
     Set<String> roleNames = groupsToRoles_.get(groupName);
     if (roleNames != null) {
       for (String roleName: roleNames) {
@@ -567,7 +568,7 @@ public class AuthorizationPolicy implements PrivilegeCache {
 
     // Get the groups that user belongs to, get the roles those groups belong to and
     // return those privileges as well.
-    List<Role> roles = Lists.newArrayList();
+    List<Role> roles = new ArrayList<>();
     for (String groupName: groupNames) {
       roles.addAll(fe.getCatalog().getAuthPolicy().getGrantedRoles(groupName));
     }

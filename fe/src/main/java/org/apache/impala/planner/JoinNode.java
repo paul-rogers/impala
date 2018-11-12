@@ -17,6 +17,7 @@
 
 package org.apache.impala.planner;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -260,7 +261,7 @@ public abstract class JoinNode extends PlanNode {
     }
 
     // Collect join conjuncts that are eligible to participate in cardinality estimation.
-    List<EqJoinConjunctScanSlots> eqJoinConjunctSlots = Lists.newArrayList();
+    List<EqJoinConjunctScanSlots> eqJoinConjunctSlots = new ArrayList<>();
     for (Expr eqJoinConjunct: eqJoinConjuncts_) {
       EqJoinConjunctScanSlots slots = EqJoinConjunctScanSlots.create(eqJoinConjunct);
       if (slots != null) eqJoinConjunctSlots.add(slots);
@@ -306,7 +307,7 @@ public abstract class JoinNode extends PlanNode {
       double rhsNumRows = fkPkCandidate.get(0).rhsNumRows();
       if (jointNdv >= Math.round(rhsNumRows * (1.0 - FK_PK_MAX_STATS_DELTA_PERC))) {
         // We cannot disprove that the RHS is a PK.
-        if (result == null) result = Lists.newArrayList();
+        if (result == null) result = new ArrayList<>();
         result.addAll(fkPkCandidate);
       }
     }
@@ -444,7 +445,7 @@ public abstract class JoinNode extends PlanNode {
         Pair<TupleId, TupleId> tids = Pair.create(slots.lhsTid(), slots.rhsTid());
         List<EqJoinConjunctScanSlots> scanSlots = scanSlotsByJoinedTids.get(tids);
         if (scanSlots == null) {
-          scanSlots = Lists.newArrayList();
+          scanSlots = new ArrayList<>();
           scanSlotsByJoinedTids.put(tids, scanSlots);
         }
         scanSlots.add(slots);
@@ -700,7 +701,7 @@ public abstract class JoinNode extends PlanNode {
   public void computePipelineMembership() {
     children_.get(0).computePipelineMembership();
     children_.get(1).computePipelineMembership();
-    pipelines_ = Lists.newArrayList();
+    pipelines_ = new ArrayList<>();
     for (PipelineMembership probePipeline : children_.get(0).getPipelines()) {
       if (probePipeline.getPhase() == TExecNodePhase.GETNEXT) {
           pipelines_.add(new PipelineMembership(

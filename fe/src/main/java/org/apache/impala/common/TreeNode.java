@@ -28,7 +28,7 @@ import com.google.common.base.Predicate;
  * Generic tree structure. Only concrete subclasses of this can be instantiated.
  */
 public abstract class TreeNode<NodeType extends TreeNode<NodeType>> {
-  protected ArrayList<NodeType> children_ = new ArrayList<NodeType>();
+  protected List<NodeType> children_ = new ArrayList<NodeType>();
 
   public NodeType getChild(int i) {
     return hasChild(i) ? children_.get(i) : null;
@@ -48,20 +48,20 @@ public abstract class TreeNode<NodeType extends TreeNode<NodeType>> {
 
   public boolean hasChild(int i) { return children_.size() > i; }
   public void setChild(int index, NodeType n) { children_.set(index, n); }
-  public ArrayList<NodeType> getChildren() { return children_; }
+  public List<NodeType> getChildren() { return children_; }
 
   /**
    * Return list of all nodes of the tree rooted at 'this', obtained
    * through pre-order traversal.
    */
-  public <C extends TreeNode<NodeType>> ArrayList<C> getNodesPreOrder() {
-    ArrayList<C> result = new ArrayList<C>();
+  public <C extends TreeNode<NodeType>> List<C> getNodesPreOrder() {
+    List<C> result = new ArrayList<C>();
     getNodesPreOrderAux(result);
     return result;
   }
 
   protected <C extends TreeNode<NodeType>> void getNodesPreOrderAux(
-      ArrayList<C> result) {
+      List<C> result) {
     result.add((C) this);
     for (NodeType child: children_) child.getNodesPreOrderAux(result);
   }
@@ -70,14 +70,14 @@ public abstract class TreeNode<NodeType extends TreeNode<NodeType>> {
    * Return list of all nodes of the tree rooted at 'this', obtained
    * through post-order traversal.
    */
-  public <C extends TreeNode<NodeType>> ArrayList<C> getNodesPostOrder() {
-    ArrayList<C> result = new ArrayList<C>();
+  public <C extends TreeNode<NodeType>> List<C> getNodesPostOrder() {
+    List<C> result = new ArrayList<C>();
     getNodesPostOrderAux(result);
     return result;
   }
 
   protected <C extends TreeNode<NodeType>> void getNodesPostOrderAux(
-      ArrayList<C> result) {
+      List<C> result) {
     for (NodeType child: children_) child.getNodesPostOrderAux(result);
     result.add((C) this);
   }

@@ -82,8 +82,8 @@ public class FrontendTestBase {
       AuthorizationConfig.createAuthDisabledConfig(), catalog_);
 
   // Test-local list of test databases and tables. These are cleaned up in @After.
-  protected final List<Db> testDbs_ = Lists.newArrayList();
-  protected final List<Table> testTables_ = Lists.newArrayList();
+  protected final List<Db> testDbs_ = new ArrayList<>();
+  protected final List<Table> testTables_ = new ArrayList<>();
   protected final String[][] hintStyles_ = new String[][] {
       new String[] { "/* +", "*/" }, // traditional commented hint
       new String[] { "-- +", "\n" }, // eol commented hint
@@ -104,7 +104,7 @@ public class FrontendTestBase {
   // TODO: we could consider having this be the sql to run instead but that requires
   // connecting to the BE.
   protected Function addTestFunction(String name,
-      ArrayList<ScalarType> args, boolean varArgs) {
+      List<ScalarType> args, boolean varArgs) {
     return addTestFunction("default", name, args, varArgs);
   }
 
@@ -114,8 +114,8 @@ public class FrontendTestBase {
   }
 
   protected Function addTestFunction(String db, String fnName,
-      ArrayList<ScalarType> args, boolean varArgs) {
-    ArrayList<Type> argTypes = Lists.newArrayList();
+      List<ScalarType> args, boolean varArgs) {
+    List<Type> argTypes = new ArrayList<>();
     argTypes.addAll(args);
     Function fn = ScalarFunction.createForTesting(
         db, fnName, argTypes, Type.INT, "/Foo", "Foo.class", null,

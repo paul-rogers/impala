@@ -68,7 +68,7 @@ public interface FeTable {
   /**
    * @return the columns in this table
    */
-  ArrayList<Column> getColumns();
+  List<Column> getColumns();
 
   /**
    * @return an unmodifiable list of all columns, but with partition columns at the end of

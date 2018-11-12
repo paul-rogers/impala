@@ -32,7 +32,7 @@ import com.google.common.base.Preconditions;
 public class ValuesStmt extends UnionStmt {
 
   public ValuesStmt(List<UnionOperand> operands,
-      ArrayList<OrderByElement> orderByElements, LimitElement limitElement) {
+      List<OrderByElement> orderByElements, LimitElement limitElement) {
     super(operands, orderByElements, limitElement);
   }
 

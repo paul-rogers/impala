@@ -19,6 +19,7 @@ package org.apache.impala.analysis;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 
 import org.apache.impala.catalog.Function;
 import org.apache.impala.catalog.PrimitiveType;
@@ -130,7 +131,7 @@ public class CreateUdfStmt extends CreateFunctionStmtBase {
   }
 
   @Override
-  protected Function createFunction(FunctionName fnName, ArrayList<Type> argTypes, Type retType,
+  protected Function createFunction(FunctionName fnName, List<Type> argTypes, Type retType,
       boolean hasVarArgs) {
     return new ScalarFunction(fnName, argTypes, retType, hasVarArgs);
   }

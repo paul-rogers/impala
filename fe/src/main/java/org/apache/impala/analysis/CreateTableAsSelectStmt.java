@@ -17,6 +17,7 @@
 
 package org.apache.impala.analysis;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
@@ -96,7 +97,7 @@ public class CreateTableAsSelectStmt extends StatementBase {
     partitionKeys_ = params.partitionKeys;
     List<PartitionKeyValue> pkvs = null;
     if (partitionKeys_ != null) {
-      pkvs = Lists.newArrayList();
+      pkvs = new ArrayList<>();
       for (String key: partitionKeys_) {
         pkvs.add(new PartitionKeyValue(key, null));
       }

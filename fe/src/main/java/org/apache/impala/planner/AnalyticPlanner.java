@@ -17,6 +17,7 @@
 
 package org.apache.impala.planner;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
@@ -203,8 +204,8 @@ public class AnalyticPlanner {
     PartitionGroup maxPg = null;
     List<Expr> maxGroupingExprs = null;
     for (PartitionGroup pg: partitionGroups) {
-      List<Expr> l1 = Lists.newArrayList();
-      List<Expr> l2 = Lists.newArrayList();
+      List<Expr> l1 = new ArrayList<>();
+      List<Expr> l2 = new ArrayList<>();
       analyzer_.exprIntersect(pg.partitionByExprs, groupingExprs, l1, l2);
       // TODO: also look at l2 and take the max?
       long ndv = Expr.getNumDistinctValues(l1);
@@ -267,7 +268,7 @@ public class AnalyticPlanner {
   private SortInfo createSortInfo(
       PlanNode input, List<Expr> sortExprs, List<Boolean> isAsc,
       List<Boolean> nullsFirst) {
-    List<Expr> inputSlotRefs = Lists.newArrayList();
+    List<Expr> inputSlotRefs = new ArrayList<>();
     for (TupleId tid: input.getTupleIds()) {
       TupleDescriptor tupleDesc = analyzer_.getTupleDesc(tid);
       for (SlotDescriptor inputSlotDesc: tupleDesc.getSlots()) {
@@ -292,7 +293,7 @@ public class AnalyticPlanner {
     // we materialize those rhs TupleIsNullPredicates, which are then substituted
     // by a SlotRef into the sort's tuple in ancestor nodes (IMPALA-1519).
     if (inputSmap != null) {
-      List<Expr> tupleIsNullPreds = Lists.newArrayList();
+      List<Expr> tupleIsNullPreds = new ArrayList<>();
       for (Expr rhsExpr: inputSmap.getRhs()) {
         // Ignore substitutions that are irrelevant at this plan node and its ancestors.
         if (!rhsExpr.isBoundByTupleIds(input.getTupleIds())) continue;
@@ -476,11 +477,11 @@ public class AnalyticPlanner {
     // Analytic exprs belonging to this window group and their corresponding logical
     // intermediate and output slots from AnalyticInfo.intermediateTupleDesc_
     // and AnalyticInfo.outputTupleDesc_.
-    public final List<AnalyticExpr> analyticExprs = Lists.newArrayList();
+    public final List<AnalyticExpr> analyticExprs = new ArrayList<>();
     // Result of getFnCall() for every analytic expr.
-    public final List<Expr> analyticFnCalls = Lists.newArrayList();
-    public final List<SlotDescriptor> logicalOutputSlots = Lists.newArrayList();
-    public final List<SlotDescriptor> logicalIntermediateSlots = Lists.newArrayList();
+    public final List<Expr> analyticFnCalls = new ArrayList<>();
+    public final List<SlotDescriptor> logicalOutputSlots = new ArrayList<>();
+    public final List<SlotDescriptor> logicalIntermediateSlots = new ArrayList<>();
 
     // Physical output and intermediate tuples as well as an smap that maps the
     // corresponding logical output slots to their physical slots in physicalOutputTuple.
@@ -592,7 +593,7 @@ public class AnalyticPlanner {
    */
   private List<WindowGroup> collectWindowGroups() {
     List<Expr> analyticExprs = analyticInfo_.getAnalyticExprs();
-    List<WindowGroup> groups = Lists.newArrayList();
+    List<WindowGroup> groups = new ArrayList<>();
     for (int i = 0; i < analyticExprs.size(); ++i) {
       AnalyticExpr analyticExpr = (AnalyticExpr) analyticExprs.get(i);
       // Do not generate the plan for non-materialized analytic exprs.
@@ -626,7 +627,7 @@ public class AnalyticPlanner {
   private static class SortGroup {
     public List<Expr> partitionByExprs;
     public List<OrderByElement> orderByElements;
-    public List<WindowGroup> windowGroups = Lists.newArrayList();
+    public List<WindowGroup> windowGroups = new ArrayList<>();
 
     // sum of windowGroups.physicalOutputTuple.getByteSize()
     public int totalOutputTupleSize = -1;
@@ -720,7 +721,7 @@ public class AnalyticPlanner {
    * Partitions the windowGroups into SortGroups based on compatible order by exprs.
    */
   private List<SortGroup> collectSortGroups(List<WindowGroup> windowGroups) {
-    List<SortGroup> sortGroups = Lists.newArrayList();
+    List<SortGroup> sortGroups = new ArrayList<>();
     for (WindowGroup windowGroup: windowGroups) {
       boolean match = false;
       for (SortGroup sortGroup: sortGroups) {
@@ -740,7 +741,7 @@ public class AnalyticPlanner {
    */
   private static class PartitionGroup {
     public List<Expr> partitionByExprs;
-    public List<SortGroup> sortGroups = Lists.newArrayList();
+    public List<SortGroup> sortGroups = new ArrayList<>();
 
     // sum of sortGroups.windowGroups.physicalOutputTuple.getByteSize()
     public int totalOutputTupleSize = -1;
@@ -800,7 +801,7 @@ public class AnalyticPlanner {
    * Extract a minimal set of PartitionGroups from sortGroups.
    */
   private List<PartitionGroup> collectPartitionGroups(List<SortGroup> sortGroups) {
-    List<PartitionGroup> partitionGroups = Lists.newArrayList();
+    List<PartitionGroup> partitionGroups = new ArrayList<>();
     for (SortGroup sortGroup: sortGroups) {
       boolean match = false;
       for (PartitionGroup partitionGroup: partitionGroups) {

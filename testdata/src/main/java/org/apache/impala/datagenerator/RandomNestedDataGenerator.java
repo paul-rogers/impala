@@ -43,11 +43,11 @@ public class RandomNestedDataGenerator {
   public static Random rand;
   public static int numListItems;
   public static int numElementsGenerated = 0;
-  public static ArrayList<Double> doubleCache;
-  public static ArrayList<Float> floatCache;
-  public static ArrayList<Integer> intCache;
-  public static ArrayList<Long> longCache;
-  public static ArrayList<String> stringCache;
+  public static List<Double> doubleCache;
+  public static List<Float> floatCache;
+  public static List<Integer> intCache;
+  public static List<Long> longCache;
+  public static List<String> stringCache;
   public static String alphabet = "abcdfghijklmnopqrstuvwxyz0123456789";
   public static final Integer NUM_ELEMENTS = 100;
   public static final Integer RAND_SEED = 12345;
@@ -218,7 +218,7 @@ public class RandomNestedDataGenerator {
       }
       case ARRAY: {
         Schema elementSchema = schema.getElementType();
-        ArrayList<Object> arr = new ArrayList<Object>();
+        List<Object> arr = new ArrayList<Object>();
         int numElements = generateListLength(depth);
         for (int i = 0; i < numElements; i++) {
           arr.add(generateDatum(elementSchema, depth + 1));
@@ -228,7 +228,7 @@ public class RandomNestedDataGenerator {
       case MAP: {
         // All Avro keys are strings...
         Schema valueSchema = schema.getValueType();
-        HashMap<String, Object> m = new HashMap<String, Object>();
+        Map<String, Object> m = new HashMap<String, Object>();
         int numElements = generateListLength(depth);
         for (int i = 0; i < numElements; i++) {
           // Note: key collisions are possible

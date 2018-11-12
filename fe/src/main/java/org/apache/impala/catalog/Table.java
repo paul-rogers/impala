@@ -94,7 +94,7 @@ public abstract class Table extends CatalogObjectImpl implements FeTable {
 
   // colsByPos[i] refers to the ith column in the table. The first numClusteringCols are
   // the clustering columns.
-  protected final ArrayList<Column> colsByPos_ = Lists.newArrayList();
+  protected final ArrayList<Column> colsByPos_ = new ArrayList<>();
 
   // map from lowercase column name to Column object.
   private final Map<String, Column> colsByName_ = Maps.newHashMap();
@@ -214,7 +214,7 @@ public abstract class Table extends CatalogObjectImpl implements FeTable {
   // stats. This method allows each table type to volunteer the set of columns we should
   // ask the metastore for in loadAllColumnStats().
   protected List<String> getColumnNamesWithHmsStats() {
-    List<String> ret = Lists.newArrayList();
+    List<String> ret = new ArrayList<>();
     for (String name: colsByName_.keySet()) ret.add(name);
     return ret;
   }
@@ -458,7 +458,7 @@ public abstract class Table extends CatalogObjectImpl implements FeTable {
   public String getUniqueName() { return "TABLE:" + getFullName(); }
 
   @Override // FeTable
-  public ArrayList<Column> getColumns() { return colsByPos_; }
+  public List<Column> getColumns() { return colsByPos_; }
 
   @Override // FeTable
   public List<String> getColumnNames() { return Column.toColumnNames(colsByPos_); }
@@ -479,7 +479,7 @@ public abstract class Table extends CatalogObjectImpl implements FeTable {
 
   @Override // FeTable
   public List<Column> getColumnsInHiveOrder() {
-    ArrayList<Column> columns = Lists.newArrayList(getNonClusteringColumns());
+    List<Column> columns = Lists.newArrayList(getNonClusteringColumns());
     columns.addAll(getClusteringColumns());
     return Collections.unmodifiableList(columns);
   }

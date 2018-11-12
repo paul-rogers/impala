@@ -81,7 +81,7 @@ public class LocalFsTable extends LocalTable implements FeFsTable {
    *
    * Set by loadPartitionValueMap().
    */
-  private ArrayList<TreeMap<LiteralExpr, HashSet<Long>>> partitionValueMap_;
+  private List<TreeMap<LiteralExpr, HashSet<Long>>> partitionValueMap_;
 
   /**
    * For each partition column, the set of partition IDs having a NULL value
@@ -89,7 +89,7 @@ public class LocalFsTable extends LocalTable implements FeFsTable {
    *
    * Set by loadPartitionValueMap().
    */
-  private ArrayList<HashSet<Long>> nullPartitionIds_;
+  private List<HashSet<Long>> nullPartitionIds_;
 
   /**
    * The value that will be stored in a partition name to indicate NULL.
@@ -383,7 +383,7 @@ public class LocalFsTable extends LocalTable implements FeFsTable {
     // Possible in the case that all partitions were pruned.
     if (ids.isEmpty()) return Collections.emptyList();
 
-    List<PartitionRef> refs = Lists.newArrayList();
+    List<PartitionRef> refs = new ArrayList<>();
     for (Long id : ids) {
       LocalPartitionSpec spec = partitionSpecs_.get(id);
       Preconditions.checkArgument(spec != null, "Invalid partition ID for table %s: %s",
@@ -430,9 +430,9 @@ public class LocalFsTable extends LocalTable implements FeFsTable {
     if (partitionValueMap_ != null) return;
 
     loadPartitionSpecs();
-    ArrayList<TreeMap<LiteralExpr, HashSet<Long>>> valMapByCol =
+    List<TreeMap<LiteralExpr, HashSet<Long>>> valMapByCol =
         new ArrayList<>();
-    ArrayList<HashSet<Long>> nullParts = new ArrayList<>();
+    List<HashSet<Long>> nullParts = new ArrayList<>();
 
     for (int i = 0; i < getNumClusteringCols(); i++) {
       valMapByCol.add(new TreeMap<LiteralExpr, HashSet<Long>>());

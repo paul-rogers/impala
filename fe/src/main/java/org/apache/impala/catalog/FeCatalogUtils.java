@@ -17,6 +17,7 @@
 
 package org.apache.impala.catalog;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -226,7 +227,7 @@ public abstract class FeCatalogUtils {
         "expected %s values but got %s",
         hmsPartitionValues, table.getFullName(),
         table.getNumClusteringCols(), hmsPartitionValues.size());
-    List<LiteralExpr> keyValues = Lists.newArrayList();
+    List<LiteralExpr> keyValues = new ArrayList<>();
     for (String partitionKey: hmsPartitionValues) {
       Type type = table.getColumns().get(keyValues.size()).getType();
       // Deal with Hive's special NULL partition key.
@@ -257,7 +258,7 @@ public abstract class FeCatalogUtils {
    */
   public static String getPartitionName(FeFsPartition partition) {
     FeFsTable table = partition.getTable();
-    List<String> partitionCols = Lists.newArrayList();
+    List<String> partitionCols = new ArrayList<>();
     for (int i = 0; i < table.getNumClusteringCols(); ++i) {
       partitionCols.add(table.getColumns().get(i).getName());
     }
@@ -269,7 +270,7 @@ public abstract class FeCatalogUtils {
   // TODO: this could be a default method in FeFsPartition in Java 8.
   public static List<String> getPartitionValuesAsStrings(
       FeFsPartition partition, boolean mapNullsToHiveKey) {
-    List<String> ret = Lists.newArrayList();
+    List<String> ret = new ArrayList<>();
     for (LiteralExpr partValue: partition.getPartitionValues()) {
       if (mapNullsToHiveKey) {
         ret.add(PartitionKeyValue.getPartitionKeyValueString(
@@ -283,12 +284,12 @@ public abstract class FeCatalogUtils {
 
   // TODO: this could be a default method in FeFsPartition in Java 8.
   public static String getConjunctSqlForPartition(FeFsPartition part) {
-    List<String> partColSql = Lists.newArrayList();
+    List<String> partColSql = new ArrayList<>();
     for (Column partCol: part.getTable().getClusteringColumns()) {
       partColSql.add(ToSqlUtils.getIdentSql(partCol.getName()));
     }
 
-    List<String> conjuncts = Lists.newArrayList();
+    List<String> conjuncts = new ArrayList<>();
     for (int i = 0; i < partColSql.size(); ++i) {
       LiteralExpr partVal = part.getPartitionValues().get(i);
       String partValSql = partVal.toSql();

@@ -17,6 +17,7 @@
 
 package org.apache.impala.util;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -380,7 +381,7 @@ public class SentryPolicyService {
    * Verifies that all column-level privileges refer to the same table.
    */
   private List<String> getColumnNames(List<TPrivilege> privileges) {
-    List<String> columnNames = Lists.newArrayList();
+    List<String> columnNames = new ArrayList<>();
     String tablePath = PrivilegeSpec.getTablePath(privileges.get(0));
     columnNames.add(privileges.get(0).getColumn_name());
     // Collect all column names and verify that they belong to the same table.

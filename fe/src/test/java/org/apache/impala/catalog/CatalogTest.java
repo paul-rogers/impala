@@ -694,7 +694,7 @@ public class CatalogTest {
 
   private List<String> getFunctionSignatures(String db) throws DatabaseNotFoundException {
     List<Function> fns = catalog_.getFunctions(db);
-    List<String> names = Lists.newArrayList();
+    List<String> names = new ArrayList<>();
     for (Function fn: fns) {
       names.add(fn.signatureString());
     }
@@ -706,7 +706,7 @@ public class CatalogTest {
     List<String> fnNames = getFunctionSignatures("default");
     assertEquals(fnNames.size(), 0);
 
-    ArrayList<Type> args1 = Lists.newArrayList();
+    ArrayList<Type> args1 = new ArrayList<>();
     ArrayList<Type> args2 = Lists.<Type>newArrayList(Type.INT);
     ArrayList<Type> args3 = Lists.<Type>newArrayList(Type.TINYINT);
 

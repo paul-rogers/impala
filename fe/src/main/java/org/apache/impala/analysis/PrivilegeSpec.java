@@ -17,6 +17,7 @@
 
 package org.apache.impala.analysis;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.impala.authorization.Privilege;
@@ -105,7 +106,7 @@ public class PrivilegeSpec implements ParseNode {
   }
 
   public List<TPrivilege> toThrift() {
-    List<TPrivilege> privileges = Lists.newArrayList();
+    List<TPrivilege> privileges = new ArrayList<>();
     if (scope_ == TPrivilegeScope.COLUMN) {
       // Create a TPrivilege for every referenced column
       for (String column: columnNames_) {

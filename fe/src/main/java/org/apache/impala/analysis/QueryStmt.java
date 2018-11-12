@@ -57,11 +57,11 @@ public abstract class QueryStmt extends StatementBase {
   // aliases substituted, agg output substituted)
   // For a union statement:
   // list of slotrefs into the tuple materialized by the union.
-  protected List<Expr> resultExprs_ = Lists.newArrayList();
+  protected List<Expr> resultExprs_ = new ArrayList<>();
 
   // For a select statment: select list exprs resolved to base tbl refs
   // For a union statement: same as resultExprs
-  protected List<Expr> baseTblResultExprs_ = Lists.newArrayList();
+  protected List<Expr> baseTblResultExprs_ = new ArrayList<>();
 
   /**
    * Map of expression substitutions for replacing aliases
@@ -98,12 +98,12 @@ public abstract class QueryStmt extends StatementBase {
   // returns a single row.
   protected boolean isRuntimeScalar_ = false;
 
-  QueryStmt(ArrayList<OrderByElement> orderByElements, LimitElement limitElement) {
+  QueryStmt(List<OrderByElement> orderByElements, LimitElement limitElement) {
     orderByElements_ = orderByElements;
     sortInfo_ = null;
     limitElement_ = limitElement == null ? new LimitElement(null, null) : limitElement;
     aliasSmap_ = new ExprSubstitutionMap();
-    ambiguousAliasList_ = Lists.newArrayList();
+    ambiguousAliasList_ = new ArrayList<>();
   }
 
   public ExprSubstitutionMap getAliasSmap() { return aliasSmap_; }
@@ -177,7 +177,7 @@ public abstract class QueryStmt extends StatementBase {
   public List<TupleId> getCorrelatedTupleIds()
       throws AnalysisException {
     // Correlated tuple ids of this stmt.
-    List<TupleId> correlatedTupleIds = Lists.newArrayList();
+    List<TupleId> correlatedTupleIds = new ArrayList<>();
     // First correlated and absolute table refs. Used for error detection/reporting.
     // We pick the first ones for simplicity. Choosing arbitrary ones is equally valid.
     TableRef correlatedRef = null;
@@ -185,7 +185,7 @@ public abstract class QueryStmt extends StatementBase {
     // Materialized tuple ids of the table refs checked so far.
     Set<TupleId> tblRefIds = Sets.newHashSet();
 
-    List<TableRef> tblRefs = Lists.newArrayList();
+    List<TableRef> tblRefs = new ArrayList<>();
     collectTableRefs(tblRefs, true);
     for (TableRef tblRef: tblRefs) {
       if (absoluteRef == null && !tblRef.isRelative()) absoluteRef = tblRef;
@@ -243,9 +243,9 @@ public abstract class QueryStmt extends StatementBase {
       return;
     }
 
-    ArrayList<Expr> orderingExprs = Lists.newArrayList();
-    ArrayList<Boolean> isAscOrder = Lists.newArrayList();
-    ArrayList<Boolean> nullsFirstParams = Lists.newArrayList();
+    List<Expr> orderingExprs = new ArrayList<>();
+    List<Boolean> isAscOrder = new ArrayList<>();
+    List<Boolean> nullsFirstParams = new ArrayList<>();
 
     // extract exprs
     for (OrderByElement orderByElement: orderByElements_) {
@@ -399,7 +399,7 @@ public abstract class QueryStmt extends StatementBase {
    * TODO: The name of this function has become outdated due to analytics
    * producing logical (non-materialized) tuples. Re-think and clean up.
    */
-  public abstract void getMaterializedTupleIds(ArrayList<TupleId> tupleIdList);
+  public abstract void getMaterializedTupleIds(List<TupleId> tupleIdList);
 
   @Override
   public List<Expr> getResultExprs() { return resultExprs_; }
@@ -442,7 +442,7 @@ public abstract class QueryStmt extends StatementBase {
    * Mark slots referenced in exprs as materialized.
    */
   protected void materializeSlots(Analyzer analyzer, List<Expr> exprs) {
-    List<SlotId> slotIds = Lists.newArrayList();
+    List<SlotId> slotIds = new ArrayList<>();
     for (Expr e: exprs) {
       e.getIds(null, slotIds);
     }
@@ -461,9 +461,9 @@ public abstract class QueryStmt extends StatementBase {
     return new PlanRootSink();
   }
 
-  public ArrayList<OrderByElement> cloneOrderByElements() {
+  public List<OrderByElement> cloneOrderByElements() {
     if (orderByElements_ == null) return null;
-    ArrayList<OrderByElement> result =
+    List<OrderByElement> result =
         Lists.newArrayListWithCapacity(orderByElements_.size());
     for (OrderByElement o: orderByElements_) result.add(o.clone());
     return result;

@@ -110,7 +110,7 @@ public class TestFileParser {
    */
   public static class TestCase {
 
-    private final EnumMap<Section, ArrayList<String>> expectedResultSections =
+    private final EnumMap<Section, List<String>> expectedResultSections =
         Maps.newEnumMap(Section.class);
 
     // Line number in the test case file where this case started
@@ -128,7 +128,7 @@ public class TestFileParser {
 
     public void setOptions(TQueryOptions options) { this.options = options; }
 
-    protected void addSection(Section section, ArrayList<String> contents) {
+    protected void addSection(Section section, List<String> contents) {
       expectedResultSections.put(section, contents);
     }
 
@@ -136,11 +136,11 @@ public class TestFileParser {
      * Returns a section corresponding to the given key, or an empty list if one does not
      * exist. Comments are not included.
      */
-    public ArrayList<String> getSectionContents(Section section) {
+    public List<String> getSectionContents(Section section) {
       return getSectionContents(section, false);
     }
 
-    public ArrayList<String> getSectionContents(Section section, boolean withComments) {
+    public List<String> getSectionContents(Section section, boolean withComments) {
       return getSectionContents(section, withComments, null);
     }
 
@@ -156,16 +156,16 @@ public class TestFileParser {
      *          with the specified table suffix
      * @return Collection of strings mapping to lines in the test file
      */
-    public ArrayList<String> getSectionContents(Section section, boolean withComments,
+    public List<String> getSectionContents(Section section, boolean withComments,
                                                 String dbSuffix) {
-      ArrayList<String> ret = expectedResultSections.get(section);
+      List<String> ret = expectedResultSections.get(section);
       if (ret == null) {
-        return Lists.newArrayList();
+        return new ArrayList<>();
       } else if (withComments && dbSuffix == null) {
         return ret;
       }
 
-      ArrayList<String> retList = Lists.newArrayList();
+      List<String> retList = new ArrayList<>();
       for (String s : ret) {
         if (!(s.startsWith("#") || s.startsWith("//"))) {
           if (dbSuffix != null) {
@@ -221,7 +221,7 @@ public class TestFileParser {
     public boolean isEmpty() { return expectedResultSections.isEmpty(); }
   }
 
-  private final List<TestCase> testCases = Lists.newArrayList();
+  private final List<TestCase> testCases = new ArrayList<>();
 
   private int lineNum = 0;
   private final String fileName;
@@ -234,7 +234,7 @@ public class TestFileParser {
    * For backwards compatibility, if no title is found this is the order in which
    * sections are labeled.
    */
-  static private final ArrayList<Section> defaultSectionOrder =
+  static private final List<Section> defaultSectionOrder =
     Lists.newArrayList(Section.QUERY, Section.TYPES, Section.RESULTS);
 
   public TestFileParser(String fileName, TQueryOptions options) {
@@ -274,7 +274,7 @@ public class TestFileParser {
    */
   private TestCase parseOneTestCase() {
     Section currentSection = Section.QUERY;
-    ArrayList<String> sectionContents = Lists.newArrayList();
+    List<String> sectionContents = new ArrayList<>();
     // Each test case in the test file has its own copy of query options.
     TestCase currentTestCase = new TestCase(lineNum, options.deepCopy());
     int sectionCount = 0;
@@ -328,7 +328,7 @@ public class TestFileParser {
           throw new IllegalStateException("Duplicate sections are not allowed: "
               + currentSection);
         }
-        sectionContents = Lists.newArrayList();
+        sectionContents = new ArrayList<>();
       } else {
         sectionContents.add(line);
       }

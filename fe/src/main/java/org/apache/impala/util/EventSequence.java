@@ -17,6 +17,7 @@
 
 package org.apache.impala.util;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.impala.thrift.TEventSequence;
@@ -28,8 +29,8 @@ import com.google.common.collect.Lists;
  * Events are 'marked' as they happen (so in order, with no time-travel backwards).
  */
 public class EventSequence {
-  private final List<Long> timestamps_ = Lists.newArrayList();
-  private final List<String> labels_ = Lists.newArrayList();
+  private final List<Long> timestamps_ = new ArrayList<>();
+  private final List<String> labels_ = new ArrayList<>();
 
   private final long startTime_;
   private final String name_;

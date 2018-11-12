@@ -21,6 +21,7 @@ import java.lang.management.GarbageCollectorMXBean;
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadInfo;
 import java.lang.management.ThreadMXBean;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -123,7 +124,7 @@ public class JvmPauseMonitor {
     Set<String> gcBeanNames = Sets.intersection(
         gcTimesAfterSleep.keySet(),
         gcTimesBeforeSleep.keySet());
-    List<String> gcDiffs = Lists.newArrayList();
+    List<String> gcDiffs = new ArrayList<>();
     for (String name : gcBeanNames) {
       GcTimes diff = gcTimesAfterSleep.get(name).subtract(
           gcTimesBeforeSleep.get(name));
@@ -290,7 +291,7 @@ public class JvmPauseMonitor {
    * log messages about the GC pauses.
    */
   private static void allocateMemory() {
-    List<String> list = Lists.newArrayList();
+    List<String> list = new ArrayList<>();
     int i = 0;
     while (true) {
       list.add(String.valueOf(i++));

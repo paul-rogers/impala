@@ -248,7 +248,7 @@ public class HdfsScanNode extends ScanNode {
 
   // List of conjuncts for min/max values of parquet::Statistics, that are used to skip
   // data when scanning Parquet files.
-  private final List<Expr> minMaxConjuncts_ = Lists.newArrayList();
+  private final List<Expr> minMaxConjuncts_ = new ArrayList<>();
 
   // Map from TupleDescriptor to list of PlanNode conjuncts that have been transformed
   // into conjuncts in 'minMaxConjuncts_'.
@@ -318,7 +318,7 @@ public class HdfsScanNode extends ScanNode {
     sd.setIsMaterialized(true);
     sd.setIsNullable(false);
     sd.setLabel("parquet-stats: num_rows");
-    ArrayList<Expr> args = Lists.newArrayList();
+    List<Expr> args = new ArrayList<>();
     args.add(new SlotRef(sd));
     FunctionCallExpr sumFn = new FunctionCallExpr("sum_init_zero", args);
     sumFn.analyzeNoThrow(analyzer);
@@ -538,7 +538,7 @@ public class HdfsScanNode extends ScanNode {
     if (slotRef.getDesc().isArrayPosRef()) return;
     if (inPred.isNotIn()) return;
 
-    ArrayList<Expr> children = inPred.getChildren();
+    List<Expr> children = inPred.getChildren();
     LiteralExpr min = null;
     LiteralExpr max = null;
     for (int i = 1; i < children.size(); ++i) {
@@ -649,7 +649,7 @@ public class HdfsScanNode extends ScanNode {
       // generating new predicates.
       List<Expr> collectionConjuncts =
           analyzer.getUnassignedConjuncts(Lists.newArrayList(itemTid));
-      ArrayList<Expr> bindingPredicates = analyzer.getBoundPredicates(itemTid);
+      List<Expr> bindingPredicates = analyzer.getBoundPredicates(itemTid);
       for (Expr boundPred: bindingPredicates) {
         if (!collectionConjuncts.contains(boundPred)) collectionConjuncts.add(boundPred);
       }
@@ -682,8 +682,8 @@ public class HdfsScanNode extends ScanNode {
    * collections).
    */
   private void addDictionaryFilter(Analyzer analyzer, Expr conjunct, int conjunctIdx) {
-    List<TupleId> tupleIds = Lists.newArrayList();
-    List<SlotId> slotIds = Lists.newArrayList();
+    List<TupleId> tupleIds = new ArrayList<>();
+    List<SlotId> slotIds = new ArrayList<>();
     conjunct.getIds(tupleIds, slotIds);
     // Only single-slot conjuncts are eligible for dictionary filtering. When pruning
     // a row-group, the conjunct must be evaluated only against a single row-group
@@ -717,7 +717,7 @@ public class HdfsScanNode extends ScanNode {
     SlotDescriptor slotKey = analyzer.getSlotDesc(slotId);
     List<Integer> slotList = dictionaryFilterConjuncts_.get(slotKey);
     if (slotList == null) {
-      slotList = Lists.newArrayList();
+      slotList = new ArrayList<>();
       dictionaryFilterConjuncts_.put(slotKey, slotList);
     }
     slotList.add(conjunctIdx);
@@ -922,7 +922,7 @@ public class HdfsScanNode extends ScanNode {
         continue;
       }
       // Collect the network address and volume ID of all replicas of this block.
-      List<TScanRangeLocation> locations = Lists.newArrayList();
+      List<TScanRangeLocation> locations = new ArrayList<>();
       for (int j = 0; j < replicaHostCount; ++j) {
         TScanRangeLocation location = new TScanRangeLocation();
         // Translate from the host index (local to the HdfsTable) to network address.
@@ -1302,7 +1302,7 @@ public class HdfsScanNode extends ScanNode {
       TupleDescriptor tupleDescriptor = slotDescriptor.getParent();
       List<Integer> indexes = perTupleConjuncts.get(tupleDescriptor);
       if (indexes == null) {
-        indexes = Lists.newArrayList();
+        indexes = new ArrayList<>();
         perTupleConjuncts.put(tupleDescriptor, indexes);
       }
       indexes.addAll(entry.getValue());
@@ -1324,7 +1324,7 @@ public class HdfsScanNode extends ScanNode {
         tupleName = " on " + tupleDescriptor.getAlias();
       }
       Preconditions.checkNotNull(conjuncts);
-      List<Expr> exprList = Lists.newArrayList();
+      List<Expr> exprList = new ArrayList<>();
       for (Integer idx : totalIdxList) {
         Preconditions.checkState(idx.intValue() < conjuncts.size());
         exprList.add(conjuncts.get(idx));
@@ -1491,7 +1491,7 @@ public class HdfsScanNode extends ScanNode {
    * if/when that is added.
    */
   private List<Long> computeMinColumnMemReservations() {
-    List<Long> columnByteSizes = Lists.newArrayList();
+    List<Long> columnByteSizes = new ArrayList<>();
     FeFsTable table = (FeFsTable) desc_.getTable();
     boolean havePosSlot = false;
     for (SlotDescriptor slot: desc_.getSlots()) {

@@ -17,6 +17,7 @@
 
 package org.apache.impala.util;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -161,7 +162,7 @@ public class MetaStoreUtil {
     }
 
     List<org.apache.hadoop.hive.metastore.api.Partition> fetchedPartitions =
-        Lists.newArrayList();
+        new ArrayList<>();
     // Fetch the partitions in batches.
     for (int i = 0; i < partNames.size(); i += maxPartitionsPerRpc_) {
       // Get a subset of partition names to fetch.
@@ -224,7 +225,7 @@ public class MetaStoreUtil {
       String replaceWith) {
     Iterable<String> inputList =
         Splitter.on(",").trimResults().omitEmptyStrings().split(input);
-    List<String> outputList = Lists.newArrayList();
+    List<String> outputList = new ArrayList<>();
     for (String elem : inputList) {
       if (elem.equalsIgnoreCase(toReplace)) {
         outputList.add(replaceWith);
@@ -242,7 +243,7 @@ public class MetaStoreUtil {
   public static String removeValueFromCsvList(String inputCsv, String toRemove) {
     Iterable<String> inputList =
         Splitter.on(",").trimResults().omitEmptyStrings().split(inputCsv);
-    List<String> outputList = Lists.newArrayList();
+    List<String> outputList = new ArrayList<>();
     for (String elem : inputList) {
       if (!elem.equalsIgnoreCase(toRemove)) outputList.add(elem);
     }
@@ -259,7 +260,7 @@ public class MetaStoreUtil {
         Splitter.on(",").trimResults().omitEmptyStrings().split(leftCsv);
     HashSet<String> rightColNames = Sets.newHashSet();
     for (TColumn c : rightCols) rightColNames.add(c.getColumnName().toLowerCase());
-    List<String> outputList = Lists.newArrayList();
+    List<String> outputList = new ArrayList<>();
     for (String leftCol : leftCols) {
       if (rightColNames.contains(leftCol.toLowerCase())) outputList.add(leftCol);
     }
@@ -270,7 +271,7 @@ public class MetaStoreUtil {
       throws MetaException, CatalogException {
     Preconditions.checkNotNull(msTbl);
     LinkedHashMap<String, String> hm = Warehouse.makeSpecFromName(partName);
-    List<String> partVals = Lists.newArrayList();
+    List<String> partVals = new ArrayList<>();
     for (FieldSchema field: msTbl.getPartitionKeys()) {
       String key = field.getName();
       String val = hm.get(key);

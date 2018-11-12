@@ -17,6 +17,7 @@
 
 package org.apache.impala.planner;
 
+import java.util.ArrayList;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -50,7 +51,7 @@ public class ParallelPlanner {
   private final IdGenerator<CohortId> cohortIdGenerator_ = CohortId.createGenerator();
   private final PlannerContext ctx_;
 
-  private List<PlanFragment> planRoots_ = Lists.newArrayList();
+  private List<PlanFragment> planRoots_ = new ArrayList<>();
 
   public ParallelPlanner(PlannerContext ctx) { ctx_ = ctx; }
 
@@ -78,7 +79,7 @@ public class ParallelPlanner {
    * Assign fragment's plan id and cohort id to children.
    */
   private void createBuildPlans(PlanFragment fragment, CohortId buildCohortId) {
-    List<JoinNode> joins = Lists.newArrayList();
+    List<JoinNode> joins = new ArrayList<>();
     collectJoins(fragment.getPlanRoot(), joins);
     if (!joins.isEmpty()) {
       if (buildCohortId == null) buildCohortId = cohortIdGenerator_.getNextId();
@@ -137,7 +138,7 @@ public class ParallelPlanner {
     Preconditions.checkNotNull(cohortId);
     // collect all ExchangeNodes on the build side and their corresponding input
     // fragments
-    final List<ExchangeNode> exchNodes = Lists.newArrayList();
+    final List<ExchangeNode> exchNodes = new ArrayList<>();
     collectExchangeNodes(join.getChild(1), exchNodes);
 
     com.google.common.base.Predicate<PlanFragment> isInputFragment =
@@ -152,7 +153,7 @@ public class ParallelPlanner {
             return false;
           }
         };
-    List<PlanFragment> inputFragments = Lists.newArrayList();
+    List<PlanFragment> inputFragments = new ArrayList<>();
     join.getFragment().collect(isInputFragment, inputFragments);
     Preconditions.checkState(exchNodes.size() == inputFragments.size());
 

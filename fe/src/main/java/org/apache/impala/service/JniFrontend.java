@@ -19,6 +19,7 @@ package org.apache.impala.service;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Enumeration;
 import java.util.List;
@@ -386,10 +387,10 @@ public class JniFrontend {
     JniUtil.deserializeThrift(protocolFactory_, params, thriftGetFunctionsParams);
 
     TGetFunctionsResult result = new TGetFunctionsResult();
-    List<String> signatures = Lists.newArrayList();
-    List<String> retTypes = Lists.newArrayList();
-    List<String> fnBinaryTypes = Lists.newArrayList();
-    List<String> fnIsPersistent = Lists.newArrayList();
+    List<String> signatures = new ArrayList<>();
+    List<String> retTypes = new ArrayList<>();
+    List<String> fnBinaryTypes = new ArrayList<>();
+    List<String> fnIsPersistent = new ArrayList<>();
     List<Function> fns = frontend_.getFunctions(params.category, params.db,
         params.pattern, false);
     for (Function fn: fns) {
@@ -523,7 +524,7 @@ public class JniFrontend {
     JniUtil.deserializeThrift(protocolFactory_, params, showRolesParams);
     TShowRolesResult result = new TShowRolesResult();
 
-    List<Role> roles = Lists.newArrayList();
+    List<Role> roles = new ArrayList<>();
     if (params.isIs_show_current_roles() || params.isSetGrant_group()) {
       User user = new User(params.getRequesting_user());
       Set<String> groupNames;

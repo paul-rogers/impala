@@ -17,6 +17,7 @@
 
 package org.apache.impala.catalog;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -234,7 +235,7 @@ public enum HdfsFileFormat {
    * Returns a list with all formats for which isComplexTypesSupported() is true.
    */
   public static List<HdfsFileFormat> complexTypesFormats() {
-    List<HdfsFileFormat> result = Lists.newArrayList();
+    List<HdfsFileFormat> result = new ArrayList<>();
     for (HdfsFileFormat f: values()) {
       if (f.isComplexTypesSupported()) result.add(f);
     }

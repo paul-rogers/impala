@@ -161,7 +161,7 @@ public interface FeHBaseTable extends FeTable {
 
       // Populate tmp cols in the order they appear in the Hive metastore.
       // We will reorder the cols below.
-      List<HBaseColumn> tmpCols = Lists.newArrayList();
+      List<HBaseColumn> tmpCols = new ArrayList<>();
       // Store the key column separately.
       // TODO: Change this to an ArrayList once we support composite row keys.
       HBaseColumn keyCol = null;

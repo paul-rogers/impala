@@ -86,7 +86,7 @@ public class UdfExecutorTest {
       new TBinaryProtocol.Factory();
 
   // Allocations from the native heap. These are freed in bulk.
-  ArrayList<Long> allocations_ = Lists.newArrayList();
+  List<Long> allocations_ = new ArrayList<>();
 
   // Allocates 'byteSize' from the native heap and returns the ptr. The allocation
   // is added to allocations_.
@@ -225,8 +225,8 @@ public class UdfExecutorTest {
   UdfExecutor createUdfExecutor(String jarFile, String udfClassPath, Type retType,
       Object... args) throws ImpalaException, TException {
     int inputBufferSize = 0;
-    ArrayList<Integer> inputByteOffsets = Lists.newArrayList();
-    ArrayList<Type> argTypes = Lists.newArrayList();
+    List<Integer> inputByteOffsets = new ArrayList<>();
+    List<Type> argTypes = new ArrayList<>();
     for (int i = 0; i < args.length; ++i) {
       Preconditions.checkNotNull(args[i]);
       Type argType = getType(args[i]);
@@ -282,7 +282,7 @@ public class UdfExecutorTest {
     for (int i = 0; i < 10; ++i) {
       long r = e.evaluateForTesting(inputArgs);
       if (!validate) continue;
-      List<String> errMsgs = Lists.newArrayList();
+      List<String> errMsgs = new ArrayList<>();
       switch (expectedType.getPrimitiveType()) {
         case BOOLEAN: {
           boolean expected = ((ImpalaBooleanWritable)expectedValue).get();
@@ -374,7 +374,7 @@ public class UdfExecutorTest {
       if (!errMsgs.isEmpty()) {
         errMsgs.add("Eval iteration:  " + i);
         errMsgs.add("Return type:     " + expectedType.toSql());
-        List<String> argTypeStrs = Lists.newArrayList();
+        List<String> argTypeStrs = new ArrayList<>();
         for (Object arg: args) argTypeStrs.add(arg.getClass().getSimpleName());
         errMsgs.add("Argument types:  " + Joiner.on(",").join(argTypeStrs));
         errMsgs.add("Resolved method: " + e.getMethod().toGenericString());

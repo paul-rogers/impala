@@ -104,9 +104,9 @@ public class HdfsPartitionPruner {
       Analyzer analyzer, List<Expr> conjuncts, boolean allowEmpty)
       throws ImpalaException {
     // Start with creating a collection of partition filters for the applicable conjuncts.
-    List<HdfsPartitionFilter> partitionFilters = Lists.newArrayList();
+    List<HdfsPartitionFilter> partitionFilters = new ArrayList<>();
     // Conjuncts that can be evaluated from the partition key values.
-    List<Expr> simpleFilterConjuncts = Lists.newArrayList();
+    List<Expr> simpleFilterConjuncts = new ArrayList<>();
 
     // Simple predicates (e.g. binary predicates of the form
     // <SlotRef> <op> <LiteralExpr>) can be used to derive lists
@@ -363,7 +363,7 @@ public class HdfsPartitionPruner {
     if (inPredicate.isNotIn()) {
       // Case: SlotRef NOT IN (Literal, ..., Literal)
       // If there is a NullLiteral, return an empty set.
-      List<Expr> nullLiterals = Lists.newArrayList();
+      List<Expr> nullLiterals = new ArrayList<>();
       inPredicate.collectAll(Predicates.instanceOf(NullLiteral.class), nullLiterals);
       if (!nullLiterals.isEmpty()) return matchingIds;
       matchingIds.addAll(tbl_.getPartitionIds());
@@ -452,7 +452,7 @@ public class HdfsPartitionPruner {
     // Set of partition ids that pass a filter
     HashSet<Long> matchingIds = Sets.newHashSet();
     // Batch of partitions
-    ArrayList<PrunablePartition> partitionBatch = Lists.newArrayList();
+    List<PrunablePartition> partitionBatch = new ArrayList<>();
     // Identify the partitions that pass all filters.
     for (HdfsPartitionFilter filter: filters) {
       // Iterate through the currently valid partitions

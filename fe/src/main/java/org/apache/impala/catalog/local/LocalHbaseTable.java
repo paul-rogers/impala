@@ -32,6 +32,7 @@ import org.apache.impala.thrift.TTableType;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 
 public class LocalHbaseTable extends LocalTable implements FeHBaseTable {
@@ -102,7 +103,7 @@ public class LocalHbaseTable extends LocalTable implements FeHBaseTable {
   }
 
   @Override
-  public ArrayList<Column> getColumnsInHiveOrder() {
+  public List<Column> getColumnsInHiveOrder() {
     return getColumns();
   }
 

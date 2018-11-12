@@ -17,6 +17,7 @@
 
 package org.apache.impala.analysis;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -153,7 +154,7 @@ public class CreateTableStmt extends StatementBase {
   public TCreateTableParams toThrift() {
     TCreateTableParams params = new TCreateTableParams();
     params.setTable_name(new TTableName(getDb(), getTbl()));
-    List<org.apache.impala.thrift.TColumn> tColumns = Lists.newArrayList();
+    List<org.apache.impala.thrift.TColumn> tColumns = new ArrayList<>();
     for (ColumnDef col: getColumnDefs()) tColumns.add(col.toThrift());
     params.setColumns(tColumns);
     for (ColumnDef col: getPartitionColumnDefs()) {
@@ -401,7 +402,7 @@ public class CreateTableStmt extends StatementBase {
     Preconditions.checkState(getFileFormat() == THdfsFileFormat.AVRO);
     // Look for the schema in TBLPROPERTIES and in SERDEPROPERTIES, with latter
     // taking precedence.
-    List<Map<String, String>> schemaSearchLocations = Lists.newArrayList();
+    List<Map<String, String>> schemaSearchLocations = new ArrayList<>();
     schemaSearchLocations.add(getSerdeProperties());
     schemaSearchLocations.add(getTblProperties());
     String avroSchema;

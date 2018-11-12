@@ -86,19 +86,19 @@ abstract public class PlanNode extends TreeNode<PlanNode> {
   protected long limit_; // max. # of rows to be returned; 0: no limit_
 
   // ids materialized by the tree rooted at this node
-  protected ArrayList<TupleId> tupleIds_;
+  protected List<TupleId> tupleIds_;
 
   // ids of the TblRefs "materialized" by this node; identical with tupleIds_
   // if the tree rooted at this node only materializes BaseTblRefs;
   // useful during plan generation
-  protected ArrayList<TupleId> tblRefIds_;
+  protected List<TupleId> tblRefIds_;
 
   // A set of nullable TupleId produced by this node. It is a subset of tupleIds_.
   // A tuple is nullable within a particular plan tree if it's the "nullable" side of
   // an outer join, which has nothing to do with the schema.
   protected Set<TupleId> nullableTupleIds_ = Sets.newHashSet();
 
-  protected List<Expr> conjuncts_ = Lists.newArrayList();
+  protected List<Expr> conjuncts_ = new ArrayList<>();
 
   // Fragment that this PlanNode is executed in. Valid only after this PlanNode has been
   // assigned to a fragment. Set and maintained by enclosing PlanFragment.
@@ -138,7 +138,7 @@ abstract public class PlanNode extends TreeNode<PlanNode> {
   protected boolean disableCodegen_;
 
   // Runtime filters assigned to this node.
-  protected List<RuntimeFilter> runtimeFilters_ = Lists.newArrayList();
+  protected List<RuntimeFilter> runtimeFilters_ = new ArrayList<>();
 
   protected PlanNode(PlanNodeId id, List<TupleId> tupleIds, String displayName) {
     this(id, displayName);
@@ -156,8 +156,8 @@ abstract public class PlanNode extends TreeNode<PlanNode> {
   protected PlanNode(PlanNodeId id, String displayName) {
     id_ = id;
     limit_ = -1;
-    tupleIds_ = Lists.newArrayList();
-    tblRefIds_ = Lists.newArrayList();
+    tupleIds_ = new ArrayList<>();
+    tblRefIds_ = new ArrayList<>();
     cardinality_ = -1;
     numNodes_ = -1;
     displayName_ = displayName;
@@ -229,13 +229,13 @@ abstract public class PlanNode extends TreeNode<PlanNode> {
 
   public void unsetLimit() { limit_ = -1; }
 
-  public ArrayList<TupleId> getTupleIds() {
+  public List<TupleId> getTupleIds() {
     Preconditions.checkState(tupleIds_ != null);
     return tupleIds_;
   }
 
-  public ArrayList<TupleId> getTblRefIds() { return tblRefIds_; }
-  public void setTblRefIds(ArrayList<TupleId> ids) { tblRefIds_ = ids; }
+  public List<TupleId> getTblRefIds() { return tblRefIds_; }
+  public void setTblRefIds(List<TupleId> ids) { tblRefIds_ = ids; }
 
   public Set<TupleId> getNullableTupleIds() {
     Preconditions.checkState(nullableTupleIds_ != null);
@@ -340,7 +340,7 @@ abstract public class PlanNode extends TreeNode<PlanNode> {
     if (detailLevel.ordinal() >= TExplainLevel.EXTENDED.ordinal()) {
       expBuilder.append(detailPrefix);
       expBuilder.append("in pipelines: ");
-      List<String> pipelines = Lists.newArrayList();
+      List<String> pipelines = new ArrayList<>();
       for (PipelineMembership pipe: pipelines_) {
         pipelines.add(pipe.getExplainString());
       }
@@ -436,7 +436,7 @@ abstract public class PlanNode extends TreeNode<PlanNode> {
     msg.setDisable_codegen(disableCodegen_);
     Preconditions.checkState(nodeResourceProfile_.isValid());
     msg.resource_profile = nodeResourceProfile_.toThrift();
-    msg.pipelines = Lists.newArrayList();
+    msg.pipelines = new ArrayList<>();
     for (PipelineMembership pipe : pipelines_) {
       msg.pipelines.add(pipe.toThrift());
     }
@@ -555,7 +555,7 @@ abstract public class PlanNode extends TreeNode<PlanNode> {
    */
   static protected double computeCombinedSelectivity(List<Expr> conjuncts) {
     // Collect all estimated selectivities.
-    List<Double> selectivities = Lists.newArrayList();
+    List<Double> selectivities = new ArrayList<>();
     for (Expr e: conjuncts) {
       if (e.hasSelectivity()) selectivities.add(e.getSelectivity());
     }
@@ -677,7 +677,7 @@ abstract public class PlanNode extends TreeNode<PlanNode> {
     } else {
       // Streaming with child, e.g. SELECT. Executes as part of all pipelines the child
       // belongs to.
-      pipelines_ = Lists.newArrayList();
+      pipelines_ = new ArrayList<>();
       for (PipelineMembership childPipeline : children_.get(0).getPipelines()) {
         if (childPipeline.getPhase() == TExecNodePhase.GETNEXT) {
            pipelines_.add(new PipelineMembership(
@@ -790,7 +790,7 @@ abstract public class PlanNode extends TreeNode<PlanNode> {
   protected String getRuntimeFilterExplainString(
       boolean isBuildNode, TExplainLevel detailLevel) {
     if (runtimeFilters_.isEmpty()) return "";
-    List<String> filtersStr = Lists.newArrayList();
+    List<String> filtersStr = new ArrayList<>();
     for (RuntimeFilter filter: runtimeFilters_) {
       StringBuilder filterStr = new StringBuilder();
       filterStr.append(filter.getFilterId());

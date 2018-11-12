@@ -26,6 +26,7 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.util.ArrayList;
+import java.util.List;
 
 import org.apache.hadoop.hive.ql.exec.UDF;
 import org.apache.hadoop.hive.serde2.io.ByteWritable;
@@ -577,7 +578,7 @@ public class UdfExecutor {
   private void init(String jarPath, String udfPath,
       Type retType, Type... parameterTypes) throws
       ImpalaRuntimeException {
-    ArrayList<String> signatures = Lists.newArrayList();
+    List<String> signatures = new ArrayList<>();
     ClassLoader loader = null;
     try {
       LOG.debug("Loading UDF '" + udfPath + "' from " + jarPath);

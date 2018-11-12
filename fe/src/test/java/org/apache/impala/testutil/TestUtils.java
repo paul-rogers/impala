@@ -152,7 +152,7 @@ public class TestUtils {
    * @return an error message if actual does not match expected, "" otherwise.
    */
   public static String compareOutput(
-      ArrayList<String> actual, ArrayList<String> expected, boolean orderMatters,
+      List<String> actual, List<String> expected, boolean orderMatters,
       List<ResultFilter> lineFilters) {
     if (!orderMatters) {
       Collections.sort(actual);

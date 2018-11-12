@@ -25,6 +25,7 @@ import org.apache.impala.common.ImpalaRuntimeException;
 import org.apache.impala.util.CompressionUtil;
 import org.apache.impala.util.MetaStoreUtil;
 
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -39,7 +40,7 @@ import org.slf4j.LoggerFactory;
 import com.google.common.collect.Lists;
 
 /**
- * Handles serialising and deserialising intermediate statistics from the Hive MetaStore
+ * Handles serializing and deserializing intermediate statistics from the Hive MetaStore
  * via the parameters map attached to every Hive partition object.
  */
 public class PartitionStatsUtil {
@@ -189,7 +190,7 @@ public class PartitionStatsUtil {
 
   static private List<String> chunkStringForHms(String data, int chunkLen) {
     int idx = 0;
-    List<String> ret = Lists.newArrayList();
+    List<String> ret = new ArrayList<>();
     while (idx < data.length()) {
       int remaining = data.length() - idx;
       int chunkSize = (chunkLen > remaining) ? remaining : chunkLen;

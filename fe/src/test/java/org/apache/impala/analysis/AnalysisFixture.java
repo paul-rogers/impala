@@ -23,6 +23,7 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import java.io.StringReader;
+import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.impala.analysis.AnalysisContext.AnalysisResult;
@@ -305,7 +306,7 @@ public class AnalysisFixture {
 
       // Wrap the rules in a (stateful) rule that counts the
       // number of times each wrapped rule fires.
-      List<ExprRewriteRule> wrappedRules = Lists.newArrayList();
+      List<ExprRewriteRule> wrappedRules = new ArrayList<>();
       for (ExprRewriteRule r : rules) {
         wrappedRules.add(new CountingRewriteRuleWrapper(r));
       }

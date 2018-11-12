@@ -19,6 +19,7 @@ package org.apache.impala.catalog;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.Iterator;
@@ -871,8 +872,8 @@ public class HdfsPartition implements FeFsPartition, PrunablePartition {
 
   public static HdfsPartition prototypePartition(
       HdfsTable table, HdfsStorageDescriptor storageDescriptor) {
-    List<LiteralExpr> emptyExprList = Lists.newArrayList();
-    List<FileDescriptor> emptyFileDescriptorList = Lists.newArrayList();
+    List<LiteralExpr> emptyExprList = new ArrayList<>();
+    List<FileDescriptor> emptyFileDescriptorList = new ArrayList<>();
     return new HdfsPartition(table, null, emptyExprList,
         storageDescriptor, emptyFileDescriptorList,
         CatalogObjectsConstants.PROTOTYPE_PARTITION_ID, null,
@@ -900,14 +901,14 @@ public class HdfsPartition implements FeFsPartition, PrunablePartition {
     HdfsStorageDescriptor storageDesc = HdfsStorageDescriptor.fromThriftPartition(
         thriftPartition, table.getName());
 
-    List<LiteralExpr> literalExpr = Lists.newArrayList();
+    List<LiteralExpr> literalExpr = new ArrayList<>();
     if (id != CatalogObjectsConstants.PROTOTYPE_PARTITION_ID) {
-      List<Column> clusterCols = Lists.newArrayList();
+      List<Column> clusterCols = new ArrayList<>();
       for (int i = 0; i < table.getNumClusteringCols(); ++i) {
         clusterCols.add(table.getColumns().get(i));
       }
 
-      List<TExprNode> exprNodes = Lists.newArrayList();
+      List<TExprNode> exprNodes = new ArrayList<>();
       for (TExpr expr: thriftPartition.getPartitionKeyExprs()) {
         for (TExprNode node: expr.getNodes()) {
           exprNodes.add(node);
@@ -924,7 +925,7 @@ public class HdfsPartition implements FeFsPartition, PrunablePartition {
       }
     }
 
-    List<HdfsPartition.FileDescriptor> fileDescriptors = Lists.newArrayList();
+    List<HdfsPartition.FileDescriptor> fileDescriptors = new ArrayList<>();
     if (thriftPartition.isSetFile_desc()) {
       for (THdfsFileDesc desc: thriftPartition.getFile_desc()) {
         fileDescriptors.add(HdfsPartition.FileDescriptor.fromThrift(desc));

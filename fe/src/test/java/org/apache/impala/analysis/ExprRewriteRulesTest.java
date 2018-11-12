@@ -17,6 +17,7 @@
 
 package org.apache.impala.analysis;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.impala.common.AnalysisException;
@@ -114,7 +115,7 @@ public class ExprRewriteRulesTest extends FrontendTestBase {
       List<ExprRewriteRule> rules, Analyzer analyzer) throws AnalysisException {
     String origSql = origExpr.toSql();
 
-    List<ExprRewriteRule> wrappedRules = Lists.newArrayList();
+    List<ExprRewriteRule> wrappedRules = new ArrayList<>();
     for (ExprRewriteRule r : rules) {
       wrappedRules.add(new CountingRewriteRuleWrapper(r));
     }
@@ -345,7 +346,7 @@ public class ExprRewriteRulesTest extends FrontendTestBase {
     RewritesOk("null && id = 0", rule, null);
     RewritesOk("null || id = 0", rule, null);
 
-    List<ExprRewriteRule> rules = Lists.newArrayList();
+    List<ExprRewriteRule> rules = new ArrayList<>();
     rules.add(FoldConstantsRule.INSTANCE);
     rules.add(rule);
     // CASE with caseExpr

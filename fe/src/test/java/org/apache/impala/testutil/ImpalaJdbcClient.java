@@ -25,6 +25,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.text.DecimalFormat;
 import java.util.ArrayList;
+import java.util.List;
 
 import org.apache.commons.cli.BasicParser;
 import org.apache.commons.cli.CommandLine;
@@ -263,7 +264,7 @@ public class ImpalaJdbcClient {
       long startTime = System.currentTimeMillis();
       ResultSet res = client.execQuery(query);
       ResultSetMetaData meta = res.getMetaData();
-      ArrayList<String> arrayList = Lists.newArrayList();
+      List<String> arrayList = new ArrayList<>();
 
       // This token (and the [END] token) are used to help parsing the result output
       // for test verification purposes.

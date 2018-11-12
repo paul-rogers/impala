@@ -17,6 +17,7 @@
 
 package org.apache.impala.catalog;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -283,7 +284,7 @@ public class Db extends CatalogObjectImpl implements FeDb {
       }
       List<Function> fns = functions_.get(fn.functionName());
       if (fns == null) {
-        fns = Lists.newArrayList();
+        fns = new ArrayList<>();
         functions_.put(fn.functionName(), fns);
       }
       if (addToDbParams && !addFunctionToDbParams(fn)) return false;
@@ -376,7 +377,7 @@ public class Db extends CatalogObjectImpl implements FeDb {
    * Returns a list of transient functions in this Db.
    */
   protected List<Function> getTransientFunctions() {
-    List<Function> result = Lists.newArrayList();
+    List<Function> result = new ArrayList<>();
     synchronized (functions_) {
       for (String fnKey: functions_.keySet()) {
         for (Function fn: functions_.get(fnKey)) {
@@ -395,7 +396,7 @@ public class Db extends CatalogObjectImpl implements FeDb {
   public List<Function> getFunctions(TFunctionCategory category,
       PatternMatcher matcher) {
     Preconditions.checkNotNull(matcher);
-    List<Function> result = Lists.newArrayList();
+    List<Function> result = new ArrayList<>();
     synchronized (functions_) {
       for (Map.Entry<String, List<Function>> fns: functions_.entrySet()) {
         if (!matcher.matches(fns.getKey())) continue;
@@ -418,7 +419,7 @@ public class Db extends CatalogObjectImpl implements FeDb {
     Preconditions.checkNotNull(name);
     synchronized (functions_) {
       List<Function> candidates = functions_.get(name);
-      if (candidates == null) return Lists.newArrayList();
+      if (candidates == null) return new ArrayList<>();
       return FunctionUtils.getVisibleFunctions(candidates);
     }
   }
@@ -429,7 +430,7 @@ public class Db extends CatalogObjectImpl implements FeDb {
     Preconditions.checkNotNull(name);
     synchronized (functions_) {
       List<Function> candidates = functions_.get(name);
-      if (candidates == null) return Lists.newArrayList();
+      if (candidates == null) return new ArrayList<>();
       return FunctionUtils.getVisibleFunctionsInCategory(candidates, category);
     }
   }

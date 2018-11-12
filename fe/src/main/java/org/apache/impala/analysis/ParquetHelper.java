@@ -183,7 +183,7 @@ class ParquetHelper {
    */
   private static StructType convertStruct(org.apache.parquet.schema.GroupType outerGroup)
       throws AnalysisException {
-    ArrayList<StructField> structFields = new ArrayList<StructField>();
+    List<StructField> structFields = new ArrayList<StructField>();
     for (org.apache.parquet.schema.Type field: outerGroup.getFields()) {
       StructField f = new StructField(field.getName(), convertParquetType(field));
       structFields.add(f);

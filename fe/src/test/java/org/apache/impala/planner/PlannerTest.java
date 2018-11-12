@@ -20,6 +20,7 @@ package org.apache.impala.planner;
 import static org.junit.Assert.assertEquals;
 
 import java.util.ArrayList;
+import java.util.List;
 
 import org.apache.impala.catalog.Catalog;
 import org.apache.impala.catalog.ColumnStats;
@@ -704,7 +705,7 @@ public class PlannerTest extends PlannerTestBase {
         stringColwithLargeMaxSize, intNonKeyCol)), 512 * 1024 * 1024);
 
     // Case with a huge number of string columns.
-    ArrayList<HBaseColumn> largeColumnList = new ArrayList<HBaseColumn>();
+    List<HBaseColumn> largeColumnList = new ArrayList<HBaseColumn>();
     largeColumnList.add(stringColwithSmallMaxSize);
     for (int i = 0; i < 100; i++) largeColumnList.add(stringColWithoutStats);
     assertEquals(HBaseScanNode.memoryEstimateForFetchingColumns(largeColumnList),

@@ -215,7 +215,7 @@ public class DescriptorTable {
       List<List<TColumnType>> slotTypes) {
     DescriptorTable descTbl = new DescriptorTable();
     for (List<TColumnType> ttupleSlots: slotTypes) {
-      ArrayList<StructField> fields = Lists.newArrayListWithCapacity(ttupleSlots.size());
+      List<StructField> fields = Lists.newArrayListWithCapacity(ttupleSlots.size());
       for (TColumnType ttype: ttupleSlots) {
         fields.add(new StructField("testField", Type.fromThrift(ttype)));
       }
@@ -248,7 +248,7 @@ public class DescriptorTable {
       if (itemType.isStructType()) {
         itemStruct = (StructType) itemType;
       } else {
-        ArrayList<StructField> itemFields = Lists.newArrayListWithCapacity(1);
+        List<StructField> itemFields = Lists.newArrayListWithCapacity(1);
         itemFields.add(new StructField("item", itemType));
         itemStruct = new StructType(itemFields);
       }

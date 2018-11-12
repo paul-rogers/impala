@@ -18,6 +18,7 @@
 package org.apache.impala.service;
 
 import java.sql.DatabaseMetaData;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -73,10 +74,10 @@ public class MetadataOp {
   private static final TResultSetMetadata GET_FUNCTIONS_MD = new TResultSetMetadata();
 
   // GetTypeInfo contains all primitive types supported by Impala.
-  private static final List<TResultRow> GET_TYPEINFO_RESULTS = Lists.newArrayList();
+  private static final List<TResultRow> GET_TYPEINFO_RESULTS = new ArrayList<>();
 
   // GetTableTypes returns values: "TABLE", "VIEW"
-  private static final List<TResultRow> GET_TABLE_TYPES_RESULTS = Lists.newArrayList();
+  private static final List<TResultRow> GET_TABLE_TYPES_RESULTS = new ArrayList<>();
 
   // Initialize result set schemas and static result set
   static {
@@ -214,23 +215,23 @@ public class MetadataOp {
    */
   private static class DbsMetadata {
      // the list of database
-    public List<String> dbs = Lists.newArrayList();
+    public List<String> dbs = new ArrayList<>();
 
     // tableNames[i] are the tables within dbs[i]
-    public List<List<String>> tableNames = Lists.newArrayList();
+    public List<List<String>> tableNames = new ArrayList<>();
 
     // tableTypes[i] are the type of tables within dbs[i]
-    public List<List<String>> tableTypes = Lists.newArrayList();
+    public List<List<String>> tableTypes = new ArrayList<>();
 
     // comments[i][j] is the comment of tableNames[j] in dbs[i].
-    public List<List<String>> comments = Lists.newArrayList();
+    public List<List<String>> comments = new ArrayList<>();
 
     // columns[i][j] are the columns of tableNames[j] in dbs[i].
     // If the table is missing (not yet loaded) its column list will be empty.
-    public List<List<List<Column>>> columns = Lists.newArrayList();
+    public List<List<List<Column>>> columns = new ArrayList<>();
 
     // functions[i] are the functions within dbs[i]
-    public List<List<Function>> functions = Lists.newArrayList();
+    public List<List<Function>> functions = new ArrayList<>();
 
     // Set of tables that are missing (not yet loaded).
     public Set<TableName> missingTbls = new HashSet<TableName>();
@@ -292,16 +293,16 @@ public class MetadataOp {
         result.functions.add(fns);
       } else {
         // Get table metadata
-        List<String> tableList = Lists.newArrayList();
-        List<List<Column>> tablesColumnsList = Lists.newArrayList();
-        List<String> tableComments = Lists.newArrayList();
-        List<String> tableTypes = Lists.newArrayList();
+        List<String> tableList = new ArrayList<>();
+        List<List<Column>> tablesColumnsList = new ArrayList<>();
+        List<String> tableComments = new ArrayList<>();
+        List<String> tableTypes = new ArrayList<>();
         for (String tabName: fe.getTableNames(db.getName(), tablePatternMatcher, user)) {
           FeTable table = catalog.getTable(db.getName(), tabName);
           if (table == null) continue;
 
           String comment = null;
-          List<Column> columns = Lists.newArrayList();
+          List<Column> columns = new ArrayList<>();
           // If the table is not yet loaded, the columns will be unknown. Add it
           // to the set of missing tables.
           String tableType = TABLE_TYPE_TABLE;
@@ -399,7 +400,7 @@ public class MetadataOp {
           String colTypeName = getHs2MetadataTypeName(colType);
 
           TResultRow row = new TResultRow();
-          row.colVals = Lists.newArrayList();
+          row.colVals = new ArrayList<>();
           row.colVals.add(NULL_COL_VAL); // TABLE_CAT
           row.colVals.add(createTColumnValue(dbName)); // TABLE_SCHEM
           row.colVals.add(createTColumnValue(tabName)); // TABLE_NAME
@@ -478,7 +479,7 @@ public class MetadataOp {
     for (int i = 0; i < dbsMetadata.dbs.size(); ++i) {
       String dbName = dbsMetadata.dbs.get(i);
       TResultRow row = new TResultRow();
-      row.colVals = Lists.newArrayList();
+      row.colVals = new ArrayList<>();
       row.colVals.add(createTColumnValue(dbName)); // TABLE_SCHEM
       row.colVals.add(EMPTY_COL_VAL); // default Hive catalog is an empty string.
       result.rows.add(row);
@@ -505,7 +506,7 @@ public class MetadataOp {
     List<String> upperCaseTableTypes = null;
     if (tableTypes != null && !tableTypes.isEmpty()) {
       boolean hasValidTableType = false;
-      upperCaseTableTypes = Lists.newArrayList();
+      upperCaseTableTypes = new ArrayList<>();
       for (String tableType : tableTypes) {
         tableType = tableType.toUpperCase();
         upperCaseTableTypes.add(tableType);
@@ -530,7 +531,7 @@ public class MetadataOp {
         if (upperCaseTableTypes != null && !upperCaseTableTypes.contains(tableType)) continue;
 
         TResultRow row = new TResultRow();
-        row.colVals = Lists.newArrayList();
+        row.colVals = new ArrayList<>();
         row.colVals.add(EMPTY_COL_VAL);
         row.colVals.add(createTColumnValue(dbName));
         row.colVals.add(createTColumnValue(tabName));
@@ -566,7 +567,7 @@ public class MetadataOp {
    */
   private static TResultRow createFunctionResultRow(Function fn) {
     TResultRow row = new TResultRow();
-    row.colVals = Lists.newArrayList();
+    row.colVals = new ArrayList<>();
     row.colVals.add(NULL_COL_VAL); // FUNCTION_CAT
     row.colVals.add(createTColumnValue(fn.dbName())); // FUNCTION_SCHEM
     row.colVals.add(createTColumnValue(fn.functionName())); // FUNCTION_NAME
@@ -623,7 +624,7 @@ public class MetadataOp {
       }
       Type type = ScalarType.createType(ptype);
       TResultRow row = new TResultRow();
-      row.colVals = Lists.newArrayList();
+      row.colVals = new ArrayList<>();
       row.colVals.add(createTColumnValue(ptype.name())); // TYPE_NAME
       row.colVals.add(createTColumnValue(type.getJavaSqlType()));  // DATA_TYPE
       row.colVals.add(createTColumnValue(type.getPrecision()));  // PRECISION
@@ -651,11 +652,11 @@ public class MetadataOp {
    */
   private static void createGetTableTypesResults() {
     TResultRow row = new TResultRow();
-    row.colVals = Lists.newArrayList();
+    row.colVals = new ArrayList<>();
     row.colVals.add(createTColumnValue(TABLE_TYPE_TABLE));
     GET_TABLE_TYPES_RESULTS.add(row);
     row = new TResultRow();
-    row.colVals = Lists.newArrayList();
+    row.colVals = new ArrayList<>();
     row.colVals.add(createTColumnValue(TABLE_TYPE_VIEW));
     GET_TABLE_TYPES_RESULTS.add(row);
   }
@@ -666,7 +667,7 @@ public class MetadataOp {
    */
   private static TResultSet createEmptyResultSet(TResultSetMetadata metadata) {
     TResultSet result = new TResultSet();
-    result.rows = Lists.newArrayList();
+    result.rows = new ArrayList<>();
     result.schema = metadata;
     return result;
   }

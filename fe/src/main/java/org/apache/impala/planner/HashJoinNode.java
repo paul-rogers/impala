@@ -17,6 +17,7 @@
 
 package org.apache.impala.planner;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.impala.analysis.Analyzer;
@@ -65,7 +66,7 @@ public class HashJoinNode extends JoinNode {
   @Override
   public void init(Analyzer analyzer) throws ImpalaException {
     super.init(analyzer);
-    List<BinaryPredicate> newEqJoinConjuncts = Lists.newArrayList();
+    List<BinaryPredicate> newEqJoinConjuncts = new ArrayList<>();
     ExprSubstitutionMap combinedChildSmap = getCombinedChildSmap();
     for (Expr c: eqJoinConjuncts_) {
       BinaryPredicate eqPred =
