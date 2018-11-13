@@ -36,6 +36,7 @@ public class AnalysisException extends ImpalaException {
   public static final String GROUP_BY_CLAUSE_MSG = "GROUP BY clause";
   public static final String ON_CLAUSE_MSG = "ON clause";
   public static final String ORDER_BY_CLAUSE_MSG = "ORDER BY clause";
+  public static final String HAVING_CLAUSE_MSG = "HAVING clause";
 
   public AnalysisException(String msg, Throwable cause) {
     super(msg, cause);

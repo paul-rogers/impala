@@ -872,5 +872,204 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
     }
   }
 
-  // TODO: HAVING
+  /**
+   * Sanity test of HAVING rewrite
+   */
+  @Test
+  public void testHaving() throws AnalysisException {
+    String stmtText =
+        "select count(*)" +
+        " from functional.alltypestiny" +
+        " group by string_col" +
+        " having 1 + 1 + count(*) > 2 + 3";
+    SelectStmt stmt = analyze(stmtText);
+    Expr expr = stmt.getHavingPred();
+
+    // Expression should have been rewritten
+    assertEquals("2 + count(*) > 5", expr.toSql());
+
+    // Should have been re-analyzed after rewrite
+    assertTrue(expr.isAnalyzed());
+    assertEquals(ScalarType.BOOLEAN, expr.getType());
+    assertEquals(5.0, expr.getCost(), 0.1);
+
+    // Statement's toSql should be before rewrites
+    String origSql =
+        "SELECT count(*)" +
+        " FROM functional.alltypestiny" +
+        " GROUP BY string_col" +
+        " HAVING 1 + 1 + count(*) > 2 + 3";
+    assertEquals(origSql,  stmt.toSql());
+    assertEquals(origSql,  stmt.toSql(false));
+
+    // Rewritten should be available when requested
+    String rewrittenSql =
+        "SELECT count(*)" +
+        " FROM functional.alltypestiny" +
+        " GROUP BY string_col" +
+        " HAVING 2 + count(*) > 5";
+    assertEquals(rewrittenSql, stmt.toSql(true));
+  }
+
+  /**
+   * If HAVING is trivial, it still must be kept.
+   * HAVING FALSE -- Return no rows
+   * HAVING TRUE -- Return all rows
+   */
+  @Test
+  public void testTrivialTrueHaving() throws AnalysisException {
+    String stmtText =
+        "select count(*)" +
+        " from functional.alltypestiny" +
+        " group by string_col" +
+        " having 1 = 1";
+    SelectStmt stmt = analyze(stmtText);
+    Expr expr = stmt.getHavingPred();
+
+    assertNotNull(expr);
+    assertTrue(Expr.IS_TRUE_LITERAL.apply(expr));
+
+    String origSql =
+        "SELECT count(*)" +
+        " FROM functional.alltypestiny" +
+        " GROUP BY string_col" +
+        " HAVING 1 = 1";
+    assertEquals(origSql,  stmt.toSql());
+    assertEquals(origSql,  stmt.toSql(false));
+
+    // Rewritten should have no WHERE clause
+    String rewrittenSql =
+        "SELECT count(*)" +
+        " FROM functional.alltypestiny" +
+        " GROUP BY string_col" +
+        " HAVING TRUE";
+    assertEquals(rewrittenSql, stmt.toSql(true));
+  }
+
+  @Test
+  public void testTrivialFalseHaving() throws AnalysisException {
+    String stmtText =
+        "select count(*)" +
+        " from functional.alltypestiny" +
+        " group by string_col" +
+        " having 1 = 2";
+    SelectStmt stmt = analyze(stmtText);
+    Expr expr = stmt.getHavingPred();
+
+    assertNotNull(expr);
+    assertTrue(Expr.IS_FALSE_LITERAL.apply(expr));
+
+    String origSql =
+        "SELECT count(*)" +
+        " FROM functional.alltypestiny" +
+        " GROUP BY string_col" +
+        " HAVING 1 = 2";
+    assertEquals(origSql,  stmt.toSql());
+    assertEquals(origSql,  stmt.toSql(false));
+
+    // Rewritten should have no WHERE clause
+    String rewrittenSql =
+        "SELECT count(*)" +
+        " FROM functional.alltypestiny" +
+        " GROUP BY string_col" +
+        " HAVING FALSE";
+    assertEquals(rewrittenSql, stmt.toSql(true));
+  }
+
+  @Test
+  public void testAggregateInHavingClause() throws AnalysisException {
+    String stmtText =
+        "select count(*)" +
+        " from functional.alltypestiny" +
+        " group by string_col" +
+        " having 1 + 1 + count(*) > 2 + 3";
+    SelectStmt stmt = analyze(stmtText);
+
+    String origSql =
+        "SELECT count(*)" +
+        " FROM functional.alltypestiny" +
+        " GROUP BY string_col" +
+        " HAVING 1 + 1 + count(*) > 2 + 3";
+    assertEquals(origSql,  stmt.toSql());
+    assertEquals(origSql,  stmt.toSql(false));
+
+    // Rewritten should have no WHERE clause
+    String rewrittenSql =
+        "SELECT count(*)" +
+        " FROM functional.alltypestiny" +
+        " GROUP BY string_col" +
+        " HAVING 2 + count(*) > 5";
+    assertEquals(rewrittenSql, stmt.toSql(true));
+  }
+
+  /**
+   * HAVING clause, if provided, must be Boolean.
+   */
+  @Test
+  public void testHavingNonBoolean() {
+    try {
+      String stmtText =
+          "select count(*)" +
+          " from functional.alltypestiny" +
+          " group by string_col" +
+          " having count(*)";
+      analyze(stmtText);
+      fail();
+    } catch (AnalysisException e) {
+      expectRequiresBoolean(e, "count(*)");
+    }
+  }
+
+  /**
+   * WHERE clause cannot contain window functions.
+   */
+  @Test
+  public void testAnalyticInHavingClause() {
+    try {
+      String stmtText =
+          "select count(*)" +
+          " from functional.alltypestiny" +
+          " group by string_col" +
+          " having count(id) OVER (PARTITION BY id / (1 + 3))";
+      analyze(stmtText);
+      fail();
+    } catch (AnalysisException e) {
+      expectUnsupported(e,
+          AnalysisException.ANALYTIC_EXPRS_MSG,
+          AnalysisException.HAVING_CLAUSE_MSG,
+          "count(id) OVER (PARTITION BY id / (1 + 3))");
+    }
+  }
+
+  /**
+   * HAVING cannot contain subqueries.
+   */
+  @Test
+  public void testSubqueryInHaving() {
+    try {
+      String stmtText =
+          "select count(*)" +
+          " from functional.alltypestiny" +
+          " group by string_col" +
+          " having (select count(*) + 0 from functional.alltypestiny)";
+        analyze(stmtText);
+      fail();
+    } catch (AnalysisException e) {
+      expectUnsupported(e,
+          AnalysisException.SUBQUERIES_MSG,
+          AnalysisException.HAVING_CLAUSE_MSG,
+          "(SELECT count(*) + 0 FROM functional.alltypestiny)");
+    }
+  }
+
+  // NOTE: Neither the SQL standard, nor major vendors
+  // (PostgreSQL nor RedShift) support ordinals or aliases in the
+  // HAVING clause. HAVING is an expression, so ordinals are clearly
+  // ambiguous: HAVING 1 = 2 -- Does this mean comparison of two constants,
+  // two columns, or a column with a constant? Note that WHERE does not
+  // support ordinals either. Aliases could work, but are also not
+  // supported in the standard or by major vendors.
+  //
+  // This note is here because version 3.0 of Impala tried (but failed)
+  // to support ordinals and aliases.
 }

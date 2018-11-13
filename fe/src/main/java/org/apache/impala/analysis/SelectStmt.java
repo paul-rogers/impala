@@ -82,6 +82,7 @@ public class SelectStmt extends QueryStmt {
   // Set in analyze().
   protected String originalWhere_;
   protected List<String> originalGroupByClause_;
+  protected String originalHavingClause_;
   protected String sqlString_;
 
   SelectStmt(SelectList selectList,
@@ -106,12 +107,13 @@ public class SelectStmt extends QueryStmt {
   }
 
   /**
-   * @return the original select list items from the query
+   * @return the select list items from the query with
+   * rewrites applied
    */
   public SelectList getSelectList() { return selectList_; }
 
   /**
-   * @return the HAVING clause post-analysis and with aliases resolved
+   * @return the HAVING clause post-analysis with rewrites applied
    */
   public Expr getHavingPred() { return havingPred_; }
 
@@ -189,11 +191,6 @@ public class SelectStmt extends QueryStmt {
       super(analyzer);
     }
 
-    public Expr rewriteCheckOrdinalResult(Expr expr) throws AnalysisException {
-      return SelectStmt.this.rewriteCheckOrdinalResult(
-          analyzer_.getExprRewriter(), expr);
-    }
-
     private void analyze() throws AnalysisException {
       // Start out with table refs to establish aliases.
       fromClause_.analyze(analyzer_);
@@ -220,10 +217,6 @@ public class SelectStmt extends QueryStmt {
 
       createAnalyticInfo();
       if (evaluateOrderBy_) createSortTupleInfo();
-
-      // Remember the SQL string before inline-view expression substitution.
-      sqlString_ = toSql(false);
-      if (origSqlString_ == null) origSqlString_ = sqlString_;
       resolveInlineViewRefs();
 
       // If this block's select-project-join portion returns an empty result set and the
@@ -544,25 +537,50 @@ public class SelectStmt extends QueryStmt {
       colLabels_.add(relRawPath[relRawPath.length - 1]);
     }
 
+    /**
+     * Analyze the having clause. The HHAVING clause is a boolean expression.
+     * It supports neither column aliases nor ordinals. See:
+     * https://jakewheat.github.io/sql-overview/sql-2011-foundation-grammar.html
+     *
+     * Earlier version of this code attempted to handle these, but doing so
+     * is clearly ambiguous, at least for ordinals:
+     *
+     * HAVING 1 = 1 -- Column ordinal 1 = constant value 1?
+     *
+     * The numeric forms are ambiguous because HAVING is an expression, not
+     * a list. The way we resolve aliases only works at the top level of an
+     * expression, not in side. PostgreSql and RedShift appear to follow
+     * the same rule as implemented below (no alias, no ordinal.)
+     */
     private void analyzeHavingClause() throws AnalysisException {
       // Analyze the HAVING clause first so we can check if it contains aggregates.
       // We need to analyze/register it even if we are not computing aggregates.
       if (havingClause_ == null) return;
+      havingClause_.analyze(analyzer_);
+      originalHavingClause_ = havingClause_.toSql();
       // can't contain subqueries
       if (havingClause_.contains(Predicates.instanceOf(Subquery.class))) {
-        throw new AnalysisException(
-            "Subqueries are not supported in the HAVING clause.");
+        throw AnalysisException.notSupported(
+            AnalysisException.SUBQUERIES_MSG,
+            AnalysisException.HAVING_CLAUSE_MSG,
+            originalHavingClause_);
       }
-      havingPred_ = substituteOrdinalOrAlias(havingClause_, "HAVING");
-      havingPred_ = rewriteCheckOrdinalResult(havingPred_);
       // can't contain analytic exprs
-      Expr analyticExpr = havingPred_.findFirstOf(AnalyticExpr.class);
+      Expr analyticExpr = havingClause_.findFirstOf(AnalyticExpr.class);
       if (analyticExpr != null) {
-        throw new AnalysisException(
-            "HAVING clause must not contain analytic expressions: "
-               + analyticExpr.toSql());
+        throw AnalysisException.notSupported(
+            AnalysisException.ANALYTIC_EXPRS_MSG,
+            AnalysisException.HAVING_CLAUSE_MSG,
+            analyticExpr);
       }
-      havingPred_.checkReturnsBool("HAVING clause", true);
+      havingClause_.checkReturnsBool("HAVING clause", true);
+      // TODO: No need for two copies of HAVING.
+      havingPred_ = analyzer_.rewrite(havingClause_);
+
+      // Note: do not remove trivial HAVING clause.
+      // HAVING TRUE returns a single row
+      // HAVING FALSE returns no rows
+      // No HAVING clause at all returns all rows.
     }
 
     private boolean checkForAggregates() throws AnalysisException {
@@ -786,7 +804,7 @@ public class SelectStmt extends QueryStmt {
           }
         }
       }
-      if (havingPred_ != null) {
+      if (hasHavingClause()) {
         if (!havingPred_.isBound(multiAggInfo_.getResultTupleId())) {
           throw new AnalysisException(
               "HAVING clause not produced by aggregation output "
@@ -991,7 +1009,7 @@ public class SelectStmt extends QueryStmt {
   public void rewriteExprs(ExprRewriter rewriter) throws AnalysisException {
     Preconditions.checkState(isAnalyzed());
 //    selectList_.rewriteExprs(rewriter, analyzer_);
-    for (TableRef ref: fromClause_.getTableRefs()) ref.rewriteExprs(rewriter, analyzer_);
+//    for (TableRef ref: fromClause_.getTableRefs()) ref.rewriteExprs(rewriter, analyzer_);
 //    if (whereClause_ != null) {
 ////      whereClause_ = rewriter.rewrite(whereClause_, analyzer_);
 //      // Also rewrite exprs in the statements of subqueries.
@@ -1069,9 +1087,10 @@ public class SelectStmt extends QueryStmt {
       }
     }
     // Having clause
-    if (havingClause_ != null) {
+    if (hasHavingClause()) {
       strBuilder.append(" HAVING ");
-      strBuilder.append(havingClause_.toSql());
+      strBuilder.append(
+          rewritten ? havingPred_.toSql() : originalHavingClause_);
     }
     // Order By clause
     if (hasOrderByClause()) {

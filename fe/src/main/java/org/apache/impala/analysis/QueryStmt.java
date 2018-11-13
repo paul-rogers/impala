@@ -88,13 +88,6 @@ public abstract class QueryStmt extends StatementBase {
   /////////////////////////////////////////
   // END: Members that need to be reset()
 
-  // Contains the post-analysis toSql() string before rewrites. I.e. table refs are
-  // resolved and fully qualified, but no rewrites happened yet. This string is showed
-  // to the user in some cases in order to display a statement that is very similar
-  // to what was originally issued.
-  @Deprecated
-  protected String origSqlString_ = null;
-
   // If true, we need a runtime check on this statement's result to check if it
   // returns a single row.
   protected boolean isRuntimeScalar_ = false;
@@ -405,72 +398,6 @@ public abstract class QueryStmt extends StatementBase {
   }
 
   /**
-   * Substitutes an ordinal or an alias. An ordinal is an integer NumericLiteral
-   * that refers to a select-list expression by ordinal. An alias is a SlotRef
-   * that matches the alias of a select-list expression (tracked by 'aliasMap_').
-   * We should substitute by ordinal or alias but not both to avoid an incorrect
-   * double substitution.
-   * Returns clone() of 'expr' if it is not an ordinal, nor an alias.
-   * The returned expr is analyzed regardless of whether substitution was performed.
-   */
-  @Deprecated
-  protected Expr substituteOrdinalOrAlias(Expr expr, String errorPrefix)
-      throws AnalysisException {
-    Expr substituteExpr = trySubstituteOrdinal(expr, errorPrefix);
-    if (substituteExpr != null) return substituteExpr;
-    // TODO: Should this be done after rewrites?
-    if (ambiguousAliasList_.contains(expr)) {
-      throw new AnalysisException("Column '" + expr.toSql() +
-          "' in " + errorPrefix + " clause is ambiguous");
-    }
-    if (expr instanceof SlotRef) {
-      substituteExpr = expr.trySubstitute(aliasSmap_, analyzer_, false);
-    } else {
-      expr.analyze(analyzer_);
-      substituteExpr = expr;
-    }
-    return substituteExpr;
-  }
-
-  /**
-   * Substitutes top-level ordinals and aliases. Does not substitute ordinals and
-   * aliases in subexpressions.
-   * Modifies the 'exprs' list in-place.
-   * The 'exprs' are all analyzed after this function regardless of whether
-   * substitution was performed.
-   */
-  @Deprecated
-  protected void substituteOrdinalsAndAliases(List<Expr> exprs, String errorPrefix)
-      throws AnalysisException {
-    for (int i = 0; i < exprs.size(); ++i) {
-      exprs.set(i, substituteOrdinalOrAlias(exprs.get(i), errorPrefix));
-    }
-  }
-
-  // Attempt to replace an expression of form "<number>" with the corresponding
-  // select list items.  Return null if not an ordinal expression.
-  @Deprecated
-  private Expr trySubstituteOrdinal(Expr expr, String errorPrefix)
-      throws AnalysisException {
-    if (!(expr instanceof NumericLiteral)) return null;
-    expr.analyze(analyzer_);
-    if (!expr.getType().isIntegerType()) return null;
-    long pos = ((NumericLiteral) expr).getLongValue();
-    if (pos < 1) {
-      throw new AnalysisException(
-          errorPrefix + ": ordinal must be >= 1: " + expr.toSql());
-    }
-    if (pos > resultExprs_.size()) {
-      throw new AnalysisException(
-          errorPrefix + ": ordinal exceeds number of items in select list: "
-          + expr.toSql());
-    }
-
-    // Create copy to protect against accidentally shared state.
-    return resultExprs_.get((int) pos - 1).clone();
-  }
-
-  /**
    * Returns the materialized tuple ids of the output of this stmt.
    * Used in case this stmt is part of an @InlineViewRef,
    * since we need to know the materialized tupls ids of a TableRef.
@@ -488,7 +415,6 @@ public abstract class QueryStmt extends StatementBase {
   public WithClause getWithClause() { return withClause_; }
   public boolean hasOrderByClause() { return orderByClause_ != null; }
   public boolean hasLimit() { return limitElement_.getLimitExpr() != null; }
-  public String getOrigSqlString() { return origSqlString_; }
   public boolean isRuntimeScalar() { return isRuntimeScalar_; }
   public void setIsRuntimeScalar(boolean isRuntimeScalar) {
     isRuntimeScalar_ = isRuntimeScalar;
@@ -571,7 +497,6 @@ public abstract class QueryStmt extends StatementBase {
     sortInfo_ = (other.sortInfo_ != null) ? other.sortInfo_.clone() : null;
     analyzer_ = other.analyzer_;
     evaluateOrderBy_ = other.evaluateOrderBy_;
-    origSqlString_ = other.origSqlString_;
     isRuntimeScalar_ = other.isRuntimeScalar_;
   }
 

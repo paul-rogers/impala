@@ -82,7 +82,6 @@ public class CollectionTableRef extends TableRef {
     if (isAnalyzed_) return;
     CollectionTableAnalyzer tableAnalyzer = new CollectionTableAnalyzer(analyzer);
     tableAnalyzer.analyze();
-    isAnalyzed_ = true;
   }
 
   private class CollectionTableAnalyzer extends TableAnalyzer {
@@ -122,6 +121,7 @@ public class CollectionTableRef extends TableRef {
           desc_.getTableName().getTbl(), desc_.getPath().getRawPath().get(0))
           .toRequest());
     }
+    isAnalyzed_ = true;
 
     // TODO: For joins on nested collections some join ops can be simplified
     // due to the containment relationship of the parent and child. For example,

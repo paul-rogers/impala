@@ -143,7 +143,6 @@ public class InlineViewRef extends TableRef {
     inlineViewAnalyzer_ = new Analyzer(analyzer);
     InlineViewTableAnalyzer tableAnalyzer = new InlineViewTableAnalyzer(inlineViewAnalyzer_);
     tableAnalyzer.analyze();
-    isAnalyzed_ = true;  // true now that we have assigned desc
   }
 
   private class InlineViewTableAnalyzer extends TableAnalyzer {
@@ -225,6 +224,8 @@ public class InlineViewRef extends TableRef {
       LOG.trace("inline view " + getUniqueAlias() + " baseTblSmap: " +
           baseTblSmap_.debugString());
     }
+
+    isAnalyzed_ = true;  // true now that we have assigned desc
 
     // Now do the remaining join analysis
     super.analyze();

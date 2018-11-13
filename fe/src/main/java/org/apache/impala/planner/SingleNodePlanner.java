@@ -1168,7 +1168,7 @@ public class SingleNodePlanner {
     // Add runtime cardinality check if needed
     if (inlineViewRef.getViewStmt().isRuntimeScalar()) {
       rootNode = new CardinalityCheckNode(ctx_.getNextNodeId(), rootNode,
-          inlineViewRef.getViewStmt().getOrigSqlString());
+          inlineViewRef.getViewStmt().toSql(false));
       rootNode.setOutputSmap(outputSmap);
       rootNode.init(ctx_.getRootAnalyzer());
     }

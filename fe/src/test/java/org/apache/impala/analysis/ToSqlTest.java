@@ -87,7 +87,7 @@ public class ToSqlTest extends FrontendTestBase {
     try {
       ParseNode node = AnalyzesOk(query, createAnalysisCtx(defaultDb));
       if (node instanceof QueryStmt) {
-        actual = ((QueryStmt)node).getOrigSqlString();
+        actual = ((QueryStmt)node).toSql(false);
       } else {
         actual = node.toSql();
       }
@@ -159,11 +159,11 @@ public class ToSqlTest extends FrontendTestBase {
     // Test aliases.
     testToSql("select 1234 i, 1234.0 as j, (1234.0 + 1) k, (1234.0 + 1.0) as l " +
         "from functional.alltypes",
-        "SELECT 1234 i, 1234.0 j, (1234.0 + 1) k, (1234.0 + 1.0) l " +
+        "SELECT 1234 AS i, 1234.0 AS j, (1234.0 + 1) AS k, (1234.0 + 1.0) AS l " +
         "FROM functional.alltypes");
     // Test select without from.
     testToSql("select 1234 i, 1234.0 as j, (1234.0 + 1) k, (1234.0 + 1.0) as l",
-        "SELECT 1234 i, 1234.0 j, (1234.0 + 1) k, (1234.0 + 1.0) l");
+        "SELECT 1234 AS i, 1234.0 AS j, (1234.0 + 1) AS k, (1234.0 + 1.0) AS l");
     // Test select without from.
     testToSql("select null, 1234 < 5678, 1234.0 < 5678.0, 1234 < null " +
         "from functional.alltypes",
