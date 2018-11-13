@@ -19,6 +19,10 @@ package org.apache.impala.analysis;
 
 import java.util.List;
 
+import org.apache.impala.analysis.QueryStmt.Resolution;
+import org.apache.impala.common.AnalysisException;
+
+import com.google.common.base.Predicates;
 import com.google.common.collect.Lists;
 
 
@@ -27,6 +31,7 @@ import com.google.common.collect.Lists;
  */
 public class OrderByElement {
   private Expr expr_;
+  private String originalExpr_;
   private final boolean isAsc_;
   // Represents the NULLs ordering specified: true when "NULLS FIRST", false when
   // "NULLS LAST", and null if not specified.
@@ -64,9 +69,26 @@ public class OrderByElement {
   public Boolean getNullsFirstParam() { return nullsFirstParam_; }
   public boolean nullsFirst() { return nullsFirst(nullsFirstParam_, isAsc_); }
 
+  public void analyze(QueryStmt stmt, Analyzer analyzer) throws AnalysisException {
+    Resolution resolution = stmt.resolveReferenceExpr(expr_, "ORDER BY");
+    expr_ = resolution.resolvedExpr_;
+    originalExpr_ = resolution.originalExpr_;
+
+    if (expr_.contains(Predicates.instanceOf(Subquery.class))) {
+      throw AnalysisException.notSupported(
+         AnalysisException.SUBQUERIES_MSG,
+         AnalysisException.ORDER_BY_CLAUSE_MSG,
+         originalExpr_);
+    }
+  }
+
   public String toSql() {
+    return toSql(false);
+  }
+
+  public String toSql(boolean rewritten) {
     StringBuilder strBuilder = new StringBuilder();
-    strBuilder.append(expr_.toSql());
+    strBuilder.append(rewritten ? expr_.toSql() : originalExpr_);
     strBuilder.append(isAsc_ ? " ASC" : " DESC");
     // When ASC and NULLS LAST or DESC and NULLS FIRST, we do not print NULLS FIRST/LAST
     // because it is the default behavior and we want to avoid printing NULLS FIRST/LAST

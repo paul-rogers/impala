@@ -35,6 +35,7 @@ public class AnalysisException extends ImpalaException {
   public static final String WHERE_CLAUSE_MSG = "WHERE clause";
   public static final String GROUP_BY_CLAUSE_MSG = "GROUP BY clause";
   public static final String ON_CLAUSE_MSG = "ON clause";
+  public static final String ORDER_BY_CLAUSE_MSG = "ORDER BY clause";
 
   public AnalysisException(String msg, Throwable cause) {
     super(msg, cause);
@@ -48,14 +49,14 @@ public class AnalysisException extends ImpalaException {
     super(cause);
   }
 
-  public static String notSupportedMsg(String feature,
+  public static AnalysisException notSupported(String feature,
       String clause, String exprSql) {
-    return String.format(NOT_SUPPORTED_MSG, feature, clause, exprSql);
+    return new AnalysisException(
+        String.format(NOT_SUPPORTED_MSG, feature, clause, exprSql));
   }
 
   public static AnalysisException notSupported(String feature,
       String clause, Expr expr) {
-    return new AnalysisException(
-        notSupportedMsg(feature, clause, expr.toSql()));
+    return notSupported(feature, clause, expr.toSql());
   }
 }

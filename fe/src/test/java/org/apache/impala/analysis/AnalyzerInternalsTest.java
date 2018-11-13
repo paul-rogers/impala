@@ -58,8 +58,7 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
     // TODO: lhs SlotRef is unanalyzed. Should it be?
     // TODO: rhs is a copy of the SELECT expr. Should it be?
 
-    // Statement's toSql should be before substitution
-
+    // Statement's toSql should be before rewrites
     String origSql = "SELECT 1 + 1 + id AS c FROM functional.alltypestiny";
     assertEquals(origSql, stmt.toSql());
     assertEquals(origSql, stmt.toSql(false));
@@ -71,9 +70,9 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
 
   private void expectUnsupported(AnalysisException e, String feature,
       String clause, String exprSql) {
-    String expected =
-        AnalysisException.notSupportedMsg(feature, clause, exprSql);
-    assertEquals(expected, e.getMessage());
+    AnalysisException expected =
+        AnalysisException.notSupported(feature, clause, exprSql);
+    assertEquals(expected.getMessage(), e.getMessage());
   }
 
   /**
@@ -127,8 +126,7 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
     assertEquals(ScalarType.BOOLEAN, expr.getType());
     assertEquals(6.0, expr.getCost(), 0.1);
 
-    // Statement's toSql should be before substitution
-
+    // Statement's toSql should be before rewrites
     String origSql =
         "SELECT id FROM functional.alltypestiny" +
         " WHERE id = 2 + 1 AND TRUE";
@@ -253,8 +251,7 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
     assertTrue(
         stmt.getAnalyzer().getGlobalState().conjuncts.values().contains(expr));
 
-    // Statement's toSql should be before substitution
-
+    // Statement's toSql should be before rewrites
     String origSql =
         "SELECT t1.id" +
         " FROM functional.alltypestiny t1" +
@@ -409,7 +406,6 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
     assertEquals(rewrittenSql, stmt.toSql(true));
   }
 
-
   /**
    * GROUP BY clause cannot contain aggregates.
    */
@@ -454,7 +450,7 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
    * GROUP BY cannot contain subqueries.
    */
   @Test
-  public void testSubqueryInGroupBy() {
+  public void testSubqueryInOrderBy() {
     try {
       String stmtText =
           "select count(id)" +
@@ -470,8 +466,231 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
     }
   }
 
+  /**
+   * Sanity test of ORDER BY rewrite
+   */
+  @Test
+  public void testOrderByExpr() throws AnalysisException {
+    String stmtText =
+        "select id from functional.alltypestiny" +
+        " order by 1 + 1 + id";
+
+    SelectStmt stmt = analyze(stmtText);
+    SortInfo sortInfo = stmt.getSortInfo();
+    Expr expr = sortInfo.getSortExprs().get(0);
+
+    // Expressions should have been rewritten
+    assertEquals("2 + id", expr.toSql());
+
+    // Should have been re-analyzed after rewrite
+    assertTrue(expr.isAnalyzed());
+    assertEquals(ScalarType.BIGINT, expr.getType());
+    assertEquals(4.0, expr.getCost(), 0.1);
+
+    // Statement's toSql should be before rewrites
+    String origSql =
+        "SELECT id FROM functional.alltypestiny" +
+        " ORDER BY 1 + 1 + id ASC";
+    assertEquals(origSql, stmt.toSql());
+    assertEquals(origSql, stmt.toSql(false));
+
+    // Rewritten should be available when requested
+    String rewrittenSql =
+        "SELECT id FROM functional.alltypestiny" +
+        " ORDER BY 2 + id ASC";
+    assertEquals(rewrittenSql, stmt.toSql(true));
+  }
+
+  @Test
+  public void testOrderByConstExpr() throws AnalysisException {
+    String stmtText =
+        "select id from functional.alltypestiny" +
+        " order by 1 + 1";
+
+    SelectStmt stmt = analyze(stmtText);
+    SortInfo sortInfo = stmt.getSortInfo();
+    Expr expr = sortInfo.getSortExprs().get(0);
+
+    // Expressions should have been rewritten
+    assertEquals("2", expr.toSql());
+
+    // Should have been re-analyzed after rewrite
+    assertTrue(expr.isAnalyzed());
+    assertEquals(ScalarType.TINYINT, expr.getType());
+    assertEquals(1.0, expr.getCost(), 0.1);
+
+    // Statement's toSql should be before rewrites
+    String origSql =
+        "SELECT id FROM functional.alltypestiny" +
+        " ORDER BY 1 + 1 ASC";
+    assertEquals(origSql, stmt.toSql());
+    assertEquals(origSql, stmt.toSql(false));
+
+    // Rewritten should be available when requested
+    // Note that after rewrite, constant folding has
+    // occurred, but is OK because the ordinal check was
+    // done before the rewrite.
+    String rewrittenSql =
+        "SELECT id FROM functional.alltypestiny" +
+        " ORDER BY 2 ASC";
+    assertEquals(rewrittenSql, stmt.toSql(true));
+  }
+
+  /**
+   * Sanity test of ORDER BY 1
+   * (Order by an ordinal)
+   */
+  @Test
+  public void testOrderByOrdinal() throws AnalysisException {
+    String stmtText =
+        "select id from functional.alltypestiny" +
+        " order by 1";
+
+    SelectStmt stmt = analyze(stmtText);
+    SortInfo sortInfo = stmt.getSortInfo();
+    Expr expr = sortInfo.getSortExprs().get(0);
+
+    // Expressions should have been rewritten
+    assertEquals("id", expr.toSql());
+
+    // Should have been re-analyzed after rewrite
+    assertTrue(expr.isAnalyzed());
+    assertEquals(ScalarType.INT, expr.getType());
+    assertEquals(1.0, expr.getCost(), 0.1);
+
+    // Statement's toSql should be before substitution
+    String origSql =
+        "SELECT id FROM functional.alltypestiny" +
+        " ORDER BY 1 ASC";
+    assertEquals(origSql, stmt.toSql());
+    assertEquals(origSql, stmt.toSql(false));
+
+    // Rewritten should be available when requested
+    String rewrittenSql =
+        "SELECT id FROM functional.alltypestiny" +
+        " ORDER BY id ASC";
+    assertEquals(rewrittenSql, stmt.toSql(true));
+  }
+
+  /**
+   * Sanity test of ORDER BY 1
+   * (Order by an ordinal)
+   */
+  @Test
+  public void testOrderByAlias() throws AnalysisException {
+    String stmtText =
+        "select id as c from functional.alltypestiny" +
+        " order by c";
+
+    SelectStmt stmt = analyze(stmtText);
+    SortInfo sortInfo = stmt.getSortInfo();
+    Expr expr = sortInfo.getSortExprs().get(0);
+
+    // Expressions should have been rewritten
+    assertEquals("id", expr.toSql());
+
+    // Should have been re-analyzed after rewrite
+    assertTrue(expr.isAnalyzed());
+    assertEquals(ScalarType.INT, expr.getType());
+    assertEquals(1.0, expr.getCost(), 0.1);
+
+    // Statement's toSql should be before substitution
+    String origSql =
+        "SELECT id AS c FROM functional.alltypestiny" +
+        " ORDER BY c ASC";
+    assertEquals(origSql, stmt.toSql());
+    assertEquals(origSql, stmt.toSql(false));
+
+    // Rewritten should be available when requested
+    String rewrittenSql =
+        "SELECT id AS c FROM functional.alltypestiny" +
+        " ORDER BY id ASC";
+    assertEquals(rewrittenSql, stmt.toSql(true));
+  }
+
+  /**
+   * ORDER BY cannot contain subqueries.
+   */
+  @Test
+  public void testSubqueryInGroupBy() {
+    try {
+      String stmtText =
+          "select id" +
+          " from functional.alltypestiny" +
+          " order by (select count(*) + 0 from functional.alltypestiny)";
+       analyze(stmtText);
+      fail();
+    } catch (AnalysisException e) {
+      expectUnsupported(e,
+          AnalysisException.SUBQUERIES_MSG,
+          AnalysisException.ORDER_BY_CLAUSE_MSG,
+          "(SELECT count(*) + 0 FROM functional.alltypestiny)");
+    }
+  }
+
+  /**
+   * ORDER BY 0
+   * (ordinals start at 1)
+   */
+  @Test
+  public void testGroupByZeroOrdinal() {
+    try {
+      String stmtText =
+          "select id as c from functional.alltypestiny" +
+          " order by 0";
+       analyze(stmtText);
+      fail();
+    } catch (AnalysisException e) {
+      assertEquals("ORDER BY: ordinal must be >= 1: 0", e.getMessage());
+    }
+  }
+
+  @Test
+  public void testGroupByOrdinalOutOfRange() {
+    try {
+      String stmtText =
+          "select id as c from functional.alltypestiny" +
+          " order by 2";
+       analyze(stmtText);
+      fail();
+    } catch (AnalysisException e) {
+      assertEquals(
+          "ORDER BY: ordinal exceeds the number of items in SELECT list: 2",
+          e.getMessage());
+    }
+  }
+
+  @Test
+  public void testGroupByAmbiguousAlias() {
+    try {
+      String stmtText =
+          "select id as c, int_col as c" +
+          " from functional.alltypestiny" +
+          " order by c";
+       analyze(stmtText);
+      fail();
+    } catch (AnalysisException e) {
+      assertEquals(
+          "ORDER BY: ambiguous column: c",
+          e.getMessage());
+    }
+  }
+
+  @Test
+  public void testGroupByUnknownColumn() {
+    try {
+      String stmtText =
+          "select id as c" +
+          " from functional.alltypestiny" +
+          " order by d";
+       analyze(stmtText);
+      fail();
+    } catch (AnalysisException e) {
+      assertEquals(
+          "Could not resolve column/field reference: 'd'",
+          e.getMessage());
+    }
+  }
+
   // TODO: HAVING
-  // TODO: ORDER BY
-
-
 }

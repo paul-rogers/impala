@@ -460,7 +460,7 @@ public class UnionStmt extends QueryStmt {
       resultExprs_.add(outputSlotRef);
 
       // Add to aliasSMap so that column refs in "order by" can be resolved.
-      if (orderByElements_ != null) {
+      if (orderByClause_ != null) {
         SlotRef aliasRef = new SlotRef(getColLabels().get(i));
         if (aliasSmap_.containsMappingFor(aliasRef)) {
           ambiguousAliasList_.add(aliasRef);
@@ -537,8 +537,8 @@ public class UnionStmt extends QueryStmt {
   @Override
   public void rewriteExprs(ExprRewriter rewriter) throws AnalysisException {
     for (UnionOperand op: operands_) op.getQueryStmt().rewriteExprs(rewriter);
-    if (orderByElements_ != null) {
-      for (OrderByElement orderByElem: orderByElements_) {
+    if (orderByClause_ != null) {
+      for (OrderByElement orderByElem: orderByClause_) {
         orderByElem.setExpr(rewriter.rewrite(orderByElem.getExpr(), analyzer_));
       }
     }
@@ -612,9 +612,9 @@ public class UnionStmt extends QueryStmt {
     // Order By clause
     if (hasOrderByClause()) {
       strBuilder.append(" ORDER BY ");
-      for (int i = 0; i < orderByElements_.size(); ++i) {
-        strBuilder.append(orderByElements_.get(i).toSql());
-        strBuilder.append((i+1 != orderByElements_.size()) ? ", " : "");
+      for (int i = 0; i < orderByClause_.size(); ++i) {
+        strBuilder.append(orderByClause_.get(i).toSql());
+        strBuilder.append((i+1 != orderByClause_.size()) ? ", " : "");
       }
     }
     // Limit clause.

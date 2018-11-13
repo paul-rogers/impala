@@ -49,17 +49,17 @@ public abstract class QueryStmt extends StatementBase {
 
   protected WithClause withClause_;
 
-  protected List<OrderByElement> orderByElements_;
+  protected List<OrderByElement> orderByClause_;
   protected LimitElement limitElement_;
 
-  // For a select statment:
+  // For a select statement:
   // original list of exprs in select clause (star-expanded, ordinals and
   // aliases substituted, agg output substituted)
   // For a union statement:
   // list of slotrefs into the tuple materialized by the union.
   protected List<Expr> resultExprs_ = new ArrayList<>();
 
-  // For a select statment: select list exprs resolved to base tbl refs
+  // For a select statement: select list exprs resolved to base tbl refs
   // For a union statement: same as resultExprs
   protected List<Expr> baseTblResultExprs_ = new ArrayList<>();
 
@@ -92,6 +92,7 @@ public abstract class QueryStmt extends StatementBase {
   // resolved and fully qualified, but no rewrites happened yet. This string is showed
   // to the user in some cases in order to display a statement that is very similar
   // to what was originally issued.
+  @Deprecated
   protected String origSqlString_ = null;
 
   // If true, we need a runtime check on this statement's result to check if it
@@ -99,15 +100,12 @@ public abstract class QueryStmt extends StatementBase {
   protected boolean isRuntimeScalar_ = false;
 
   QueryStmt(List<OrderByElement> orderByElements, LimitElement limitElement) {
-    orderByElements_ = orderByElements;
+    orderByClause_ = orderByElements;
     sortInfo_ = null;
     limitElement_ = limitElement == null ? new LimitElement(null, null) : limitElement;
     aliasSmap_ = new ExprSubstitutionMap();
     ambiguousAliasList_ = new ArrayList<>();
   }
-
-  public ExprSubstitutionMap getAliasSmap() { return aliasSmap_; }
-  public List<Expr> getAmbiguousAliases() { return ambiguousAliasList_; }
 
   /**
   * Returns all table references in the FROM clause of this statement and all statements
@@ -238,7 +236,7 @@ public abstract class QueryStmt extends StatementBase {
    */
   protected void createSortInfo() throws AnalysisException {
     // not computing order by
-    if (orderByElements_ == null) {
+    if (orderByClause_ == null) {
       evaluateOrderBy_ = false;
       return;
     }
@@ -248,18 +246,12 @@ public abstract class QueryStmt extends StatementBase {
     List<Boolean> nullsFirstParams = new ArrayList<>();
 
     // extract exprs
-    for (OrderByElement orderByElement: orderByElements_) {
-      if (orderByElement.getExpr().contains(Predicates.instanceOf(Subquery.class))) {
-        throw new AnalysisException(
-            "Subqueries are not supported in the ORDER BY clause.");
-      }
-      // create copies, we don't want to modify the original parse node, in case
-      // we need to print it
-      orderingExprs.add(orderByElement.getExpr().clone());
-      isAscOrder.add(Boolean.valueOf(orderByElement.isAsc()));
+    for (OrderByElement orderByElement : orderByClause_) {
+      orderByElement.analyze(QueryStmt.this, analyzer_);
+      orderingExprs.add(orderByElement.getExpr());
+      isAscOrder.add(orderByElement.isAsc());
       nullsFirstParams.add(orderByElement.getNullsFirstParam());
     }
-    substituteOrdinalsAndAliases(orderingExprs, "ORDER BY");
 
     if (!analyzer_.isRootAnalyzer() && hasOffset() && !hasLimit()) {
       throw new AnalysisException("Order-by with offset without limit not supported" +
@@ -275,9 +267,9 @@ public abstract class QueryStmt extends StatementBase {
       StringBuilder strBuilder = new StringBuilder();
       strBuilder.append("Ignoring ORDER BY clause without LIMIT or OFFSET: ");
       strBuilder.append("ORDER BY ");
-      strBuilder.append(orderByElements_.get(0).toSql());
-      for (int i = 1; i < orderByElements_.size(); ++i) {
-        strBuilder.append(", ").append(orderByElements_.get(i).toSql());
+      strBuilder.append(orderByClause_.get(0).toSql());
+      for (int i = 1; i < orderByClause_.size(); ++i) {
+        strBuilder.append(", ").append(orderByClause_.get(i).toSql());
       }
       strBuilder.append(".\nAn ORDER BY appearing in a view, subquery, union operand, ");
       strBuilder.append("or an insert/ctas statement has no effect on the query result ");
@@ -327,6 +319,60 @@ public abstract class QueryStmt extends StatementBase {
 
     substituteResultExprs(smap, analyzer_);
   }
+  }
+
+  public static class Resolution {
+    public final Expr resolvedExpr_;
+    public final String originalExpr_;
+
+    public Resolution(String origExpr, Expr resolvedExpr) {
+      originalExpr_ = origExpr;
+      resolvedExpr_ = resolvedExpr;
+    }
+  }
+
+  protected Resolution resolveReferenceExpr(Expr expr, String errorPrefix) throws AnalysisException {
+    // Check for a SlotRef (representing an alias) before analysis. Since
+    // the slot does not reference a real column, the analysis will fail.
+    // TODO: Seems an odd state of affairs. Consider revisiting by putting
+    // alias in a namespace that can be resolved more easily.
+    Expr resolved = null;
+    if (expr instanceof SlotRef) {
+      if (ambiguousAliasList_.contains(expr)) {
+        throw new AnalysisException(errorPrefix +
+            ": ambiguous column: " + expr.toSql());
+      }
+      resolved = expr.trySubstitute(aliasSmap_, analyzer_, false);
+      if (resolved != null) {
+        return new Resolution(expr.toSql(), resolved.clone());
+      }
+    }
+
+    // Expression is safe to analyze.
+    expr.analyze(analyzer_);
+    String origExpr = expr.toSql();
+
+    // Ordinal reference?
+    if (Expr.IS_INT_LITERAL.apply(expr)) {
+      long pos = ((NumericLiteral) expr).getLongValue();
+      if (pos < 1) {
+        throw new AnalysisException(
+            errorPrefix + ": ordinal must be >= 1: " + origExpr);
+      }
+      if (pos > resultExprs_.size()) {
+        throw new AnalysisException(
+            errorPrefix + ": ordinal exceeds the number of items in SELECT list: " +
+                origExpr);
+      }
+
+      // Create copy to protect against accidentally shared state.
+      return new Resolution(origExpr,
+          resultExprs_.get((int) pos - 1).clone());
+    }
+
+    // Expression is an ordinary one: do rewrites.
+    return new Resolution(origExpr, analyzer_.rewrite(expr));
+  }
 
   /**
    * Substitutes an ordinal or an alias. An ordinal is an integer NumericLiteral
@@ -337,10 +383,12 @@ public abstract class QueryStmt extends StatementBase {
    * Returns clone() of 'expr' if it is not an ordinal, nor an alias.
    * The returned expr is analyzed regardless of whether substitution was performed.
    */
+  @Deprecated
   protected Expr substituteOrdinalOrAlias(Expr expr, String errorPrefix)
       throws AnalysisException {
     Expr substituteExpr = trySubstituteOrdinal(expr, errorPrefix);
     if (substituteExpr != null) return substituteExpr;
+    // TODO: Should this be done after rewrites?
     if (ambiguousAliasList_.contains(expr)) {
       throw new AnalysisException("Column '" + expr.toSql() +
           "' in " + errorPrefix + " clause is ambiguous");
@@ -361,6 +409,7 @@ public abstract class QueryStmt extends StatementBase {
    * The 'exprs' are all analyzed after this function regardless of whether
    * substitution was performed.
    */
+  @Deprecated
   protected void substituteOrdinalsAndAliases(List<Expr> exprs, String errorPrefix)
       throws AnalysisException {
     for (int i = 0; i < exprs.size(); ++i) {
@@ -370,6 +419,7 @@ public abstract class QueryStmt extends StatementBase {
 
   // Attempt to replace an expression of form "<number>" with the corresponding
   // select list items.  Return null if not an ordinal expression.
+  @Deprecated
   private Expr trySubstituteOrdinal(Expr expr, String errorPrefix)
       throws AnalysisException {
     if (!(expr instanceof NumericLiteral)) return null;
@@ -389,7 +439,6 @@ public abstract class QueryStmt extends StatementBase {
     // Create copy to protect against accidentally shared state.
     return resultExprs_.get((int) pos - 1).clone();
   }
-  }
 
   /**
    * Returns the materialized tuple ids of the output of this stmt.
@@ -407,7 +456,7 @@ public abstract class QueryStmt extends StatementBase {
   public void setWithClause(WithClause withClause) { this.withClause_ = withClause; }
   public boolean hasWithClause() { return withClause_ != null; }
   public WithClause getWithClause() { return withClause_; }
-  public boolean hasOrderByClause() { return orderByElements_ != null; }
+  public boolean hasOrderByClause() { return orderByClause_ != null; }
   public boolean hasLimit() { return limitElement_.getLimitExpr() != null; }
   public String getOrigSqlString() { return origSqlString_; }
   public boolean isRuntimeScalar() { return isRuntimeScalar_; }
@@ -420,6 +469,10 @@ public abstract class QueryStmt extends StatementBase {
   public SortInfo getSortInfo() { return sortInfo_; }
   public boolean evaluateOrderBy() { return evaluateOrderBy_; }
   public List<Expr> getBaseTblResultExprs() { return baseTblResultExprs_; }
+  public ExprSubstitutionMap getAliasSmap() { return aliasSmap_; }
+  public List<Expr> getAmbiguousAliases() { return ambiguousAliasList_; }
+  public List<OrderByElement> getOrderBy() { return orderByClause_; }
+
   public void setLimit(long limit) throws AnalysisException {
     Preconditions.checkState(limit >= 0);
     long newLimit = hasLimit() ? Math.min(limit, getLimit()) : limit;
@@ -462,10 +515,10 @@ public abstract class QueryStmt extends StatementBase {
   }
 
   public List<OrderByElement> cloneOrderByElements() {
-    if (orderByElements_ == null) return null;
+    if (orderByClause_ == null) return null;
     List<OrderByElement> result =
-        Lists.newArrayListWithCapacity(orderByElements_.size());
-    for (OrderByElement o: orderByElements_) result.add(o.clone());
+        Lists.newArrayListWithCapacity(orderByClause_.size());
+    for (OrderByElement o: orderByClause_) result.add(o.clone());
     return result;
   }
 
@@ -479,7 +532,7 @@ public abstract class QueryStmt extends StatementBase {
   protected QueryStmt(QueryStmt other) {
     super(other);
     withClause_ = other.cloneWithClause();
-    orderByElements_ = other.cloneOrderByElements();
+    orderByClause_ = other.cloneOrderByElements();
     limitElement_ = other.limitElement_.clone();
     resultExprs_ = Expr.cloneList(other.resultExprs_);
     baseTblResultExprs_ = Expr.cloneList(other.baseTblResultExprs_);
@@ -495,8 +548,8 @@ public abstract class QueryStmt extends StatementBase {
   @Override
   public void reset() {
     super.reset();
-    if (orderByElements_ != null) {
-      for (OrderByElement o: orderByElements_) o.getExpr().reset();
+    if (orderByClause_ != null) {
+      for (OrderByElement o: orderByClause_) o.getExpr().reset();
     }
     limitElement_.reset();
     resultExprs_.clear();

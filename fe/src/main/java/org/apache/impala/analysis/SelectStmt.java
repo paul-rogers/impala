@@ -221,7 +221,7 @@ public class SelectStmt extends QueryStmt {
       if (evaluateOrderBy_) createSortTupleInfo();
 
       // Remember the SQL string before inline-view expression substitution.
-      sqlString_ = toSql();
+      sqlString_ = toSql(false);
       if (origSqlString_ == null) origSqlString_ = sqlString_;
       resolveInlineViewRefs();
 
@@ -257,6 +257,7 @@ public class SelectStmt extends QueryStmt {
         } else {
           // Analyze the resultExpr before generating a label to ensure enforcement
           // of expr child and depth limits (toColumn() label may call toSql()).
+          // Item's analysis function performs expression rewrites.
           item.analyze(analyzer_);
           Expr expr = item.getExpr();
           item.setExpr(expr);
@@ -767,14 +768,14 @@ public class SelectStmt extends QueryStmt {
               + selectListItem.toSql());
         }
       }
-      if (orderByElements_ != null) {
-        for (int i = 0; i < orderByElements_.size(); ++i) {
+      if (hasOrderByClause()) {
+        for (int i = 0; i < orderByClause_.size(); ++i) {
           if (!sortInfo_.getSortExprs().get(i).isBound(
               multiAggInfo_.getResultTupleId())) {
             throw new AnalysisException(
                 "ORDER BY expression not produced by aggregation output "
                 + "(missing from GROUP BY clause?): "
-                + orderByElements_.get(i).getExpr().toSql());
+                + orderByClause_.get(i).getExpr().toSql());
           }
         }
       }
@@ -1000,11 +1001,11 @@ public class SelectStmt extends QueryStmt {
 //            rewriter, groupingExprs_.get(i)));
 //      }
 //    }
-    if (orderByElements_ != null) {
-      for (OrderByElement orderByElem: orderByElements_) {
-        orderByElem.setExpr(rewriteCheckOrdinalResult(rewriter, orderByElem.getExpr()));
-      }
-    }
+//    if (hasOrderBy()) {
+//      for (OrderByElement orderByElem: orderByClause_) {
+//        orderByElem.setExpr(rewriteCheckOrdinalResult(rewriter, orderByElem.getExpr()));
+//      }
+//    }
   }
 
   @Override
@@ -1066,11 +1067,11 @@ public class SelectStmt extends QueryStmt {
       strBuilder.append(havingClause_.toSql());
     }
     // Order By clause
-    if (orderByElements_ != null) {
+    if (hasOrderByClause()) {
       strBuilder.append(" ORDER BY ");
-      for (int i = 0; i < orderByElements_.size(); ++i) {
-        strBuilder.append(orderByElements_.get(i).toSql());
-        strBuilder.append((i+1 != orderByElements_.size()) ? ", " : "");
+      for (int i = 0; i < orderByClause_.size(); ++i) {
+        strBuilder.append(i > 0 ? ", " : "");
+        strBuilder.append(orderByClause_.get(i).toSql(rewritten));
       }
     }
     // Limit clause.
