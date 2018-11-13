@@ -322,16 +322,44 @@ public abstract class QueryStmt extends StatementBase {
   }
 
   public static class Resolution {
+    public final Expr origExpr_;
+    public final String origExprSql_;
     public final Expr resolvedExpr_;
-    public final String originalExpr_;
 
-    public Resolution(String origExpr, Expr resolvedExpr) {
-      originalExpr_ = origExpr;
+    public Resolution(Expr origExpr, String origExprSql, Expr resolvedExpr) {
+      origExpr_ = origExpr;
+      origExprSql_ = origExprSql;
       resolvedExpr_ = resolvedExpr;
+    }
+
+    public boolean needsRewrite() {
+      return origExpr_ == resolvedExpr_;
     }
   }
 
-  protected Resolution resolveReferenceExpr(Expr expr, String errorPrefix) throws AnalysisException {
+  /**
+   * Substitutes an ordinal or an alias. An ordinal is an integer NumericLiteral
+   * that refers to a select-list expression by ordinal. An alias is a SlotRef
+   * that matches the alias of a select-list expression (tracked by 'aliasMap_').
+   * We should substitute by ordinal or alias but not both to avoid an incorrect
+   * double substitution.
+   *
+   * Logic is a bit tricky. The SlotRef, if it exists, cannot be resolved until
+   * we check for an alias. (Resolving the SlotRef may find a column, or trigger
+   * an error, which is not what we want.)
+   *
+   * After the alias check, then we can resolve (analyze) the expression. At
+   * this point, we take a copy of the expression text to use for error
+   * messages. Then, if the expression is an ordinal, replace it. Else, the
+   * expression is "ordinary" and can be rewritten by the caller.
+   *
+   *
+   * @return both the original expression text and the rewritten or
+   * substituted expression. If the expression is an ordinal or alias, then
+   * the returned expression is a clone of the original.
+   */
+  protected Resolution resolveReferenceExpr(Expr expr,
+      String errorPrefix) throws AnalysisException {
     // Check for a SlotRef (representing an alias) before analysis. Since
     // the slot does not reference a real column, the analysis will fail.
     // TODO: Seems an odd state of affairs. Consider revisiting by putting
@@ -344,7 +372,9 @@ public abstract class QueryStmt extends StatementBase {
       }
       resolved = expr.trySubstitute(aliasSmap_, analyzer_, false);
       if (resolved != null) {
-        return new Resolution(expr.toSql(), resolved.clone());
+        // Note that the expr is not analyzed. Fortunately,
+        // a SlotRef produces reasonable SQL anyway.
+        return new Resolution(expr, expr.toSql(), resolved.clone());
       }
     }
 
@@ -362,16 +392,16 @@ public abstract class QueryStmt extends StatementBase {
       if (pos > resultExprs_.size()) {
         throw new AnalysisException(
             errorPrefix + ": ordinal exceeds the number of items in SELECT list: " +
-                origExpr);
+            origExpr);
       }
 
       // Create copy to protect against accidentally shared state.
-      return new Resolution(origExpr,
+      return new Resolution(expr, origExpr,
           resultExprs_.get((int) pos - 1).clone());
     }
 
-    // Expression is an ordinary one: do rewrites.
-    return new Resolution(origExpr, analyzer_.rewrite(expr));
+    // Expression is an ordinary one.
+    return new Resolution(expr, origExpr, expr);
   }
 
   /**

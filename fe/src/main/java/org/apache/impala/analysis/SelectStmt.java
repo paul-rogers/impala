@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Set;
 
 import org.apache.impala.analysis.Path.PathType;
+import org.apache.impala.analysis.QueryStmt.Resolution;
 import org.apache.impala.catalog.Column;
 import org.apache.impala.catalog.FeTable;
 import org.apache.impala.catalog.FeView;
@@ -615,11 +616,13 @@ public class SelectStmt extends QueryStmt {
         return;
       }
       originalGroupByClause_ = new ArrayList<>();
-      substituteOrdinalsAndAliases(groupByClause_, "GROUP BY");
+//      substituteOrdinalsAndAliases(groupByClause_, "GROUP BY");
 
       for (int i = 0; i < groupByClause_.size(); ++i) {
         Expr expr = groupByClause_.get(i);
-        originalGroupByClause_.add(expr.toSql());
+        Resolution resolution = resolveReferenceExpr(expr, "GROUP BY");
+        expr = resolution.resolvedExpr_;
+        originalGroupByClause_.add(resolution.origExprSql_);
         expr.analyze(analyzer_);
         if (expr.contains(Expr.isAggregatePredicate())) {
           throw AnalysisException.notSupported(
@@ -638,7 +641,11 @@ public class SelectStmt extends QueryStmt {
               AnalysisException.GROUP_BY_CLAUSE_MSG, expr);
         }
         // Rewrite the expression after error checks.
-        groupByClause_.set(i, analyzer_.rewrite(expr));
+        // Catches count(*) * 0, etc.
+        if (resolution.needsRewrite()) {
+          expr = analyzer_.rewrite(expr);
+        }
+        groupByClause_.set(i, expr);
       }
     }
 

@@ -72,13 +72,18 @@ public class OrderByElement {
   public void analyze(QueryStmt stmt, Analyzer analyzer) throws AnalysisException {
     Resolution resolution = stmt.resolveReferenceExpr(expr_, "ORDER BY");
     expr_ = resolution.resolvedExpr_;
-    originalExpr_ = resolution.originalExpr_;
+    originalExpr_ = resolution.origExprSql_;
 
     if (expr_.contains(Predicates.instanceOf(Subquery.class))) {
       throw AnalysisException.notSupported(
          AnalysisException.SUBQUERIES_MSG,
          AnalysisException.ORDER_BY_CLAUSE_MSG,
          originalExpr_);
+    }
+
+    // Do rewrite, if needed, after error checks.
+    if (resolution.needsRewrite()) {
+      expr_ = analyzer.rewrite(expr_);
     }
   }
 

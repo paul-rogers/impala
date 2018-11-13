@@ -406,6 +406,122 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
     assertEquals(rewrittenSql, stmt.toSql(true));
   }
 
+  @Test
+  public void testGroupByConstExpr() throws AnalysisException {
+    String stmtText =
+        "select count(*)" +
+        " from functional.alltypestiny" +
+        " group by 1 + 1";
+
+    SelectStmt stmt = analyze(stmtText);
+    List<Expr> groupBy = stmt.getGroupByClause();
+    Expr expr = groupBy.get(0);
+
+    // Expressions should have been rewritten
+    assertEquals("2", expr.toSql());
+
+    // Should have been re-analyzed after rewrite
+    assertTrue(expr.isAnalyzed());
+    assertEquals(ScalarType.SMALLINT, expr.getType());
+    assertEquals(1.0, expr.getCost(), 0.1);
+
+    // Statement's toSql should be before rewrites
+    String origSql =
+        "SELECT count(*)" +
+        " FROM functional.alltypestiny" +
+        " GROUP BY 1 + 1";
+    assertEquals(origSql, stmt.toSql());
+    assertEquals(origSql, stmt.toSql(false));
+
+    // Rewritten should be available when requested
+    // Note that after rewrite, constant folding has
+    // occurred, but is OK because the ordinal check was
+    // done before the rewrite.
+    String rewrittenSql =
+        "SELECT count(*)" +
+        " FROM functional.alltypestiny" +
+        " GROUP BY 2";
+    assertEquals(rewrittenSql, stmt.toSql(true));
+  }
+
+  /**
+   * Sanity test of GROUP BY 1
+   * (Group by an ordinal)
+   */
+  @Test
+  public void testGroupByOrdinal() throws AnalysisException {
+    String stmtText =
+        "select id, count(*)" +
+        " from functional.alltypestiny" +
+        " group by 1";
+
+    SelectStmt stmt = analyze(stmtText);
+    List<Expr> groupBy = stmt.getGroupByClause();
+    Expr expr = groupBy.get(0);
+
+    // Expressions should have been rewritten
+    assertEquals("id", expr.toSql());
+
+    // Should have been re-analyzed after rewrite
+    assertTrue(expr.isAnalyzed());
+    assertEquals(ScalarType.INT, expr.getType());
+    assertEquals(1.0, expr.getCost(), 0.1);
+
+    // Statement's toSql should be before substitution
+    String origSql =
+        "SELECT id, count(*)" +
+        " FROM functional.alltypestiny" +
+        " GROUP BY 1";
+    assertEquals(origSql, stmt.toSql());
+    assertEquals(origSql, stmt.toSql(false));
+
+    // Rewritten should be available when requested
+    String rewrittenSql =
+        "SELECT id, count(*)" +
+        " FROM functional.alltypestiny" +
+        " GROUP BY id";
+    assertEquals(rewrittenSql, stmt.toSql(true));
+  }
+
+  /**
+   * Sanity test of ORDER BY 1
+   * (Order by an ordinal)
+   */
+  @Test
+  public void testGroupByAlias() throws AnalysisException {
+    String stmtText =
+        "select id as c, count(*)" +
+        " from functional.alltypestiny" +
+        " group by c";
+
+    SelectStmt stmt = analyze(stmtText);
+    List<Expr> groupBy = stmt.getGroupByClause();
+    Expr expr = groupBy.get(0);
+
+    // Expressions should have been rewritten
+    assertEquals("id", expr.toSql());
+
+    // Should have been re-analyzed after rewrite
+    assertTrue(expr.isAnalyzed());
+    assertEquals(ScalarType.INT, expr.getType());
+    assertEquals(1.0, expr.getCost(), 0.1);
+
+    // Statement's toSql should be before substitution
+    String origSql =
+        "SELECT id AS c, count(*)" +
+        " FROM functional.alltypestiny" +
+        " GROUP BY c";
+    assertEquals(origSql, stmt.toSql());
+    assertEquals(origSql, stmt.toSql(false));
+
+    // Rewritten should be available when requested
+    String rewrittenSql =
+        "SELECT id AS c, count(*)" +
+        " FROM functional.alltypestiny" +
+        " GROUP BY id";
+    assertEquals(rewrittenSql, stmt.toSql(true));
+  }
+
   /**
    * GROUP BY clause cannot contain aggregates.
    */
@@ -450,7 +566,7 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
    * GROUP BY cannot contain subqueries.
    */
   @Test
-  public void testSubqueryInOrderBy() {
+  public void testSubqueryInGroupBy() {
     try {
       String stmtText =
           "select count(id)" +
@@ -463,6 +579,70 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
           AnalysisException.SUBQUERIES_MSG,
           AnalysisException.GROUP_BY_CLAUSE_MSG,
           "(SELECT count(*) + 0 FROM functional.alltypestiny)");
+    }
+  }
+
+  /**
+   * GROUP BY 0
+   * (ordinals start at 1)
+   */
+  @Test
+  public void testGroupByZeroOrdinal() {
+    try {
+      String stmtText =
+          "select id as c from functional.alltypestiny" +
+          " group by 0";
+       analyze(stmtText);
+      fail();
+    } catch (AnalysisException e) {
+      assertEquals("GROUP BY: ordinal must be >= 1: 0", e.getMessage());
+    }
+  }
+
+  @Test
+  public void testGroupByOrdinalOutOfRange() {
+    try {
+      String stmtText =
+          "select id as c from functional.alltypestiny" +
+          " group by 2";
+       analyze(stmtText);
+      fail();
+    } catch (AnalysisException e) {
+      assertEquals(
+          "GROUP BY: ordinal exceeds the number of items in SELECT list: 2",
+          e.getMessage());
+    }
+  }
+
+  @Test
+  public void testGroupByAmbiguousAlias() {
+    try {
+      String stmtText =
+          "select id as c, int_col as c" +
+          " from functional.alltypestiny" +
+          " group by c";
+       analyze(stmtText);
+      fail();
+    } catch (AnalysisException e) {
+      assertEquals(
+          "GROUP BY: ambiguous column: c",
+          e.getMessage());
+    }
+  }
+
+  @Test
+  public void testGroupByUnknownColumn() {
+    try {
+      String stmtText =
+          "select id as c" +
+          " from functional.alltypestiny" +
+          " group by d";
+       analyze(stmtText);
+      fail();
+    } catch (AnalysisException e) {
+      assertEquals(
+          "Could not resolve column/field reference: 'd'",
+          e.getMessage());
     }
   }
 
@@ -612,7 +792,7 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
    * ORDER BY cannot contain subqueries.
    */
   @Test
-  public void testSubqueryInGroupBy() {
+  public void testSubqueryInOrderBy() {
     try {
       String stmtText =
           "select id" +
@@ -633,7 +813,7 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
    * (ordinals start at 1)
    */
   @Test
-  public void testGroupByZeroOrdinal() {
+  public void testOrderByZeroOrdinal() {
     try {
       String stmtText =
           "select id as c from functional.alltypestiny" +
@@ -646,7 +826,7 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
   }
 
   @Test
-  public void testGroupByOrdinalOutOfRange() {
+  public void testOrderByOrdinalOutOfRange() {
     try {
       String stmtText =
           "select id as c from functional.alltypestiny" +
@@ -661,7 +841,7 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
   }
 
   @Test
-  public void testGroupByAmbiguousAlias() {
+  public void testOrderByAmbiguousAlias() {
     try {
       String stmtText =
           "select id as c, int_col as c" +
@@ -677,7 +857,7 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
   }
 
   @Test
-  public void testGroupByUnknownColumn() {
+  public void testOrderByUnknownColumn() {
     try {
       String stmtText =
           "select id as c" +
