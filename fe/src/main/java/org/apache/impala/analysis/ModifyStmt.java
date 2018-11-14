@@ -20,9 +20,9 @@ package org.apache.impala.analysis;
 import static java.lang.String.format;
 
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import org.apache.impala.authorization.Privilege;
 import org.apache.impala.catalog.Column;
@@ -30,13 +30,11 @@ import org.apache.impala.catalog.FeKuduTable;
 import org.apache.impala.catalog.FeTable;
 import org.apache.impala.catalog.Type;
 import org.apache.impala.common.AnalysisException;
-import org.apache.impala.common.Pair;
 import org.apache.impala.planner.DataSink;
 import org.apache.impala.rewrite.ExprRewriter;
 
 import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
-import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
@@ -59,11 +57,10 @@ import com.google.common.collect.Sets;
  */
 public abstract class ModifyStmt extends StatementBase {
 
-  // List of explicitly mentioned assignment expressions in the UPDATE's SET clause
-  protected final List<Pair<SlotRef, Expr>> assignments_;
-
   // Optional WHERE clause of the statement
-  protected final Expr wherePredicate_;
+  // Becomes redundant once analysis is done: rely on the original
+  // and rewritten forms in the source statement.
+  protected final Expr whereClause_;
 
   // Path identifying the target table.
   protected final List<String> targetTablePath_;
@@ -89,30 +86,38 @@ public abstract class ModifyStmt extends StatementBase {
   // position in the target table. Set in createSourceStmt() during analysis.
   protected List<Integer> referencedColumns_;
 
-  // SQL string of the ModifyStmt. Set in analyze().
-  protected String sqlString_;
-
   public ModifyStmt(List<String> targetTablePath, FromClause fromClause,
-      List<Pair<SlotRef, Expr>> assignmentExprs, Expr wherePredicate) {
+      Expr wherePredicate) {
     targetTablePath_ = Preconditions.checkNotNull(targetTablePath);
     fromClause_ = Preconditions.checkNotNull(fromClause);
-    assignments_ = Preconditions.checkNotNull(assignmentExprs);
-    wherePredicate_ = wherePredicate;
+    whereClause_ = wherePredicate;
   }
 
   @Override
   public void collectTableRefs(List<TableRef> tblRefs) {
     tblRefs.add(new TableRef(targetTablePath_, null));
     fromClause_.collectTableRefs(tblRefs);
-    if (wherePredicate_ != null) {
+    if (whereClause_ != null) {
       // Collect TableRefs in WHERE-clause subqueries.
       List<Subquery> subqueries = new ArrayList<>();
-      wherePredicate_.collect(Subquery.class, subqueries);
+      whereClause_.collect(Subquery.class, subqueries);
       for (Subquery sq : subqueries) {
         sq.getStatement().collectTableRefs(tblRefs);
       }
     }
   }
+
+  public class ModifyAnalyzer {
+    protected final Analyzer analyzer;
+
+    // The order of the referenced columns equals the order of the result expressions
+    protected Set<SlotId> uniqueSlots = Sets.newHashSet();
+    protected Set<SlotId> keySlots = Sets.newHashSet();
+    protected Map<String, Integer> colIndexMap = Maps.newHashMap();
+
+    protected ModifyAnalyzer(Analyzer analyzer) {
+      this.analyzer = analyzer;
+    }
 
   /**
    * The analysis of the ModifyStmt proceeds as follows: First, the FROM clause is
@@ -122,9 +127,7 @@ public abstract class ModifyStmt extends StatementBase {
    * Potential query rewrites for the select statement are implemented here and are not
    * triggered externally by the statement rewriter.
    */
-  @Override
-  public void analyze(Analyzer analyzer) throws AnalysisException {
-    super.analyze(analyzer);
+  protected void analyze() throws AnalysisException {
     fromClause_.analyze(analyzer);
 
     List<Path> candidates = analyzer.getTupleDescPaths(targetTablePath_);
@@ -165,20 +168,10 @@ public abstract class ModifyStmt extends StatementBase {
     analyzer.registerAuthAndAuditEvent(dstTbl, Privilege.ALL);
 
     // Validates the assignments_ and creates the sourceStmt_.
-    if (sourceStmt_ == null) createSourceStmt(analyzer);
+    if (sourceStmt_ == null) createSourceStmt();
     sourceStmt_.analyze(analyzer);
     // Add target table to descriptor table.
     analyzer.getDescTbl().setTargetTable(table_);
-
-    sqlString_ = toSql();
-  }
-
-  @Override
-  public void reset() {
-    super.reset();
-    fromClause_.reset();
-    if (sourceStmt_ != null) sourceStmt_.reset();
-    table_ = null;
   }
 
   /**
@@ -190,24 +183,16 @@ public abstract class ModifyStmt extends StatementBase {
    * This is only run once, on the first analysis. Following analysis will reset() and
    * reuse previously created statements.
    */
-  private void createSourceStmt(Analyzer analyzer)
+  protected void createSourceStmt()
       throws AnalysisException {
     // Builds the select list and column position mapping for the target table.
     List<SelectListItem> selectList = new ArrayList<>();
     referencedColumns_ = new ArrayList<>();
-    buildAndValidateAssignmentExprs(analyzer, selectList, referencedColumns_);
+    buildAndValidateAssignmentExprs(selectList, referencedColumns_);
 
     // Analyze the generated select statement.
-    sourceStmt_ = new SelectStmt(new SelectList(selectList), fromClause_, wherePredicate_,
+    sourceStmt_ = new SelectStmt(new SelectList(selectList), fromClause_, whereClause_,
         null, null, null, null);
-
-    // cast result expressions to the correct type of the referenced slot of the
-    // target table
-    int keyColumnsOffset = table_.getPrimaryKeyColumnNames().size();
-    for (int i = keyColumnsOffset; i < sourceStmt_.resultExprs_.size(); ++i) {
-      sourceStmt_.resultExprs_.set(i, sourceStmt_.resultExprs_.get(i).castTo(
-          assignments_.get(i - keyColumnsOffset).first.getType()));
-    }
   }
 
   /**
@@ -223,16 +208,12 @@ public abstract class ModifyStmt extends StatementBase {
    * expression list contains an expression for each key column. The key columns
    * are always prepended to the list of expression representing the assignments.
    */
-  private void buildAndValidateAssignmentExprs(Analyzer analyzer,
+  protected void buildAndValidateAssignmentExprs(
       List<SelectListItem> selectList, List<Integer> referencedColumns)
       throws AnalysisException {
-    // The order of the referenced columns equals the order of the result expressions
-    HashSet<SlotId> uniqueSlots = Sets.newHashSet();
-    HashSet<SlotId> keySlots = Sets.newHashSet();
 
     // Mapping from column name to index
     List<Column> cols = table_.getColumnsInHiveOrder();
-    HashMap<String, Integer> colIndexMap = Maps.newHashMap();
     for (int i = 0; i < cols.size(); i++) {
       colIndexMap.put(cols.get(i).getName(), i);
     }
@@ -247,53 +228,15 @@ public abstract class ModifyStmt extends StatementBase {
       keySlots.add(ref.getSlotId());
       referencedColumns.add(colIndexMap.get(k));
     }
+  }
+  }
 
-    // Assignments are only used in the context of updates.
-    for (Pair<SlotRef, Expr> valueAssignment : assignments_) {
-      SlotRef lhsSlotRef = valueAssignment.first;
-      lhsSlotRef.analyze(analyzer);
-
-      Expr rhsExpr = valueAssignment.second;
-      // No subqueries for rhs expression
-      if (rhsExpr.contains(Subquery.class)) {
-        throw new AnalysisException(
-            format("Subqueries are not supported as update expressions for column '%s'",
-                lhsSlotRef.toSql()));
-      }
-      rhsExpr.analyze(analyzer);
-
-      // Correct target table
-      if (!lhsSlotRef.isBoundByTupleIds(targetTableRef_.getId().asList())) {
-        throw new AnalysisException(
-            format("Left-hand side column '%s' in assignment expression '%s=%s' does not "
-                + "belong to target table '%s'", lhsSlotRef.toSql(), lhsSlotRef.toSql(),
-                rhsExpr.toSql(), targetTableRef_.getDesc().getTable().getFullName()));
-      }
-
-      Column c = lhsSlotRef.getResolvedPath().destColumn();
-      // TODO(Kudu) Add test for this code-path when Kudu supports nested types
-      if (c == null) {
-        throw new AnalysisException(
-            format("Left-hand side in assignment expression '%s=%s' must be a column " +
-                "reference", lhsSlotRef.toSql(), rhsExpr.toSql()));
-      }
-
-      if (keySlots.contains(lhsSlotRef.getSlotId())) {
-        throw new AnalysisException(format("Key column '%s' cannot be updated.",
-            lhsSlotRef.toSql()));
-      }
-
-      if (uniqueSlots.contains(lhsSlotRef.getSlotId())) {
-        throw new AnalysisException(
-            format("Duplicate value assignment to column: '%s'", lhsSlotRef.toSql()));
-      }
-
-      rhsExpr = checkTypeCompatibility(targetTableRef_.getDesc().getTable().getFullName(),
-          c, rhsExpr, analyzer.isDecimalV2());
-      uniqueSlots.add(lhsSlotRef.getSlotId());
-      selectList.add(new SelectListItem(rhsExpr, null));
-      referencedColumns.add(colIndexMap.get(c.getName()));
-    }
+  @Override
+  public void reset() {
+    super.reset();
+    fromClause_.reset();
+    if (sourceStmt_ != null) sourceStmt_.reset();
+    table_ = null;
   }
 
   @Override
@@ -307,14 +250,22 @@ public abstract class ModifyStmt extends StatementBase {
   @Override
   public void rewriteExprs(ExprRewriter rewriter) throws AnalysisException {
     Preconditions.checkState(isAnalyzed());
-    for (Pair<SlotRef, Expr> assignment: assignments_) {
-      assignment.second = rewriter.rewrite(assignment.second, analyzer_);
-    }
     sourceStmt_.rewriteExprs(rewriter);
   }
 
   public QueryStmt getQueryStmt() { return sourceStmt_; }
   public abstract DataSink createDataSink();
-  @Override
-  public abstract String toSql(boolean rewritten);
+
+  protected String whereToSql(boolean rewritten) {
+    StringBuilder b = new StringBuilder();
+    // WHERE clause migrates to the source statement,
+    // use the information there.
+    if (whereClause_ != null) {
+      b.append(" WHERE ");
+      b.append(rewritten
+          ? sourceStmt_.getWhereClause().toSql()
+          : sourceStmt_.getOriginalWhereClause());
+    }
+    return b.toString();
+  }
 }

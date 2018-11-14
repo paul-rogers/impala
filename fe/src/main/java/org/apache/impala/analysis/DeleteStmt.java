@@ -19,13 +19,12 @@ package org.apache.impala.analysis;
 
 import java.util.List;
 
-import org.apache.impala.common.Pair;
+import org.apache.impala.common.AnalysisException;
 import org.apache.impala.planner.DataSink;
 import org.apache.impala.planner.TableSink;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Lists;
 
 /**
  * Representation of a DELETE statement.
@@ -42,13 +41,20 @@ public class DeleteStmt extends ModifyStmt {
 
   public DeleteStmt(List<String> targetTablePath, FromClause tableRefs,
       Expr wherePredicate) {
-    super(targetTablePath, tableRefs, Lists.<Pair<SlotRef, Expr>>newArrayList(),
+    super(targetTablePath, tableRefs,
         wherePredicate);
   }
 
   public DeleteStmt(DeleteStmt other) {
     super(other.targetTablePath_, other.fromClause_.clone(),
-        Lists.<Pair<SlotRef, Expr>>newArrayList(), other.wherePredicate_.clone());
+        other.whereClause_.clone());
+  }
+
+  @Override
+  public void analyze(Analyzer analyzer) throws AnalysisException {
+    super.analyze(analyzer);
+    ModifyAnalyzer modifyAnalyzer = new ModifyAnalyzer(analyzer);
+    modifyAnalyzer.analyze();
   }
 
   @Override
@@ -69,8 +75,6 @@ public class DeleteStmt extends ModifyStmt {
 
   @Override
   public String toSql(boolean rewritten) {
-    if (!rewritten && sqlString_ != null) return sqlString_;
-
     StringBuilder b = new StringBuilder();
     b.append("DELETE");
     if (fromClause_.size() > 1 || targetTableRef_.hasExplicitAlias()) {
@@ -82,10 +86,7 @@ public class DeleteStmt extends ModifyStmt {
       }
     }
     b.append(fromClause_.toSql(rewritten));
-    if (wherePredicate_ != null) {
-      b.append(" WHERE ");
-      b.append(wherePredicate_.toSql());
-    }
+    b.append(whereToSql(rewritten));
     return b.toString();
   }
 }

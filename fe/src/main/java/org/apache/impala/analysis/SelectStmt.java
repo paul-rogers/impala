@@ -23,7 +23,6 @@ import java.util.List;
 import java.util.Set;
 
 import org.apache.impala.analysis.Path.PathType;
-import org.apache.impala.analysis.QueryStmt.Resolution;
 import org.apache.impala.catalog.Column;
 import org.apache.impala.catalog.FeTable;
 import org.apache.impala.catalog.FeView;
@@ -126,6 +125,7 @@ public class SelectStmt extends QueryStmt {
   public List<Expr> getGroupByClause() { return groupByClause_; }
   public Expr getWhereClause() { return whereClause_; }
   public void setWhereClause(Expr whereClause) { whereClause_ = whereClause; }
+  public String getOriginalWhereClause() { return originalWhere_; }
   public MultiAggregateInfo getMultiAggInfo() { return multiAggInfo_; }
   public boolean hasMultiAggInfo() { return multiAggInfo_ != null; }
   public AnalyticInfo getAnalyticInfo() { return analyticInfo_; }

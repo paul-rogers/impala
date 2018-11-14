@@ -21,20 +21,25 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
 
   public AnalysisFixture fixture = new AnalysisFixture(frontend_);
 
-  private SelectStmt analyze(String stmtText) throws AnalysisException {
+  private SelectStmt analyzeSelect(String stmtText) throws AnalysisException {
     QueryFixture query = fixture.query(stmtText);
     query.analyze();
     return query.selectStmt();
   }
 
+  //-----------------------------------------------------------------
+  // SELECT statement
+
+  public static final String SELECT_TABLE = "functional.alltypestiny";
+
   /**
-   * Sanity test of SELECT rewrite
+   * Sanity test of SELECT list rewrite
    */
   @Test
   public void testSelect() throws AnalysisException {
     String stmtText =
-        "select 1 + 1 + id as c from functional.alltypestiny";
-    SelectStmt stmt = analyze(stmtText);
+        "select 1 + 1 + id as c from " + SELECT_TABLE;
+    SelectStmt stmt = analyzeSelect(stmtText);
     Expr expr = stmt.getSelectList().getItems().get(0).getExpr();
 
     // Expression should have been rewritten
@@ -59,12 +64,12 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
     // TODO: rhs is a copy of the SELECT expr. Should it be?
 
     // Statement's toSql should be before rewrites
-    String origSql = "SELECT 1 + 1 + id AS c FROM functional.alltypestiny";
+    String origSql = "SELECT 1 + 1 + id AS c FROM " + SELECT_TABLE;
     assertEquals(origSql, stmt.toSql());
     assertEquals(origSql, stmt.toSql(false));
 
     // Rewritten should be available when requested
-    assertEquals("SELECT 2 + id AS c FROM functional.alltypestiny",
+    assertEquals("SELECT 2 + id AS c FROM " + SELECT_TABLE,
         stmt.toSql(true));
   }
 
@@ -83,8 +88,8 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
     try {
       String stmtText =
           "select (select count(*) + 0 from functional.alltypestiny) as c" +
-          " from functional.alltypestiny";
-      analyze(stmtText);
+          " from " + SELECT_TABLE;
+      analyzeSelect(stmtText);
       fail();
     } catch (AnalysisException e) {
       expectUnsupported(e,
@@ -97,8 +102,8 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
   @Test
   public void testAmbiguousAlias() throws AnalysisException {
     String stmtText =
-        "SELECT id as c, bool_col as c FROM functional.alltypestiny";
-    SelectStmt stmt = analyze(stmtText);
+        "SELECT id as c, bool_col as c FROM " + SELECT_TABLE;
+    SelectStmt stmt = analyzeSelect(stmtText);
 
     assertEquals(2, stmt.getSelectList().getItems().size());
     assertEquals(2, stmt.getResultExprs().size());
@@ -113,9 +118,9 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
   @Test
   public void testWhere() throws AnalysisException {
     String stmtText =
-        "select id from functional.alltypestiny" +
+        "select id from " + SELECT_TABLE +
         " where id = 2 + 1 and true";
-    SelectStmt stmt = analyze(stmtText);
+    SelectStmt stmt = analyzeSelect(stmtText);
     Expr expr = stmt.getWhereClause();
 
     // Expression should have been rewritten
@@ -128,7 +133,7 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
 
     // Statement's toSql should be before rewrites
     String origSql =
-        "SELECT id FROM functional.alltypestiny" +
+        "SELECT id FROM " + SELECT_TABLE +
         " WHERE id = 2 + 1 AND TRUE";
     assertEquals(origSql,  stmt.toSql());
     assertEquals(origSql,  stmt.toSql(false));
@@ -147,7 +152,7 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
   public void testTrivialWhere() throws AnalysisException {
     String stmtText = "select id from functional.alltypestiny " +
         "where id = 2 + 1 or true";
-    SelectStmt stmt = analyze(stmtText);
+    SelectStmt stmt = analyzeSelect(stmtText);
     assertNull(stmt.getWhereClause());
 
     String origSql = "SELECT id FROM functional.alltypestiny " +
@@ -156,7 +161,7 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
     assertEquals(origSql,  stmt.toSql(false));
 
     // Rewritten should have no WHERE clause
-    assertEquals("SELECT id FROM functional.alltypestiny",
+    assertEquals("SELECT id FROM " + SELECT_TABLE,
         stmt.toSql(true));
   }
 
@@ -167,9 +172,9 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
   public void testAggregateInWhereClause() {
     try {
       String stmtText =
-          "select id from functional.alltypestiny" +
+          "select id from " + SELECT_TABLE +
           " where count(id) < 10 + 2";
-      analyze(stmtText);
+      analyzeSelect(stmtText);
       fail();
     } catch (AnalysisException e) {
       expectUnsupported(e,
@@ -186,9 +191,9 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
   public void testWhereNonBoolean() {
     try {
       String stmtText =
-          "select id from functional.alltypestiny" +
+          "select id from " + SELECT_TABLE +
           " where 0 + 2 + id";
-      analyze(stmtText);
+      analyzeSelect(stmtText);
       fail();
     } catch (AnalysisException e) {
       expectRequiresBoolean(e, "0 + 2 + id");
@@ -208,9 +213,9 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
   public void testAnalyticInWhereClause() {
     try {
       String stmtText =
-          "select id from functional.alltypestiny" +
+          "select id from " + SELECT_TABLE +
           " where count(id) over(partition by id / (1 + 3))";
-      analyze(stmtText);
+      analyzeSelect(stmtText);
       fail();
     } catch (AnalysisException e) {
       expectUnsupported(e,
@@ -230,7 +235,7 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
         " from functional.alltypestiny t1" +
         " join functional.alltypestiny t2" +
         " on 1 + 1 + t1.id = 2 * 1 + t2.id";
-    SelectStmt stmt = analyze(stmtText);
+    SelectStmt stmt = analyzeSelect(stmtText);
     Expr expr = stmt.getFromClause().get(1).getOnClause();
 
     // Expression should have been rewritten
@@ -280,7 +285,7 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
           " from functional.alltypestiny t1" +
           " join functional.alltypestiny t2" +
           " on 1 + 1 + count(t1.id) = 2 * 1 + count(t2.id)";
-      analyze(stmtText);
+      analyzeSelect(stmtText);
       fail();
     } catch (AnalysisException e) {
       expectUnsupported(e,
@@ -301,7 +306,7 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
           " from functional.alltypestiny t1" +
           " join functional.alltypestiny t2" +
           " on count(t1.id) over(partition by t1.id / (1 + 3)) = t2.id";
-      analyze(stmtText);
+      analyzeSelect(stmtText);
       fail();
     } catch (AnalysisException e) {
       expectUnsupported(e,
@@ -322,7 +327,7 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
           " from functional.alltypestiny t1" +
           " join functional.alltypestiny t2" +
           " on 1 + 1 + t1.id + t2.id";
-      analyze(stmtText);
+      analyzeSelect(stmtText);
       fail();
     } catch (AnalysisException e) {
       expectRequiresBoolean(e, "1 + 1 + t1.id + t2.id");
@@ -340,7 +345,7 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
         " from functional.alltypestiny t1" +
         " join functional.alltypestiny t2" +
         " on 1 + 1 = 4 - 2";
-    SelectStmt stmt = analyze(stmtText);
+    SelectStmt stmt = analyzeSelect(stmtText);
     assertNull(stmt.getWhereClause());
 
     stmtText =
@@ -367,14 +372,14 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
   public void testGroupBy() throws AnalysisException {
     String stmtText =
         "select 2 + int_col, 2 + 3 + id, count(*)" +
-        " from functional.alltypestiny" +
+        " from " + SELECT_TABLE +
         " group by 1 + 1 + int_col, 2 + 3 + id";
 
     // Above will pass muster because both SELECT and
     // GROUP BY are rewritten before we match up clauses.
     // Note that one SELECT expr is in rewritten form, the
     // other is in non-rewritten form.
-    SelectStmt stmt = analyze(stmtText);
+    SelectStmt stmt = analyzeSelect(stmtText);
     List<Expr> groupBy = stmt.getGroupByClause();
 
     // Expressions should have been rewritten
@@ -393,7 +398,7 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
 
     String origSql =
         "SELECT 2 + int_col, 2 + 3 + id, count(*)" +
-        " FROM functional.alltypestiny" +
+        " FROM " + SELECT_TABLE +
         " GROUP BY 1 + 1 + int_col, 2 + 3 + id";
     assertEquals(origSql, stmt.toSql());
     assertEquals(origSql, stmt.toSql(false));
@@ -401,7 +406,7 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
     // Rewritten should be available when requested
     String rewrittenSql =
         "SELECT 2 + int_col, 5 + id, count(*)" +
-        " FROM functional.alltypestiny" +
+        " FROM " + SELECT_TABLE +
         " GROUP BY 2 + int_col, 5 + id";
     assertEquals(rewrittenSql, stmt.toSql(true));
   }
@@ -410,10 +415,10 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
   public void testGroupByConstExpr() throws AnalysisException {
     String stmtText =
         "select count(*)" +
-        " from functional.alltypestiny" +
+        " from " + SELECT_TABLE +
         " group by 1 + 1";
 
-    SelectStmt stmt = analyze(stmtText);
+    SelectStmt stmt = analyzeSelect(stmtText);
     List<Expr> groupBy = stmt.getGroupByClause();
     Expr expr = groupBy.get(0);
 
@@ -428,7 +433,7 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
     // Statement's toSql should be before rewrites
     String origSql =
         "SELECT count(*)" +
-        " FROM functional.alltypestiny" +
+        " FROM " + SELECT_TABLE +
         " GROUP BY 1 + 1";
     assertEquals(origSql, stmt.toSql());
     assertEquals(origSql, stmt.toSql(false));
@@ -439,7 +444,7 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
     // done before the rewrite.
     String rewrittenSql =
         "SELECT count(*)" +
-        " FROM functional.alltypestiny" +
+        " FROM " + SELECT_TABLE +
         " GROUP BY 2";
     assertEquals(rewrittenSql, stmt.toSql(true));
   }
@@ -452,10 +457,10 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
   public void testGroupByOrdinal() throws AnalysisException {
     String stmtText =
         "select id, count(*)" +
-        " from functional.alltypestiny" +
+        " from " + SELECT_TABLE +
         " group by 1";
 
-    SelectStmt stmt = analyze(stmtText);
+    SelectStmt stmt = analyzeSelect(stmtText);
     List<Expr> groupBy = stmt.getGroupByClause();
     Expr expr = groupBy.get(0);
 
@@ -470,7 +475,7 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
     // Statement's toSql should be before substitution
     String origSql =
         "SELECT id, count(*)" +
-        " FROM functional.alltypestiny" +
+        " FROM " + SELECT_TABLE +
         " GROUP BY 1";
     assertEquals(origSql, stmt.toSql());
     assertEquals(origSql, stmt.toSql(false));
@@ -478,7 +483,7 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
     // Rewritten should be available when requested
     String rewrittenSql =
         "SELECT id, count(*)" +
-        " FROM functional.alltypestiny" +
+        " FROM " + SELECT_TABLE +
         " GROUP BY id";
     assertEquals(rewrittenSql, stmt.toSql(true));
   }
@@ -491,10 +496,10 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
   public void testGroupByAlias() throws AnalysisException {
     String stmtText =
         "select id as c, count(*)" +
-        " from functional.alltypestiny" +
+        " from " + SELECT_TABLE +
         " group by c";
 
-    SelectStmt stmt = analyze(stmtText);
+    SelectStmt stmt = analyzeSelect(stmtText);
     List<Expr> groupBy = stmt.getGroupByClause();
     Expr expr = groupBy.get(0);
 
@@ -509,7 +514,7 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
     // Statement's toSql should be before substitution
     String origSql =
         "SELECT id AS c, count(*)" +
-        " FROM functional.alltypestiny" +
+        " FROM " + SELECT_TABLE +
         " GROUP BY c";
     assertEquals(origSql, stmt.toSql());
     assertEquals(origSql, stmt.toSql(false));
@@ -517,7 +522,7 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
     // Rewritten should be available when requested
     String rewrittenSql =
         "SELECT id AS c, count(*)" +
-        " FROM functional.alltypestiny" +
+        " FROM " + SELECT_TABLE +
         " GROUP BY id";
     assertEquals(rewrittenSql, stmt.toSql(true));
   }
@@ -530,9 +535,9 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
     try {
       String stmtText =
           "select 2 + count(*)" +
-          " from functional.alltypestiny" +
+          " from " + SELECT_TABLE +
           " group by 1 + 1 + count(*)";
-      analyze(stmtText);
+      analyzeSelect(stmtText);
       fail();
     } catch (AnalysisException e) {
       expectUnsupported(e,
@@ -550,9 +555,9 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
     try {
       String stmtText =
           "select count(id)" +
-          " from functional.alltypestiny" +
+          " from " + SELECT_TABLE +
           " group by count(id) over(partition by id / (1 + 3))";
-      analyze(stmtText);
+      analyzeSelect(stmtText);
       fail();
     } catch (AnalysisException e) {
       expectUnsupported(e,
@@ -570,9 +575,9 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
     try {
       String stmtText =
           "select count(id)" +
-          " from functional.alltypestiny" +
+          " from " + SELECT_TABLE +
           " group by (select count(*) + 0 from functional.alltypestiny)";
-       analyze(stmtText);
+       analyzeSelect(stmtText);
       fail();
     } catch (AnalysisException e) {
       expectUnsupported(e,
@@ -590,9 +595,9 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
   public void testGroupByZeroOrdinal() {
     try {
       String stmtText =
-          "select id as c from functional.alltypestiny" +
+          "select id as c from " + SELECT_TABLE +
           " group by 0";
-       analyze(stmtText);
+       analyzeSelect(stmtText);
       fail();
     } catch (AnalysisException e) {
       assertEquals("GROUP BY: ordinal must be >= 1: 0", e.getMessage());
@@ -603,9 +608,9 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
   public void testGroupByOrdinalOutOfRange() {
     try {
       String stmtText =
-          "select id as c from functional.alltypestiny" +
+          "select id as c from " + SELECT_TABLE +
           " group by 2";
-       analyze(stmtText);
+       analyzeSelect(stmtText);
       fail();
     } catch (AnalysisException e) {
       assertEquals(
@@ -619,9 +624,9 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
     try {
       String stmtText =
           "select id as c, int_col as c" +
-          " from functional.alltypestiny" +
+          " from " + SELECT_TABLE +
           " group by c";
-       analyze(stmtText);
+       analyzeSelect(stmtText);
       fail();
     } catch (AnalysisException e) {
       assertEquals(
@@ -635,9 +640,9 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
     try {
       String stmtText =
           "select id as c" +
-          " from functional.alltypestiny" +
+          " from " + SELECT_TABLE +
           " group by d";
-       analyze(stmtText);
+       analyzeSelect(stmtText);
       fail();
     } catch (AnalysisException e) {
       assertEquals(
@@ -652,10 +657,10 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
   @Test
   public void testOrderByExpr() throws AnalysisException {
     String stmtText =
-        "select id from functional.alltypestiny" +
+        "select id from " + SELECT_TABLE +
         " order by 1 + 1 + id";
 
-    SelectStmt stmt = analyze(stmtText);
+    SelectStmt stmt = analyzeSelect(stmtText);
     SortInfo sortInfo = stmt.getSortInfo();
     Expr expr = sortInfo.getSortExprs().get(0);
 
@@ -669,14 +674,14 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
 
     // Statement's toSql should be before rewrites
     String origSql =
-        "SELECT id FROM functional.alltypestiny" +
+        "SELECT id FROM " + SELECT_TABLE +
         " ORDER BY 1 + 1 + id ASC";
     assertEquals(origSql, stmt.toSql());
     assertEquals(origSql, stmt.toSql(false));
 
     // Rewritten should be available when requested
     String rewrittenSql =
-        "SELECT id FROM functional.alltypestiny" +
+        "SELECT id FROM " + SELECT_TABLE +
         " ORDER BY 2 + id ASC";
     assertEquals(rewrittenSql, stmt.toSql(true));
   }
@@ -684,10 +689,10 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
   @Test
   public void testOrderByConstExpr() throws AnalysisException {
     String stmtText =
-        "select id from functional.alltypestiny" +
+        "select id from " + SELECT_TABLE +
         " order by 1 + 1";
 
-    SelectStmt stmt = analyze(stmtText);
+    SelectStmt stmt = analyzeSelect(stmtText);
     SortInfo sortInfo = stmt.getSortInfo();
     Expr expr = sortInfo.getSortExprs().get(0);
 
@@ -701,7 +706,7 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
 
     // Statement's toSql should be before rewrites
     String origSql =
-        "SELECT id FROM functional.alltypestiny" +
+        "SELECT id FROM " + SELECT_TABLE +
         " ORDER BY 1 + 1 ASC";
     assertEquals(origSql, stmt.toSql());
     assertEquals(origSql, stmt.toSql(false));
@@ -711,7 +716,7 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
     // occurred, but is OK because the ordinal check was
     // done before the rewrite.
     String rewrittenSql =
-        "SELECT id FROM functional.alltypestiny" +
+        "SELECT id FROM " + SELECT_TABLE +
         " ORDER BY 2 ASC";
     assertEquals(rewrittenSql, stmt.toSql(true));
   }
@@ -723,10 +728,10 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
   @Test
   public void testOrderByOrdinal() throws AnalysisException {
     String stmtText =
-        "select id from functional.alltypestiny" +
+        "select id from " + SELECT_TABLE +
         " order by 1";
 
-    SelectStmt stmt = analyze(stmtText);
+    SelectStmt stmt = analyzeSelect(stmtText);
     SortInfo sortInfo = stmt.getSortInfo();
     Expr expr = sortInfo.getSortExprs().get(0);
 
@@ -740,14 +745,14 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
 
     // Statement's toSql should be before substitution
     String origSql =
-        "SELECT id FROM functional.alltypestiny" +
+        "SELECT id FROM " + SELECT_TABLE +
         " ORDER BY 1 ASC";
     assertEquals(origSql, stmt.toSql());
     assertEquals(origSql, stmt.toSql(false));
 
     // Rewritten should be available when requested
     String rewrittenSql =
-        "SELECT id FROM functional.alltypestiny" +
+        "SELECT id FROM " + SELECT_TABLE +
         " ORDER BY id ASC";
     assertEquals(rewrittenSql, stmt.toSql(true));
   }
@@ -759,10 +764,10 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
   @Test
   public void testOrderByAlias() throws AnalysisException {
     String stmtText =
-        "select id as c from functional.alltypestiny" +
+        "select id as c from " + SELECT_TABLE +
         " order by c";
 
-    SelectStmt stmt = analyze(stmtText);
+    SelectStmt stmt = analyzeSelect(stmtText);
     SortInfo sortInfo = stmt.getSortInfo();
     Expr expr = sortInfo.getSortExprs().get(0);
 
@@ -776,14 +781,14 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
 
     // Statement's toSql should be before substitution
     String origSql =
-        "SELECT id AS c FROM functional.alltypestiny" +
+        "SELECT id AS c FROM " + SELECT_TABLE +
         " ORDER BY c ASC";
     assertEquals(origSql, stmt.toSql());
     assertEquals(origSql, stmt.toSql(false));
 
     // Rewritten should be available when requested
     String rewrittenSql =
-        "SELECT id AS c FROM functional.alltypestiny" +
+        "SELECT id AS c FROM " + SELECT_TABLE +
         " ORDER BY id ASC";
     assertEquals(rewrittenSql, stmt.toSql(true));
   }
@@ -796,9 +801,9 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
     try {
       String stmtText =
           "select id" +
-          " from functional.alltypestiny" +
+          " from " + SELECT_TABLE +
           " order by (select count(*) + 0 from functional.alltypestiny)";
-       analyze(stmtText);
+       analyzeSelect(stmtText);
       fail();
     } catch (AnalysisException e) {
       expectUnsupported(e,
@@ -816,9 +821,9 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
   public void testOrderByZeroOrdinal() {
     try {
       String stmtText =
-          "select id as c from functional.alltypestiny" +
+          "select id as c from " + SELECT_TABLE +
           " order by 0";
-       analyze(stmtText);
+       analyzeSelect(stmtText);
       fail();
     } catch (AnalysisException e) {
       assertEquals("ORDER BY: ordinal must be >= 1: 0", e.getMessage());
@@ -829,9 +834,9 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
   public void testOrderByOrdinalOutOfRange() {
     try {
       String stmtText =
-          "select id as c from functional.alltypestiny" +
+          "select id as c from " + SELECT_TABLE +
           " order by 2";
-       analyze(stmtText);
+       analyzeSelect(stmtText);
       fail();
     } catch (AnalysisException e) {
       assertEquals(
@@ -845,9 +850,9 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
     try {
       String stmtText =
           "select id as c, int_col as c" +
-          " from functional.alltypestiny" +
+          " from " + SELECT_TABLE +
           " order by c";
-       analyze(stmtText);
+       analyzeSelect(stmtText);
       fail();
     } catch (AnalysisException e) {
       assertEquals(
@@ -861,9 +866,9 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
     try {
       String stmtText =
           "select id as c" +
-          " from functional.alltypestiny" +
+          " from " + SELECT_TABLE +
           " order by d";
-       analyze(stmtText);
+       analyzeSelect(stmtText);
       fail();
     } catch (AnalysisException e) {
       assertEquals(
@@ -879,10 +884,10 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
   public void testHaving() throws AnalysisException {
     String stmtText =
         "select count(*)" +
-        " from functional.alltypestiny" +
+        " from " + SELECT_TABLE +
         " group by string_col" +
         " having 1 + 1 + count(*) > 2 + 3";
-    SelectStmt stmt = analyze(stmtText);
+    SelectStmt stmt = analyzeSelect(stmtText);
     Expr expr = stmt.getHavingPred();
 
     // Expression should have been rewritten
@@ -896,7 +901,7 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
     // Statement's toSql should be before rewrites
     String origSql =
         "SELECT count(*)" +
-        " FROM functional.alltypestiny" +
+        " FROM " + SELECT_TABLE +
         " GROUP BY string_col" +
         " HAVING 1 + 1 + count(*) > 2 + 3";
     assertEquals(origSql,  stmt.toSql());
@@ -905,7 +910,7 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
     // Rewritten should be available when requested
     String rewrittenSql =
         "SELECT count(*)" +
-        " FROM functional.alltypestiny" +
+        " FROM " + SELECT_TABLE +
         " GROUP BY string_col" +
         " HAVING 2 + count(*) > 5";
     assertEquals(rewrittenSql, stmt.toSql(true));
@@ -920,10 +925,10 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
   public void testTrivialTrueHaving() throws AnalysisException {
     String stmtText =
         "select count(*)" +
-        " from functional.alltypestiny" +
+        " from " + SELECT_TABLE +
         " group by string_col" +
         " having 1 = 1";
-    SelectStmt stmt = analyze(stmtText);
+    SelectStmt stmt = analyzeSelect(stmtText);
     Expr expr = stmt.getHavingPred();
 
     assertNotNull(expr);
@@ -931,7 +936,7 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
 
     String origSql =
         "SELECT count(*)" +
-        " FROM functional.alltypestiny" +
+        " FROM " + SELECT_TABLE +
         " GROUP BY string_col" +
         " HAVING 1 = 1";
     assertEquals(origSql,  stmt.toSql());
@@ -940,7 +945,7 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
     // Rewritten should have no WHERE clause
     String rewrittenSql =
         "SELECT count(*)" +
-        " FROM functional.alltypestiny" +
+        " FROM " + SELECT_TABLE +
         " GROUP BY string_col" +
         " HAVING TRUE";
     assertEquals(rewrittenSql, stmt.toSql(true));
@@ -950,10 +955,10 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
   public void testTrivialFalseHaving() throws AnalysisException {
     String stmtText =
         "select count(*)" +
-        " from functional.alltypestiny" +
+        " from " + SELECT_TABLE +
         " group by string_col" +
         " having 1 = 2";
-    SelectStmt stmt = analyze(stmtText);
+    SelectStmt stmt = analyzeSelect(stmtText);
     Expr expr = stmt.getHavingPred();
 
     assertNotNull(expr);
@@ -961,7 +966,7 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
 
     String origSql =
         "SELECT count(*)" +
-        " FROM functional.alltypestiny" +
+        " FROM " + SELECT_TABLE +
         " GROUP BY string_col" +
         " HAVING 1 = 2";
     assertEquals(origSql,  stmt.toSql());
@@ -970,7 +975,7 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
     // Rewritten should have no WHERE clause
     String rewrittenSql =
         "SELECT count(*)" +
-        " FROM functional.alltypestiny" +
+        " FROM " + SELECT_TABLE +
         " GROUP BY string_col" +
         " HAVING FALSE";
     assertEquals(rewrittenSql, stmt.toSql(true));
@@ -980,14 +985,14 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
   public void testAggregateInHavingClause() throws AnalysisException {
     String stmtText =
         "select count(*)" +
-        " from functional.alltypestiny" +
+        " from " + SELECT_TABLE +
         " group by string_col" +
         " having 1 + 1 + count(*) > 2 + 3";
-    SelectStmt stmt = analyze(stmtText);
+    SelectStmt stmt = analyzeSelect(stmtText);
 
     String origSql =
         "SELECT count(*)" +
-        " FROM functional.alltypestiny" +
+        " FROM " + SELECT_TABLE +
         " GROUP BY string_col" +
         " HAVING 1 + 1 + count(*) > 2 + 3";
     assertEquals(origSql,  stmt.toSql());
@@ -996,7 +1001,7 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
     // Rewritten should have no WHERE clause
     String rewrittenSql =
         "SELECT count(*)" +
-        " FROM functional.alltypestiny" +
+        " FROM " + SELECT_TABLE +
         " GROUP BY string_col" +
         " HAVING 2 + count(*) > 5";
     assertEquals(rewrittenSql, stmt.toSql(true));
@@ -1010,10 +1015,10 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
     try {
       String stmtText =
           "select count(*)" +
-          " from functional.alltypestiny" +
+          " from " + SELECT_TABLE +
           " group by string_col" +
           " having count(*)";
-      analyze(stmtText);
+      analyzeSelect(stmtText);
       fail();
     } catch (AnalysisException e) {
       expectRequiresBoolean(e, "count(*)");
@@ -1028,10 +1033,10 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
     try {
       String stmtText =
           "select count(*)" +
-          " from functional.alltypestiny" +
+          " from " + SELECT_TABLE +
           " group by string_col" +
           " having count(id) OVER (PARTITION BY id / (1 + 3))";
-      analyze(stmtText);
+      analyzeSelect(stmtText);
       fail();
     } catch (AnalysisException e) {
       expectUnsupported(e,
@@ -1049,10 +1054,10 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
     try {
       String stmtText =
           "select count(*)" +
-          " from functional.alltypestiny" +
+          " from " + SELECT_TABLE +
           " group by string_col" +
           " having (select count(*) + 0 from functional.alltypestiny)";
-        analyze(stmtText);
+        analyzeSelect(stmtText);
       fail();
     } catch (AnalysisException e) {
       expectUnsupported(e,
@@ -1072,4 +1077,161 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
   //
   // This note is here because version 3.0 of Impala tried (but failed)
   // to support ordinals and aliases.
+  //
+  // Hence, there are no tests for these two cases. If there were,
+  // they would be here.
+
+  //-----------------------------------------------------------------
+  // DELETE, UPDATE statements
+  //
+  // Delete is only defined for Kudu tables
+
+  public static final String MODIFY_TABLE = "functional_kudu.alltypestiny";
+
+  private DeleteStmt analyzeDelete(String stmtText) throws AnalysisException {
+    QueryFixture query = fixture.query(stmtText);
+    query.analyze();
+    return (DeleteStmt) query.parseNode();
+  }
+
+  /**
+   * Sanity test of DELETE ... WHERE rewrite
+   */
+  @Test
+  public void testDeleteWhere() throws AnalysisException {
+    String stmtText =
+        "delete from " + MODIFY_TABLE +
+        " where 1 + 1 + id = 8 + 2";
+    DeleteStmt stmt = analyzeDelete(stmtText);
+    SelectStmt selStmt = ((SelectStmt) stmt.getQueryStmt());
+    Expr expr = selStmt.getWhereClause();
+
+    // Expression should have been rewritten
+    assertEquals("2 + id = 10", expr.toSql());
+
+    // Should have been re-analyzed after rewrite
+    assertTrue(expr.isAnalyzed());
+    assertEquals(ScalarType.BOOLEAN, expr.getType());
+    assertEquals(12.0, expr.getCost(), 0.1);
+
+    // Statement's toSql should be before rewrites
+    String origSql =
+        "DELETE FROM " + MODIFY_TABLE +
+        " WHERE 1 + 1 + id = 8 + 2";
+    assertEquals(origSql, stmt.toSql());
+    assertEquals(origSql, stmt.toSql(false));
+
+    // Rewritten should be available when requested
+    String rewrittenSql =
+        "DELETE FROM " + MODIFY_TABLE +
+        " WHERE 2 + id = 10";
+    assertEquals(rewrittenSql, stmt.toSql(true));
+  }
+  private UpdateStmt analyzeUpdate(String stmtText) throws AnalysisException {
+    QueryFixture query = fixture.query(stmtText);
+    query.analyze();
+    return (UpdateStmt) query.parseNode();
+  }
+
+  /**
+   * Sanity test of UPDATE ... SET ... WHERE rewrite
+   */
+  @Test
+  public void testUpdate() throws AnalysisException {
+    String stmtText =
+        "UPDATE " + MODIFY_TABLE +
+        " set int_col = 2 + 3 + smallint_col" +
+        " where 1 + 1 + id = 8 + 2";
+    UpdateStmt stmt = analyzeUpdate(stmtText);
+    SelectStmt selStmt = ((SelectStmt) stmt.getQueryStmt());
+    Expr whereExpr = selStmt.getWhereClause();
+    Expr setExpr = stmt.getAssignments().get(0).rhs_;
+
+    // Expression should have been rewritten
+    assertEquals("2 + id = 10", whereExpr.toSql());
+    assertEquals("5 + smallint_col", setExpr.toSql());
+
+    // Should have been re-analyzed after rewrite
+    assertTrue(whereExpr.isAnalyzed());
+    assertEquals(ScalarType.BOOLEAN, whereExpr.getType());
+    assertEquals(12.0, whereExpr.getCost(), 0.1);
+
+    assertTrue(setExpr.isAnalyzed());
+    assertEquals(ScalarType.INT, setExpr.getType());
+    assertEquals(7.0, setExpr.getCost(), 0.1);
+
+    // Statement's toSql should be before rewrites
+    String origSql =
+        "UPDATE " + MODIFY_TABLE +
+        " SET int_col = 2 + 3 + smallint_col" +
+        " WHERE 1 + 1 + id = 8 + 2";
+    assertEquals(origSql, stmt.toSql());
+    assertEquals(origSql, stmt.toSql(false));
+
+    // Rewritten should be available when requested
+    String rewrittenSql =
+        "UPDATE " + MODIFY_TABLE +
+        " SET int_col = 5 + smallint_col" +
+        " WHERE 2 + id = 10";
+    assertEquals(rewrittenSql, stmt.toSql(true));
+  }
+
+  private void verifyErrorMsg(Exception e, String substr) {
+    if (e.getMessage().contains(substr)) {
+      return;
+    }
+    fail("Incorrect error message.\nExpected: .*" +
+        substr + ".*\nActual: " + e.getMessage());
+  }
+
+  @Test
+  public void testSubqueryInUpdate() {
+    try {
+      String stmtText =
+          "UPDATE " + MODIFY_TABLE +
+          " set int_col = (select count(*) + 0 from " + SELECT_TABLE + ")" +
+          " where 1 + 1 + id = 8 + 2";
+        analyzeSelect(stmtText);
+      fail();
+    } catch (AnalysisException e) {
+      verifyErrorMsg(e, "Subqueries are not supported");
+      verifyErrorMsg(e, "(SELECT count(*) + 0 FROM " + SELECT_TABLE + ")");
+    }
+  }
+
+  // Turns out that there is no way to trigger the check for
+  // isBoundByTupleIds; the lhs fails analysis before that check.
+
+  // Also, turns out that the destColumn() check appears to not
+  // be reachable for the same reason.
+
+  @Test
+  public void testUpdateKeyColumn() {
+    try {
+      String stmtText =
+          "UPDATE " + MODIFY_TABLE +
+          " set id = 2 + 3 + smallint_col" +
+          " where 1 + 1 + id = 8 + 2";
+        analyzeSelect(stmtText);
+      fail();
+    } catch (AnalysisException e) {
+      verifyErrorMsg(e, "Key column cannot be updated");
+      // Message does not include the rhs
+    }
+  }
+
+  @Test
+  public void testDuplicateUpdate() {
+    try {
+      String stmtText =
+          "UPDATE " + MODIFY_TABLE +
+          " set int_col = 2 + 3 + smallint_col," +
+          " int_col = 10" +
+          " where 1 + 1 + id = 8 + 2";
+        analyzeSelect(stmtText);
+      fail();
+    } catch (AnalysisException e) {
+      verifyErrorMsg(e, "Duplicate value assignment");
+    }
+  }
 }
