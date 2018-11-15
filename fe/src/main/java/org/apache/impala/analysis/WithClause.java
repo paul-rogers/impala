@@ -127,7 +127,7 @@ public class WithClause implements ParseNode {
       // without quotes. This is needed for view compatibility between Impala and Hive.
       String aliasSql = ToSqlUtils.getIdentSql(view.getName());
       if (view.getColLabels() != null) {
-        aliasSql += "(" + Joiner.on(", ").join(
+        aliasSql += " (" + Joiner.on(", ").join(
             ToSqlUtils.getIdentSqlList(view.getOriginalColLabels())) + ")";
       }
       viewStrings.add(aliasSql + " AS (" + view.getQueryStmt().toSql(rewritten) + ")");

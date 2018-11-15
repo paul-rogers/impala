@@ -22,6 +22,8 @@ import java.util.List;
 
 import com.google.common.base.Preconditions;
 
+import avro.shaded.com.google.common.annotations.VisibleForTesting;
+
 /**
  * Representation of a values() statement with a list of constant-expression lists.
  * ValuesStmt is a special case of a UnionStmt with the following restrictions:
@@ -41,6 +43,21 @@ public class ValuesStmt extends UnionStmt {
    */
   private ValuesStmt(ValuesStmt other) { super(other); }
 
+  @VisibleForTesting
+  public List<List<Expr>> getValues() {
+    List<List<Expr>> values = new ArrayList<>();
+    for (int i = 0; i < operands_.size(); ++i) {
+      SelectStmt select = ((SelectStmt) operands_.get(i).getQueryStmt());
+      List<Expr> valueSet = new ArrayList<>();
+      values.add(valueSet);
+      SelectList selectList = select.getSelectList();
+      for (int j = 0; j < selectList.getItems().size(); ++j) {
+        valueSet.add(selectList.getItems().get(j).getExpr());
+      }
+    }
+    return values;
+  }
+
   @Override
   protected String queryStmtToSql(QueryStmt queryStmt) {
     StringBuilder strBuilder = new StringBuilder();
@@ -51,17 +68,21 @@ public class ValuesStmt extends UnionStmt {
   }
 
   @Override
-  public String toSql() {
+  public String toSql(boolean rewritten) {
     StringBuilder strBuilder = new StringBuilder();
     if (withClause_ != null) {
       strBuilder.append(withClause_.toSql());
       strBuilder.append(" ");
     }
     Preconditions.checkState(operands_.size() > 0);
-    strBuilder.append("VALUES(");
+    strBuilder.append("VALUES (");
     for (int i = 0; i < operands_.size(); ++i) {
       if (operands_.size() != 1) strBuilder.append("(");
-      appendSelectList((SelectStmt) operands_.get(i).getQueryStmt(), strBuilder);
+      SelectList selectList = ((SelectStmt) operands_.get(i).getQueryStmt()).getSelectList();
+      for (int j = 0; j < selectList.getItems().size(); ++j) {
+        strBuilder.append(j > 0 ? ", " : "");
+        strBuilder.append(selectList.getItems().get(j).toSql(rewritten));
+      }
       if (operands_.size() != 1) strBuilder.append(")");
       strBuilder.append((i+1 != operands_.size()) ? ", " : "");
     }
@@ -70,11 +91,6 @@ public class ValuesStmt extends UnionStmt {
   }
 
   private void appendSelectList(SelectStmt select, StringBuilder strBuilder) {
-    SelectList selectList = select.getSelectList();
-    for (int j = 0; j < selectList.getItems().size(); ++j) {
-      strBuilder.append(selectList.getItems().get(j).toSql());
-      strBuilder.append((j+1 != selectList.getItems().size()) ? ", " : "");
-    }
   }
 
   @Override

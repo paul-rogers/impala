@@ -6,6 +6,7 @@ import java.util.List;
 
 import org.apache.impala.analysis.AnalysisFixture.QueryFixture;
 import org.apache.impala.catalog.ScalarType;
+import org.apache.impala.catalog.View;
 import org.apache.impala.common.AnalysisException;
 import org.apache.impala.common.FrontendTestBase;
 import org.junit.Test;
@@ -18,6 +19,11 @@ import org.junit.Test;
  * and so the rewritten form will appear in the derived structures.
  */
 public class AnalyzerInternalsTest extends FrontendTestBase {
+
+  // TODO: Double-check ORDER BY (may have been displaced by GROUP BY)
+  // TODO: Test OFFSET and LIMIT
+  // TODO: Test SELECT FROM VALUES ...
+  // TODO: Test WITH clause
 
   public AnalysisFixture fixture = new AnalysisFixture(frontend_);
 
@@ -364,7 +370,6 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
         " INNER JOIN functional.alltypestiny t2";
     assertEquals(stmtText, stmt.toSql(true));
   }
-
   /**
    * Sanity test of GROUP BY rewrite
    */
@@ -489,8 +494,8 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
   }
 
   /**
-   * Sanity test of ORDER BY 1
-   * (Order by an ordinal)
+   * Sanity test of GOUP BY 1
+   * (Group by an ordinal)
    */
   @Test
   public void testGroupByAlias() throws AnalysisException {
@@ -1082,7 +1087,7 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
   // they would be here.
 
   //-----------------------------------------------------------------
-  // DELETE, UPDATE statements
+  // DELETE statement
   //
   // Delete is only defined for Kudu tables
 
@@ -1127,6 +1132,9 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
         " WHERE 2 + id = 10";
     assertEquals(rewrittenSql, stmt.toSql(true));
   }
+  //-----------------------------------------------------------------
+  // UPDATE statement
+
   private UpdateStmt analyzeUpdate(String stmtText) throws AnalysisException {
     QueryFixture query = fixture.query(stmtText);
     query.analyze();
@@ -1134,7 +1142,7 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
   }
 
   /**
-   * Sanity test of UPDATE ... SET ... WHERE rewrite
+   * Sanity test of UPDATE ... SET ... rewrite
    */
   @Test
   public void testUpdate() throws AnalysisException {
@@ -1233,5 +1241,193 @@ public class AnalyzerInternalsTest extends FrontendTestBase {
     } catch (AnalysisException e) {
       verifyErrorMsg(e, "Duplicate value assignment");
     }
+  }
+
+  // TODO: Assignment type conflict.
+
+  //-----------------------------------------------------------------
+  // INSERT statement
+
+  public static final String INSERT_TABLE = "functional.alltypestiny";
+
+  private InsertStmt analyzeInsert(String stmtText) throws AnalysisException {
+    QueryFixture query = fixture.query(stmtText);
+    query.analyze();
+    return (InsertStmt) query.parseNode();
+  }
+
+  /**
+   * Sanity test of INSERT ... PARITION ... VALUES ... rewrite
+   */
+  @Test
+  public void testInsert() throws AnalysisException {
+    String stmtText =
+        "insert into " + INSERT_TABLE +
+        " (id, int_col)" +
+        " partition (month = 2 + 3, year = 2000 + 18)" +
+        " values (1 + 1, 8 + 2)";
+    InsertStmt stmt = analyzeInsert(stmtText);
+    ValuesStmt valuesStmt = (ValuesStmt) stmt.getQueryStmt();
+
+    // Verify values are rewritten and analyzed
+    List<List<Expr>> values = valuesStmt.getValues();
+    Expr value1 = values.get(0).get(0);
+    Expr value2 = values.get(0).get(1);
+
+    assertTrue(value1.isAnalyzed());
+    assertEquals(ScalarType.SMALLINT, value1.getType());
+    assertEquals(1.0, value1.getCost(), 0.1);
+    assertEquals("2", value1.toSql());
+
+    assertTrue(value2.isAnalyzed());
+    assertEquals(ScalarType.SMALLINT, value2.getType());
+    assertEquals(1.0, value2.getCost(), 0.1);
+    assertEquals("10", value2.toSql());
+
+    List<PartitionKeyValue> keys = stmt.getPartitionKeyValues();
+    PartitionKeyValue key1 = keys.get(0);
+    PartitionKeyValue key2 = keys.get(1);
+
+    assertTrue(key1.getValue().isAnalyzed());
+    assertEquals(ScalarType.SMALLINT, key1.getValue().getType());
+    assertEquals(3.0, key1.getValue().getCost(), 0.1);
+    assertEquals("5", key1.getLiteralValue().toSql());
+
+    assertTrue(key2.getValue().isAnalyzed());
+    assertEquals(ScalarType.INT, key2.getValue().getType());
+    assertEquals(3.0, key2.getValue().getCost(), 0.1);
+    assertEquals("2018", key2.getLiteralValue().toSql());
+
+    // Statement's toSql should be before rewrites
+    String origSql =
+        "INSERT INTO TABLE " + INSERT_TABLE +
+        " (id, int_col)" +
+        " PARTITION (month = 2 + 3, year = 2000 + 18)" +
+        " VALUES (1 + 1, 8 + 2)";
+    assertEquals(origSql, stmt.toSql());
+    assertEquals(origSql, stmt.toSql(false));
+
+    // Rewritten should be available when requested
+    String rewrittenSql =
+        "INSERT INTO TABLE " + INSERT_TABLE +
+        " (id, int_col)" +
+        " PARTITION (month = 5, year = 2018)" +
+        " VALUES (2, 10)";
+    assertEquals(rewrittenSql, stmt.toSql(true));
+  }
+
+  @Test
+  public void testInsertWith() throws AnalysisException {
+    String stmtText =
+        "with" +
+        " query1 (a, b) as" +
+        " (select cast(1 + 1 + id as int)," +
+        " cast(2 + 3 + int_col as int)" +
+        " from " + SELECT_TABLE + ")" +
+        " insert into " + INSERT_TABLE +
+        " (id, int_col)" +
+        " partition (month = 5, year = 2018)" +
+        " select * from query1";
+    InsertStmt stmt = analyzeInsert(stmtText);
+    WithClause withClause = stmt.getWithClause();
+    View view = withClause.getViews().get(0);
+
+    // Sanity check of column labels
+
+    List<String> labels = view.getColLabels();
+    assertEquals(2, labels.size());
+    assertEquals("a", labels.get(0));
+    assertEquals("b", labels.get(1));
+
+    // Verify view was rewritten
+
+    SelectStmt selectStmt = (SelectStmt) view.getQueryStmt();
+    List<SelectListItem> selectList = selectStmt.getSelectList().getItems();
+
+    Expr expr1 = selectList.get(0).getExpr();
+    Expr expr2 = selectList.get(1).getExpr();
+
+    // Should have been re-analyzed after rewrite
+    assertTrue(expr1.isAnalyzed());
+    assertEquals(ScalarType.INT, expr1.getType());
+    assertEquals(8.0, expr1.getCost(), 0.1);
+    assertEquals("CAST(2 + id AS INT)", expr1.toSql());
+
+    assertTrue(expr2.isAnalyzed());
+    assertEquals(ScalarType.INT, expr2.getType());
+    assertEquals(8.0, expr2.getCost(), 0.1);
+    assertEquals("CAST(5 + int_col AS INT)", expr2.toSql());
+
+    // Statement's toSql should be before rewrites
+    String origSql =
+        "WITH" +
+        " query1 (a, b) AS" +
+        " (SELECT CAST(1 + 1 + id AS INT)," +
+        " CAST(2 + 3 + int_col AS INT)" +
+        " FROM " + SELECT_TABLE + ")" +
+        " INSERT INTO TABLE " + INSERT_TABLE +
+        " (id, int_col)" +
+        " PARTITION (month = 5, year = 2018)" +
+        " SELECT * FROM query1";
+    assertEquals(origSql, stmt.toSql());
+    assertEquals(origSql, stmt.toSql(false));
+
+    // Rewritten should be available when requested
+    String rewrittenSql =
+        "WITH" +
+        " query1 (a, b) AS" +
+        " (SELECT CAST(2 + id AS INT)," +
+        " CAST(5 + int_col AS INT)" +
+        " FROM " + SELECT_TABLE + ")" +
+        " INSERT INTO TABLE " + INSERT_TABLE +
+        " (id, int_col)" +
+        " PARTITION (month = 5, year = 2018)" +
+        " SELECT * FROM query1";
+    assertEquals(rewrittenSql, stmt.toSql(true));
+  }
+
+  //-----------------------------------------------------------------
+  // VALUES statement
+
+  private ValuesStmt analyzeValues(String stmtText) throws AnalysisException {
+    QueryFixture query = fixture.query(stmtText);
+    query.analyze();
+    return (ValuesStmt) query.parseNode();
+  }
+
+  /**
+   * Sanity test of SELECT ... FROM VALUES rewrite
+   */
+  @Test
+  public void testValues() throws AnalysisException {
+    String stmtText =
+        "values (1 + 1 a, 2 * 10 b)";
+    ValuesStmt stmt = analyzeValues(stmtText);
+
+    // Verify values are rewritten and analyzed
+    List<List<Expr>> values = stmt.getValues();
+    Expr value1 = values.get(0).get(0);
+    Expr value2 = values.get(0).get(1);
+
+    assertTrue(value1.isAnalyzed());
+    assertEquals(ScalarType.SMALLINT, value1.getType());
+    assertEquals(1.0, value1.getCost(), 0.1);
+    assertEquals("2", value1.toSql());
+
+    assertTrue(value2.isAnalyzed());
+    assertEquals(ScalarType.SMALLINT, value2.getType());
+    assertEquals(1.0, value2.getCost(), 0.1);
+    assertEquals("20", value2.toSql());
+
+    // Statement's toSql should be before rewrites
+    String origSql =
+        "VALUES (1 + 1 AS a, 2 * 10 AS b)";
+    assertEquals(origSql, stmt.toSql());
+    assertEquals(origSql, stmt.toSql(false));
+
+    // Rewritten should be available when requested
+    String rewrittenSql =
+        "VALUES (2 AS a, 20 AS b)";
+    assertEquals(rewrittenSql, stmt.toSql(true));
   }
 }

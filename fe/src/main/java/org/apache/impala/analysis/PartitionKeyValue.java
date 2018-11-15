@@ -18,7 +18,6 @@
 package org.apache.impala.analysis;
 
 import com.google.common.base.Preconditions;
-import com.google.common.collect.Lists;
 
 import org.apache.impala.common.AnalysisException;
 
@@ -34,8 +33,11 @@ public class PartitionKeyValue {
   // Name of partitioning column.
   private final String colName_;
   // Value of partitioning column. Set to null for dynamic inserts.
+  // This is the original expression, no need to rewrite since it is evaluated
+  // directly in the planner.
   private final Expr value_;
   // Evaluation of value for static partition keys, null otherwise. Set in analyze().
+  // This is considered the rewritten value.
   private LiteralExpr literalValue_;
 
   public PartitionKeyValue(String colName, Expr value) {
