@@ -75,11 +75,11 @@ public class SelectRewriteTest extends FrontendTestBase {
     // Statement's toSql should be before rewrites
     String origSql = "SELECT 1 + 1 + id AS c FROM " + SELECT_TABLE;
     assertEquals(origSql, stmt.toSql());
-    assertEquals(origSql, stmt.toSql(false));
+    assertEquals(origSql, stmt.toSql(ToSqlOptions.DEFAULT));
 
     // Rewritten should be available when requested
     assertEquals("SELECT 2 + id AS c FROM " + SELECT_TABLE,
-        stmt.toSql(true));
+        stmt.toSql(ToSqlOptions.REWRITTEN));
   }
 
   /**
