@@ -491,14 +491,14 @@ public class Analyzer {
   }
 
   /**
-   * Creates an returns an empty TupleDescriptor for the given table ref and registers
+   * Creates and returns an empty TupleDescriptor for the given table ref and registers
    * it against all its legal aliases. For tables refs with an explicit alias, only the
    * explicit alias is legal. For tables refs with no explicit alias, the fully-qualified
    * and unqualified table names are legal aliases. Column references against unqualified
    * implicit aliases can be ambiguous, therefore, we register such ambiguous aliases
    * here. Requires that all views have been substituted.
-   * Throws if an existing explicit alias or implicit fully-qualified alias
-   * has already been registered for another table ref.
+   * @throws AnalysisException if an existing explicit alias or implicit fully-qualified
+   * alias has already been registered for another table ref.
    */
   public TupleDescriptor registerTableRef(TableRef ref) throws AnalysisException {
     String uniqueAlias = ref.getUniqueAlias();

@@ -37,12 +37,11 @@ import org.apache.impala.rewrite.ExprRewriter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Predicates;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
-
-import jersey.repackaged.com.google.common.base.Joiner;
 
 /**
  * Representation of a single select block, including GROUP BY, ORDER BY and HAVING
@@ -182,7 +181,6 @@ public class SelectStmt extends QueryStmt {
    */
   private class SelectAnalyzer extends QueryAnalyzer {
 
-//    private List<Expr> groupingExprsCopy_;
     private List<FunctionCallExpr> aggExprs_;
     private ExprSubstitutionMap ndvSmap_;
     private ExprSubstitutionMap countAllMap_;
@@ -195,7 +193,7 @@ public class SelectStmt extends QueryStmt {
       // Start out with table refs to establish aliases.
       fromClause_.analyze(analyzer_);
 
-      analyzeSelectClause();
+      analyzeSelectList();
       verifyResultExprs();
       analyzeWhereClause();
       createSortInfo();
@@ -228,7 +226,7 @@ public class SelectStmt extends QueryStmt {
       buildColumnLineageGraph();
     }
 
-    private void analyzeSelectClause() throws AnalysisException {
+    private void analyzeSelectList() throws AnalysisException {
       // Generate !empty() predicates to filter out empty collections.
       // Skip this step when analyzing a WITH-clause because CollectionTableRefs
       // do not register collection slots in their parent in that context
@@ -989,22 +987,7 @@ public class SelectStmt extends QueryStmt {
     return result;
   }
 
-  /**
-   * If given expr is rewritten into an integer literal, then return the original expr,
-   * otherwise return the rewritten expr.
-   * Used for GROUP BY, ORDER BY, and HAVING where we don't want to create an ordinal
-   * from a constant arithmetic expr, e.g. 1 * 2 =/=> 2
-   */
-  private Expr rewriteCheckOrdinalResult(ExprRewriter rewriter, Expr expr)
-      throws AnalysisException {
-    Expr rewrittenExpr = rewriter.rewrite(expr, analyzer_);
-    if (Expr.IS_LITERAL.apply(rewrittenExpr) && rewrittenExpr.getType().isIntegerType()) {
-      return expr;
-    } else {
-      return rewrittenExpr;
-    }
-  }
-
+  @Deprecated
   @Override
   public void rewriteExprs(ExprRewriter rewriter) throws AnalysisException {
     Preconditions.checkState(isAnalyzed());
@@ -1035,9 +1018,6 @@ public class SelectStmt extends QueryStmt {
 
   @Override
   public String toSql(boolean rewritten) {
-    // Return the SQL string before inline-view expression substitution.
-//    if (!rewritten && sqlString_ != null) return sqlString_;
-
     StringBuilder strBuilder = new StringBuilder();
     if (withClause_ != null) {
       strBuilder.append(withClause_.toSql(rewritten));

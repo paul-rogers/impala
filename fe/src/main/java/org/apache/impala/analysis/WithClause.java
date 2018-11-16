@@ -27,7 +27,6 @@ import org.apache.impala.common.AnalysisException;
 
 import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
-import com.google.common.collect.Lists;
 
 /**
  * Representation of the WITH clause that may appear before a query statement or insert
@@ -48,13 +47,7 @@ import com.google.common.collect.Lists;
  * Views defined within the same WITH-clause may not use the same alias.
  */
 public class WithClause implements ParseNode {
-  /////////////////////////////////////////
-  // BEGIN: Members that need to be reset()
-
   private final List<View> views_;
-
-  // END: Members that need to be reset()
-  /////////////////////////////////////////
 
   public WithClause(List<View> views) {
     Preconditions.checkNotNull(views);

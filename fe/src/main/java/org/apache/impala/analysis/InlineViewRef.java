@@ -51,9 +51,6 @@ public class InlineViewRef extends TableRef {
   // labels must be overridden.
   private List<String> explicitColLabels_;
 
-  /////////////////////////////////////////
-  // BEGIN: Members that need to be reset()
-
   // The select or union statement of the inline view
   protected QueryStmt queryStmt_;
 
@@ -68,9 +65,6 @@ public class InlineViewRef extends TableRef {
 
   // Map inline view's output slots to the corresponding baseTblResultExpr of queryStmt.
   protected final ExprSubstitutionMap baseTblSmap_;
-
-  // END: Members that need to be reset()
-  /////////////////////////////////////////
 
   /**
    * C'tor for creating inline views parsed directly from the a query string.
@@ -97,8 +91,8 @@ public class InlineViewRef extends TableRef {
     super(view.getTableName().toPath(), origTblRef.getExplicitAlias(),
         origTblRef.getPrivilege(), origTblRef.requireGrantOption());
     queryStmt_ = view.getQueryStmt().clone();
-    queryStmt_.reset();
-    if (view.isLocalView()) queryStmt_.reset();
+//    queryStmt_.reset();
+//    if (view.isLocalView()) queryStmt_.reset();
     view_ = view;
     smap_ = new ExprSubstitutionMap();
     baseTblSmap_ = new ExprSubstitutionMap();
@@ -141,7 +135,7 @@ public class InlineViewRef extends TableRef {
 
     // Analyze the inline view query statement with its own analyzer
     inlineViewAnalyzer_ = new Analyzer(analyzer);
-    InlineViewTableAnalyzer tableAnalyzer = new InlineViewTableAnalyzer(inlineViewAnalyzer_);
+    InlineViewTableAnalyzer tableAnalyzer = new InlineViewTableAnalyzer(analyzer);
     tableAnalyzer.analyze();
   }
 

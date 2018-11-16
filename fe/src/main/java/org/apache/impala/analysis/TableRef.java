@@ -599,10 +599,16 @@ public class TableRef implements ParseNode {
   }
   }
 
+  @Deprecated
   public void rewriteExprs(ExprRewriter rewriter, Analyzer analyzer)
       throws AnalysisException {
     Preconditions.checkState(isAnalyzed_);
     if (onClause_ != null) onClause_ = rewriter.rewrite(onClause_, analyzer);
+  }
+
+  @Override
+  public String toString() {
+    return toSql(true);
   }
 
   protected String tableRefToSql() {

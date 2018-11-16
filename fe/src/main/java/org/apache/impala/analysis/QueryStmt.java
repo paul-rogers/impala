@@ -29,7 +29,6 @@ import org.apache.impala.planner.DataSink;
 import org.apache.impala.planner.PlanRootSink;
 
 import com.google.common.base.Preconditions;
-import com.google.common.base.Predicates;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
@@ -44,8 +43,6 @@ import com.google.common.collect.Sets;
  *
  */
 public abstract class QueryStmt extends StatementBase {
-  /////////////////////////////////////////
-  // BEGIN: Members that need to be reset()
 
   protected WithClause withClause_;
 
@@ -84,9 +81,6 @@ public abstract class QueryStmt extends StatementBase {
   // sortInfo_ is still generated and used in analysis to ensure that the order-by clause
   // is well-formed.
   protected boolean evaluateOrderBy_;
-
-  /////////////////////////////////////////
-  // END: Members that need to be reset()
 
   // If true, we need a runtime check on this statement's result to check if it
   // returns a single row.

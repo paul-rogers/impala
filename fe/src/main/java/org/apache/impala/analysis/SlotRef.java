@@ -236,10 +236,24 @@ public class SlotRef extends Expr {
 
   @Override
   public String toString() {
-    if (desc_ != null) {
-      return "tid=" + desc_.getParent().getId() + " sid=" + desc_.getId();
+    StringBuilder buf = new StringBuilder();
+    if (rawPath_ != null) {
+      buf.append(String.join(".", rawPath_));
+    } else if (label_ != null) {
+      buf.append(label_);
     }
-    return "no desc set";
+    boolean closeParen = buf.length() > 0;
+    if (closeParen) buf.append(" (");
+    if (desc_ != null) {
+      buf.append("tid=")
+        .append(desc_.getParent().getId())
+        .append(" sid=")
+        .append(desc_.getId());
+    } else {
+      buf.append("no desc set");
+    }
+    if (closeParen) buf.append(")");
+    return buf.toString();
   }
 
   @Override

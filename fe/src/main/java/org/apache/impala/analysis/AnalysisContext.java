@@ -455,10 +455,10 @@ public class AnalysisContext {
 //      analysisResult_.stmt_.rewriteExprs(rewriter);
 //      reAnalyze = rewriter.changed();
 //    }
-    if (analysisResult_.requiresSubqueryRewrite()) {
-      new StmtRewriter.SubqueryRewriter().rewrite(analysisResult_);
-      reAnalyze = true;
-    }
+//    if (analysisResult_.requiresSubqueryRewrite()) {
+//      new StmtRewriter.SubqueryRewriter().rewrite(analysisResult_);
+//      reAnalyze = true;
+//    }
     if (!reAnalyze) return;
 
     // The rewrites should have no user-visible effect. Remember the original result

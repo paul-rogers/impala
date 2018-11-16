@@ -1129,7 +1129,7 @@ public class SelectRewriteTest extends FrontendTestBase {
     Expr withExpr = query1List.get(0).getExpr();
 
     assertTrue(withExpr.isAnalyzed());
-    assertEquals(ScalarType.INT, withExpr.getType());
+    assertEquals(ScalarType.BIGINT, withExpr.getType());
     assertEquals(7.0, withExpr.getCost(), 0.1);
     assertEquals("2 + id", withExpr.toSql());
 
@@ -1137,8 +1137,8 @@ public class SelectRewriteTest extends FrontendTestBase {
 
     Expr outerExpr = stmt.getSelectList().getItems().get(0).getExpr();
     assertTrue(outerExpr.isAnalyzed());
-    assertEquals(ScalarType.INT, outerExpr.getType());
-    assertEquals(7.0, outerExpr.getCost(), 0.1);
+    assertEquals(ScalarType.BIGINT, outerExpr.getType());
+    assertEquals(6.0, outerExpr.getCost(), 0.1);
     assertEquals("7 + a", outerExpr.toSql());
 
     // Statement's toSql should be before rewrites
