@@ -148,9 +148,8 @@ on (a.id = b.id and 1 + 1 > 10)
 ---- PLAN
 PLAN-ROOT SINK
 |
-02:HASH JOIN [LEFT OUTER JOIN]
-|  hash predicates: a.id = b.id
-|  other join predicates: FALSE
+02:NESTED LOOP JOIN [LEFT OUTER JOIN]
+|  join predicates: FALSE
 |
 |--01:SCAN HDFS [functional.alltypestiny b]
 |     partitions=4/4 files=4 size=460B
@@ -167,17 +166,14 @@ on (a.id = b.id and !true)
 ---- PLAN
 PLAN-ROOT SINK
 |
-02:HASH JOIN [RIGHT OUTER JOIN]
-|  hash predicates: a.id = b.id
-|  other join predicates: FALSE
-|  runtime filters: RF000 <- b.id
+02:NESTED LOOP JOIN [RIGHT OUTER JOIN]
+|  join predicates: FALSE
 |
 |--01:SCAN HDFS [functional.alltypestiny b]
 |     partitions=4/4 files=4 size=460B
 |
 00:SCAN HDFS [functional.alltypessmall a]
    partitions=4/4 files=4 size=6.32KB
-   runtime filters: RF000 -> a.id
 ====
 # Constant conjunct in the ON-clause of an outer join is
 # assigned to the join.
@@ -505,7 +501,7 @@ PLAN-ROOT SINK
 |  03:EMPTYSET
 |
 00:SCAN HDFS [tpch_nested_parquet.customer c]
-   partitions=1/1 files=4 size=292.36MB
+   partitions=1/1 files=4 size=289.00MB
    predicates: c_custkey < 10
 ====
 # IMPALA-2539: Test empty union operands containing relative table refs.
@@ -539,7 +535,7 @@ PLAN-ROOT SINK
 |  04:UNNEST [c.c_orders o1]
 |
 00:SCAN HDFS [tpch_nested_parquet.customer c]
-   partitions=1/1 files=4 size=292.36MB
+   partitions=1/1 files=4 size=289.00MB
    predicates: c_custkey = 1
 ====
 # IMPALA-2215: Having clause without aggregation.
