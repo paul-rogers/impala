@@ -246,21 +246,20 @@ public class SelectStmt extends QueryStmt {
         } else {
           // Analyze the resultExpr before generating a label to ensure enforcement
           // of expr child and depth limits (toColumn() label may call toSql()).
-          item.getExpr().analyze(analyzer_);
-          if (item.getExpr().contains(Predicates.instanceOf(Subquery.class))) {
-            throw new AnalysisException(
-                "Subqueries are not supported in the select list.");
-          }
-          resultExprs_.add(item.getExpr());
+          // Item's analysis function performs expression rewrites.
+          item.analyze(analyzer_);
+          Expr expr = item.getExpr();
+          item.setExpr(expr);
+          resultExprs_.add(expr);
           String label = item.toColumnLabel(i, analyzer_.useHiveColLabels());
           SlotRef aliasRef = new SlotRef(label);
           Expr existingAliasExpr = aliasSmap_.get(aliasRef);
-          if (existingAliasExpr != null && !existingAliasExpr.equals(item.getExpr())) {
+          if (existingAliasExpr != null && !existingAliasExpr.equals(expr)) {
             // If we have already seen this alias, it refers to more than one column and
             // therefore is ambiguous.
             ambiguousAliasList_.add(aliasRef);
           }
-          aliasSmap_.put(aliasRef, item.getExpr().clone());
+          aliasSmap_.put(aliasRef, expr.clone());
           colLabels_.add(label);
         }
       }

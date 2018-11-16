@@ -19,12 +19,18 @@ package org.apache.impala.analysis;
 
 import java.util.List;
 
+import org.apache.impala.common.AnalysisException;
+
 import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
+import com.google.common.base.Predicates;
 
 import static org.apache.impala.analysis.ToSqlOptions.DEFAULT;
 
 class SelectListItem {
+  // Original expression, before rewrites
+  private String originalExpr_;
+  // Effective, rewritten expression
   private Expr expr_;
   private String alias_;
 
@@ -54,10 +60,25 @@ class SelectListItem {
   }
 
   public Expr getExpr() { return expr_; }
+  public String getOriginalExpr() { return originalExpr_; }
   public void setExpr(Expr expr) { expr_ = expr; }
   public boolean isStar() { return isStar_; }
   public String getAlias() { return alias_; }
   public List<String> getRawPath() { return rawPath_; }
+
+  public void analyze(Analyzer analyzer) throws AnalysisException {
+    expr_.analyze(analyzer);
+    originalExpr_ = expr_.toSql();
+
+    // Do error checks before rewrite, include unrewritten expression
+    // in error message.
+    if (expr_.contains(Predicates.instanceOf(Subquery.class))) {
+      throw new AnalysisException(
+          "Subqueries are not supported in the select list.");
+    }
+
+    expr_ = analyzer.rewrite(expr_);
+  }
 
   @Override
   public String toString() {
@@ -76,12 +97,19 @@ class SelectListItem {
 
   public String toSql(ToSqlOptions options) {
     if (!isStar_) {
-      Preconditions.checkNotNull(expr_);
-      // Enclose aliases in quotes if Hive cannot parse them without quotes.
-      // This is needed for view compatibility between Impala and Hive.
-      String aliasSql = null;
-      if (alias_ != null) aliasSql = ToSqlUtils.getIdentSql(alias_);
-      return expr_.toSql(options) + ((aliasSql != null) ? " " + aliasSql : "");
+      String exprStr;
+      if (option == DEFAULT && originalExpr_ != null) {
+        exprStr = originalExpr_;
+      } else {
+        Preconditions.checkNotNull(expr_);
+        // Enclose aliases in quotes if Hive cannot parse them without quotes.
+        // This is needed for view compatibility between Impala and Hive.
+        exprStr = expr_.toSql();
+      }
+      if (alias_ != null) {
+        exprStr += " AS " + ToSqlUtils.getIdentSql(alias_);
+      }
+      return exprStr;
     } else if (rawPath_ != null) {
       Preconditions.checkState(isStar_);
       StringBuilder result = new StringBuilder();

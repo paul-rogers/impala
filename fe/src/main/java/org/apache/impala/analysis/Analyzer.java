@@ -2690,4 +2690,9 @@ public class Analyzer {
     return getAuthzConfig().isEnabled() ? getAuthzConfig().getServerName().intern() :
         null;
   }
+
+  public Expr rewrite(Expr expr) throws AnalysisException {
+    return getExprRewriter().rewrite(expr, this);
+  }
+
 }
