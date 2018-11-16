@@ -94,6 +94,8 @@ public class QueryFixture {
       analysisResult_ = analysCtx_.analyzeAndAuthorize(parsedStmt_,
           makeTableCache(), analysisFixture_.frontend_.getAuthzChecker());
       Preconditions.checkNotNull(analysisResult_.getStmt());
+    } catch (AnalysisException e) {
+      throw e;
     } catch (ImpalaException e) {
       fail(e.getMessage());
       // To keep the Java parser happy.

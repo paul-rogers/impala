@@ -146,6 +146,8 @@ public class SlotRef extends Expr {
     return desc_.getPath();
   }
 
+  public String getLabel() { return label_; }
+
   @Override
   public String toSqlImpl(ToSqlOptions options) {
     if (label_ != null) return label_;

@@ -779,12 +779,7 @@ public class Analyzer {
       List<TableName> candidateTbls = Path.getCandidateTables(rawPath, getDefaultDb());
       for (int tblNameIdx = 0; tblNameIdx < candidateTbls.size(); ++tblNameIdx) {
         TableName tblName = candidateTbls.get(tblNameIdx);
-        FeTable tbl = null;
-        try {
-          tbl = getTable(tblName.getDb(), tblName.getTbl());
-        } catch (AnalysisException e) {
-          // Ignore to allow path resolution to continue.
-        }
+        FeTable tbl = resolveTable(tblName.getDb(), tblName.getTbl());
         if (tbl != null) {
           candidates.add(new Path(tbl, rawPath.subList(tblNameIdx + 1, rawPath.size())));
         }
@@ -2389,14 +2384,24 @@ public class Analyzer {
    */
   public FeTable getTable(String dbName, String tableName)
       throws AnalysisException, TableLoadingException {
+    FeTable table = resolveTable(dbName, tableName);
+    if (table == null) {
+      TableName tblName = new TableName(dbName, tableName);
+      if (!globalState_.stmtTableCache.dbs.contains(tblName.getDb())) {
+        throw new AnalysisException(DB_DOES_NOT_EXIST_ERROR_MSG + dbName);
+      } else {
+        throw new AnalysisException(TBL_DOES_NOT_EXIST_ERROR_MSG + tableName);
+      }
+    }
+    return table;
+  }
+
+  public FeTable resolveTable(String dbName, String tableName)
+      throws AnalysisException, TableLoadingException {
     TableName tblName = new TableName(dbName, tableName);
     FeTable table = globalState_.stmtTableCache.tables.get(tblName);
     if (table == null) {
-      if (!globalState_.stmtTableCache.dbs.contains(tblName.getDb())) {
-        throw new AnalysisException(DB_DOES_NOT_EXIST_ERROR_MSG + tblName.getDb());
-      } else {
-        throw new AnalysisException(TBL_DOES_NOT_EXIST_ERROR_MSG + tblName.toString());
-      }
+      return null;
     }
     Preconditions.checkState(table.isLoaded());
     if (table instanceof IncompleteTable) {

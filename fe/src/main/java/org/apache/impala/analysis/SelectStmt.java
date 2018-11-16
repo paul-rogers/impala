@@ -742,7 +742,7 @@ public class SelectStmt extends QueryStmt {
           throw new AnalysisException(
               "select list expression not produced by aggregation output "
               + "(missing from GROUP BY clause?): "
-              + selectListItem.toSql());
+              + selectListItem.toSql(false));
         }
       }
       if (orderByElements_ != null) {
@@ -1005,8 +1005,8 @@ public class SelectStmt extends QueryStmt {
       strBuilder.append(ToSqlUtils.getPlanHintsSql(selectList_.getPlanHints()) + " ");
     }
     for (int i = 0; i < selectList_.getItems().size(); ++i) {
+      strBuilder.append(i > 0 ? ", " : "");
       strBuilder.append(selectList_.getItems().get(i).toSql(options));
-      strBuilder.append((i+1 != selectList_.getItems().size()) ? ", " : "");
     }
     // From clause
     if (!fromClause_.isEmpty()) {

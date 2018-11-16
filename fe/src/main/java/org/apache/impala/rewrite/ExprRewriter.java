@@ -79,11 +79,16 @@ public class ExprRewriter {
    */
   private Expr applyRuleBottomUp(Expr expr, ExprRewriteRule rule, Analyzer analyzer)
       throws AnalysisException {
+    int startPoint = numChanges_;
     for (int i = 0; i < expr.getChildren().size(); ++i) {
       expr.setChild(i, applyRuleBottomUp(expr.getChild(i), rule, analyzer));
     }
     Expr rewrittenExpr = rule.apply(expr, analyzer);
-    if (rewrittenExpr != expr) ++numChanges_;
+    if (rewrittenExpr != expr)
+      ++numChanges_;
+
+    // If the node or its children changed, re-analyze the node.
+    if (numChanges_ > startPoint) rewrittenExpr.analyze(analyzer);
     return rewrittenExpr;
   }
 

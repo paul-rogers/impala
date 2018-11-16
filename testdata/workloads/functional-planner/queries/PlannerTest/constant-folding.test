@@ -419,6 +419,7 @@ WRITE TO HDFS [functional.alltypes, OVERWRITE=false, PARTITION-KEYS=(CAST(3 + ye
 |
 01:SORT
 |  order by: CAST(3 + year AS INT) ASC NULLS LAST, CAST(month - -1 AS INT) ASC NULLS LAST
+|  materialized: CAST(3 + year AS INT), CAST(month - -1 AS INT)
 |  mem-estimate=6.00MB mem-reservation=6.00MB spill-buffer=2.00MB thread-reservation=0
 |  tuple-ids=1 row-size=16B cardinality=100
 |  in pipelines: 01(GETNEXT), 00(OPEN)
