@@ -106,10 +106,7 @@ class SelectListItem {
         // This is needed for view compatibility between Impala and Hive.
         exprStr = expr_.toSql(options);
       }
-      if (alias_ != null) {
-        exprStr += " AS " + ToSqlUtils.getIdentSql(alias_);
-      }
-      return exprStr;
+      return exprStr + ToSqlUtils.formatAlias(alias_);
     } else if (rawPath_ != null) {
       Preconditions.checkState(isStar_);
       StringBuilder result = new StringBuilder();

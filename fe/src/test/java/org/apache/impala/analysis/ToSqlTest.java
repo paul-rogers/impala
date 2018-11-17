@@ -17,6 +17,7 @@
 
 package org.apache.impala.analysis;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 
 import org.apache.impala.common.AnalysisException;
@@ -95,12 +96,7 @@ public class ToSqlTest extends FrontendTestBase {
         // Transform whitespace to single space.
         actual = actual.replace('\n', ' ').replaceAll(" +", " ").trim();
       }
-      if (!actual.equals(expected)) {
-        String msg = "\n<<< Expected(length:" + expected.length() + "): [" + expected
-          + "]\n>>> Actual(length:" + actual.length() + "): [" + actual + "]\n";
-        System.err.println(msg);
-        fail(msg);
-      }
+      assertEquals(expected, actual);
     } catch (Exception e) {
       e.printStackTrace();
       fail("Failed to analyze query: " + query + "\n" + e.getMessage());
@@ -159,11 +155,11 @@ public class ToSqlTest extends FrontendTestBase {
     // Test aliases.
     testToSql("select 1234 i, 1234.0 as j, (1234.0 + 1) k, (1234.0 + 1.0) as l " +
         "from functional.alltypes",
-        "SELECT 1234 i, 1234.0 j, (1234.0 + 1) k, (1234.0 + 1.0) l " +
+        "SELECT 1234 AS i, 1234.0 AS j, (1234.0 + 1) AS k, (1234.0 + 1.0) AS l " +
         "FROM functional.alltypes");
     // Test select without from.
     testToSql("select 1234 i, 1234.0 as j, (1234.0 + 1) k, (1234.0 + 1.0) as l",
-        "SELECT 1234 i, 1234.0 j, (1234.0 + 1) k, (1234.0 + 1.0) l");
+        "SELECT 1234 AS i, 1234.0 AS j, (1234.0 + 1) AS k, (1234.0 + 1.0) AS l");
     // Test select without from.
     testToSql("select null, 1234 < 5678, 1234.0 < 5678.0, 1234 < null " +
         "from functional.alltypes",
@@ -202,9 +198,9 @@ public class ToSqlTest extends FrontendTestBase {
 
         // Explicit table alias.
         TblsTestToSql(String.format("select %s from $TBL a", col), tblName,
-            String.format("SELECT %s FROM %s a", col, fqAlias));
+            String.format("SELECT %s FROM %s AS a", col, fqAlias));
         TblsTestToSql(String.format("select a.%s from $TBL a", col), tblName,
-            String.format("SELECT a.%s FROM %s a", col, fqAlias));
+            String.format("SELECT a.%s FROM %s AS a", col, fqAlias));
       }
     }
 
@@ -249,19 +245,19 @@ public class ToSqlTest extends FrontendTestBase {
     TblsTestToSql(
         String.format("select %s from $TBL a, a.%s",
             childColumn, childTable), tbl,
-        String.format("SELECT %s FROM %s a, a.%s",
+        String.format("SELECT %s FROM %s AS a, a.%s",
             childColumn, tbl.toSql(), childTable));
 
     // Parent/child/child join.
     TblsTestToSql(
         String.format("select b.%s from $TBL a, a.%s b, a.int_map_col c",
             childColumn, childTable), tbl,
-        String.format("SELECT b.%s FROM %s a, a.%s b, a.int_map_col c",
+        String.format("SELECT b.%s FROM %s AS a, a.%s AS b, a.int_map_col AS c",
             childColumn, tbl.toSql(), childTable));
     TblsTestToSql(
         String.format("select c.%s from $TBL a, a.int_array_col b, a.%s c",
             childColumn, childTable), tbl,
-        String.format("SELECT c.%s FROM %s a, a.int_array_col b, a.%s c",
+        String.format("SELECT c.%s FROM %s AS a, a.int_array_col AS b, a.%s AS c",
             childColumn, tbl.toSql(), childTable));
 
     // Test join types. Parent/child joins do not require an ON or USING clause.
@@ -272,7 +268,7 @@ public class ToSqlTest extends FrontendTestBase {
           tbl.toSql(), joinType, childTable));
       TblsTestToSql(String.format("select 1 from $TBL a %s a.%s",
           joinType, childTable), tbl,
-          String.format("SELECT 1 FROM %s a %s a.%s",
+          String.format("SELECT 1 FROM %s AS a %s a.%s",
           tbl.toSql(), joinType, childTable));
     }
 
@@ -280,7 +276,7 @@ public class ToSqlTest extends FrontendTestBase {
     TblsTestToSql(
         String.format("select %s from $TBL a, functional.allcomplextypes.%s",
             childColumn, childTable), tbl,
-        String.format("SELECT %s FROM %s a, functional.allcomplextypes.%s",
+        String.format("SELECT %s FROM %s AS a, functional.allcomplextypes.%s",
             childColumn, tbl.toSql(), childTable));
     TblsTestToSql(
         String.format("select %s from $TBL.%s, functional.allcomplextypes",
@@ -342,7 +338,7 @@ public class ToSqlTest extends FrontendTestBase {
         "RANGE (b) (PARTITION VALUE = 1) STORED AS KUDU TBLPROPERTIES " +
         "('kudu.master_addresses'='foo', " +
         "'storage_handler'='com.cloudera.kudu.hive.KuduStorageHandler') AS " +
-        "SELECT int_col a, bigint_col b FROM functional.alltypes", true);
+        "SELECT int_col AS a, bigint_col AS b FROM functional.alltypes", true);
   }
 
   @Test
@@ -379,7 +375,7 @@ public class ToSqlTest extends FrontendTestBase {
         "default", "CREATE VIEW IF NOT EXISTS foo AS SELECT * FROM functional.alltypes");
     testToSql("create view functional.foo (a, b) as select int_col x, double_col y " +
         "from functional.alltypes", "default",
-        "CREATE VIEW functional.foo(a, b) AS SELECT int_col x, double_col y " +
+        "CREATE VIEW functional.foo(a, b) AS SELECT int_col AS x, double_col AS y " +
         "FROM functional.alltypes");
     testToSql("create view foo (aaa, bbb) as select * from functional.complex_view",
         "default", "CREATE VIEW foo(aaa, bbb) AS SELECT * FROM functional.complex_view");
@@ -389,8 +385,9 @@ public class ToSqlTest extends FrontendTestBase {
         "select count(distinct x.int_col) from functional.alltypessmall x " +
         "inner join functional.alltypessmall y on (x.id = y.id) group by x.bigint_col",
         "default", "CREATE VIEW foo(cnt) AS "+
-        "SELECT count(DISTINCT x.int_col) FROM functional.alltypessmall x " +
-        "INNER JOIN functional.alltypessmall y ON (x.id = y.id) GROUP BY x.bigint_col");
+        "SELECT count(DISTINCT x.int_col) FROM functional.alltypessmall AS x " +
+        "INNER JOIN functional.alltypessmall AS y ON (x.id = y.id) " +
+        "GROUP BY x.bigint_col");
     testToSql("create view foo (a, b) as values(1, 'a'), (2, 'b')", "default",
         "CREATE VIEW foo(a, b) AS VALUES((1, 'a'), (2, 'b'))");
     testToSql("create view foo (a, b) as select 1, 'a' union all select 2, 'b'",
@@ -399,8 +396,8 @@ public class ToSqlTest extends FrontendTestBase {
         "select * from functional.alltypestiny t where exists " +
         "(select * from functional.alltypessmall s where s.id = t.id)", "default",
         "CREATE VIEW test_view_with_subquery AS " +
-        "SELECT * FROM functional.alltypestiny t WHERE EXISTS " +
-        "(SELECT * FROM functional.alltypessmall s WHERE s.id = t.id)");
+        "SELECT * FROM functional.alltypestiny AS t WHERE EXISTS " +
+        "(SELECT * FROM functional.alltypessmall AS s WHERE s.id = t.id)");
   }
 
   @Test
@@ -415,7 +412,7 @@ public class ToSqlTest extends FrontendTestBase {
     testToSql("alter view functional.alltypes_view (a, b) as " +
         "select int_col x, string_col y from functional.alltypes", "default",
         "ALTER VIEW functional.alltypes_view(a, b) AS " +
-        "SELECT int_col x, string_col y FROM functional.alltypes");
+        "SELECT int_col AS x, string_col AS y FROM functional.alltypes");
     testToSql("alter view functional.alltypes_view as select trim('abc'), 17 * 7",
         "default", "ALTER VIEW functional.alltypes_view AS SELECT trim('abc'), 17 * 7");
     testToSql("alter view functional.alltypes_view (aaa, bbb) as " +
@@ -430,8 +427,8 @@ public class ToSqlTest extends FrontendTestBase {
         "select count(distinct x.int_col) from functional.alltypessmall x " +
         "inner join functional.alltypessmall y on (x.id = y.id) group by x.bigint_col",
         "default", "ALTER VIEW functional.alltypes_view(cnt) AS "+
-        "SELECT count(DISTINCT x.int_col) FROM functional.alltypessmall x " +
-        "INNER JOIN functional.alltypessmall y ON (x.id = y.id) GROUP BY x.bigint_col");
+        "SELECT count(DISTINCT x.int_col) FROM functional.alltypessmall AS x " +
+        "INNER JOIN functional.alltypessmall AS y ON (x.id = y.id) GROUP BY x.bigint_col");
   }
 
   @Test
@@ -493,32 +490,32 @@ public class ToSqlTest extends FrontendTestBase {
   @Test
   public void TestIdentifierQuoting() {
     // The quotes of quoted identifiers will be removed if they are unnecessary.
-    testToSql("select 1 as `abc`, 2.0 as 'xyz'", "SELECT 1 abc, 2.0 xyz");
+    testToSql("select 1 as `abc`, 2.0 as 'xyz'", "SELECT 1 AS abc, 2.0 AS xyz");
 
     // These identifiers are lexable by Impala but not Hive. For view compatibility
     // we enclose the idents in quotes.
-    testToSql("select 1 as _c0, 2.0 as $abc", "SELECT 1 `_c0`, 2.0 `$abc`");
+    testToSql("select 1 as _c0, 2.0 as $abc", "SELECT 1 AS `_c0`, 2.0 AS `$abc`");
 
     // Quoted identifiers that require quoting in both Impala and Hive.
-    testToSql("select 1 as `???`, 2.0 as '^^^'", "SELECT 1 `???`, 2.0 `^^^`");
+    testToSql("select 1 as `???`, 2.0 as '^^^'", "SELECT 1 AS `???`, 2.0 AS `^^^`");
 
     // Test quoting of identifiers that are Impala keywords.
     testToSql("select `end`.`alter`, `end`.`table` from " +
         "(select 1 as `alter`, 2 as `table`) `end`",
         "SELECT `end`.`alter`, `end`.`table` FROM " +
-        "(SELECT 1 `alter`, 2 `table`) `end`");
+        "(SELECT 1 AS `alter`, 2 AS `table`) AS `end`");
 
     // Test quoting of inline view aliases.
     testToSql("select a from (select 1 as a) as _t",
-        "SELECT a FROM (SELECT 1 a) `_t`");
+        "SELECT a FROM (SELECT 1 AS a) AS `_t`");
 
     // Test quoting of WITH-clause views.
     testToSql("with _t as (select 1 as a) select * from _t",
-        "WITH `_t` AS (SELECT 1 a) SELECT * FROM `_t`");
+        "WITH `_t` AS (SELECT 1 AS a) SELECT * FROM `_t`");
 
     // Test quoting of non-SlotRef exprs in inline views.
     testToSql("select `1 + 10`, `trim('abc')` from (select 1 + 10, trim('abc')) as t",
-        "SELECT `1 + 10`, `trim('abc')` FROM (SELECT 1 + 10, trim('abc')) t");
+        "SELECT `1 + 10`, `trim('abc')` FROM (SELECT 1 + 10, trim('abc')) AS t");
   }
 
   @Test
@@ -565,13 +562,14 @@ public class ToSqlTest extends FrontendTestBase {
   // Test the toSql() output of joins in a standalone select block.
   @Test
   public void joinTest() {
-    testToSql("select * from functional.alltypes a, functional.alltypes b " +
+    testToSql("select * from functional.alltypes AS a, functional.alltypes AS b " +
         "where a.id = b.id",
-        "SELECT * FROM functional.alltypes a, functional.alltypes b WHERE a.id = b.id");
+        "SELECT * FROM functional.alltypes AS a, functional.alltypes AS b" +
+        " WHERE a.id = b.id");
     testToSql("select * from functional.alltypes a cross join functional.alltypes b",
-        "SELECT * FROM functional.alltypes a CROSS JOIN functional.alltypes b");
+        "SELECT * FROM functional.alltypes AS a CROSS JOIN functional.alltypes AS b");
     runTestTemplate("select * from functional.alltypes a %s functional.alltypes b %s",
-        "SELECT * FROM functional.alltypes a %s functional.alltypes b %s",
+        "SELECT * FROM functional.alltypes AS a %s functional.alltypes AS b %s",
         joinTypes_, joinConditions_);
   }
 
@@ -633,14 +631,14 @@ public class ToSqlTest extends FrontendTestBase {
       testToSql(String.format(
           "select * from functional.alltypes a join %sbroadcast%s " +
           "functional.alltypes b on a.id = b.id", prefix, suffix),
-          "SELECT * FROM functional.alltypes a INNER JOIN \n-- +broadcast\n " +
-          "functional.alltypes b ON a.id = b.id");
+          "SELECT * FROM functional.alltypes AS a INNER JOIN \n-- +broadcast\n " +
+          "functional.alltypes AS b ON a.id = b.id");
 
       // Table hint
       testToSql(String.format(
           "select * from functional.alltypes atp %sschedule_random_replica%s", prefix,
           suffix),
-          "SELECT * FROM functional.alltypes atp\n-- +schedule_random_replica\n");
+          "SELECT * FROM functional.alltypes AS atp\n-- +schedule_random_replica\n");
       testToSql(String.format(
           "select * from functional.alltypes %sschedule_random_replica%s", prefix,
           suffix),
@@ -651,10 +649,11 @@ public class ToSqlTest extends FrontendTestBase {
           "SELECT * FROM functional.alltypes\n-- +schedule_random_replica," +
           "schedule_disk_local\n");
       testToSql(String.format(
-          "select c1 from (select atp.tinyint_col as c1 from functional.alltypes atp " +
+          "select c1 from (select atp.tinyint_col as c1 " +
+          "from functional.alltypes AS atp " +
           "%sschedule_random_replica%s) s1", prefix, suffix),
-          "SELECT c1 FROM (SELECT atp.tinyint_col c1 FROM functional.alltypes atp\n-- +" +
-          "schedule_random_replica\n) s1");
+          "SELECT c1 FROM (SELECT atp.tinyint_col AS c1 " +
+          "FROM functional.alltypes AS atp\n-- +schedule_random_replica\n) AS s1");
 
       // Select-list hint. The legacy-style hint has no prefix and suffix.
       if (prefix.contains("[")) {
@@ -807,13 +806,13 @@ public class ToSqlTest extends FrontendTestBase {
   @Test
   public void valuesTest() {
     testToSql("values(1, 'a', 1.0)", "VALUES(1, 'a', 1.0)");
-    testToSql("values(1 as x, 'a' y, 1.0 as z)", "VALUES(1 x, 'a' y, 1.0 z)");
+    testToSql("values(1 as x, 'a' y, 1.0 as z)", "VALUES(1 AS x, 'a' AS y, 1.0 AS z)");
     testToSql("values(1, 'a'), (2, 'b'), (3, 'c')",
         "VALUES((1, 'a'), (2, 'b'), (3, 'c'))");
     testToSql("values(1 x, 'a' as y), (2 as y, 'b'), (3, 'c' x)",
-        "VALUES((1 x, 'a' y), (2 y, 'b'), (3, 'c' x))");
+        "VALUES((1 AS x, 'a' AS y), (2 AS y, 'b'), (3, 'c' AS x))");
     testToSql("select * from (values(1, 'a'), (2, 'b')) as t",
-        "SELECT * FROM (VALUES((1, 'a'), (2, 'b'))) t");
+        "SELECT * FROM (VALUES((1, 'a'), (2, 'b'))) AS t");
     testToSql("values(1, 'a'), (2, 'b') union all values(3, 'c')",
         "VALUES((1, 'a'), (2, 'b')) UNION ALL (VALUES(3, 'c'))");
     testToSql("insert into table functional.alltypessmall " +
@@ -835,24 +834,24 @@ public class ToSqlTest extends FrontendTestBase {
         "(select a.* from functional.alltypes a, functional.alltypes b " +
         "where a.id = b.id) t",
         "SELECT t.* FROM " +
-        "(SELECT a.* FROM functional.alltypes a, functional.alltypes b " +
-        "WHERE a.id = b.id) t");
+        "(SELECT a.* FROM functional.alltypes AS a, functional.alltypes AS b " +
+        "WHERE a.id = b.id) AS t");
     testToSql("select t.* from (select a.* from functional.alltypes a " +
         "cross join functional.alltypes b) t",
-        "SELECT t.* FROM (SELECT a.* FROM functional.alltypes a " +
-        "CROSS JOIN functional.alltypes b) t");
-    runTestTemplate("select t.* from (select a.* from functional.alltypes a %s " +
+        "SELECT t.* FROM (SELECT a.* FROM functional.alltypes AS a " +
+        "CROSS JOIN functional.alltypes AS b) AS t");
+    runTestTemplate("select t.* from (select a.* from functional.alltypes AS a %s " +
             "functional.alltypes b %s) t",
-        "SELECT t.* FROM (SELECT a.* FROM functional.alltypes a %s " +
-            "functional.alltypes b %s) t", nonSemiJoinTypes_, joinConditions_);
+        "SELECT t.* FROM (SELECT a.* FROM functional.alltypes AS a %s " +
+            "functional.alltypes AS b %s) AS t", nonSemiJoinTypes_, joinConditions_);
     runTestTemplate("select t.* from (select a.* from functional.alltypes a %s " +
-            "functional.alltypes b %s) t",
-        "SELECT t.* FROM (SELECT a.* FROM functional.alltypes a %s " +
-            "functional.alltypes b %s) t", leftSemiJoinTypes_, joinConditions_);
+            "functional.alltypes b %s) AS t",
+        "SELECT t.* FROM (SELECT a.* FROM functional.alltypes AS a %s " +
+            "functional.alltypes AS b %s) AS t", leftSemiJoinTypes_, joinConditions_);
     runTestTemplate("select t.* from (select b.* from functional.alltypes a %s " +
-            "functional.alltypes b %s) t",
-        "SELECT t.* FROM (SELECT b.* FROM functional.alltypes a %s " +
-            "functional.alltypes b %s) t", rightSemiJoinTypes_, joinConditions_);
+            "functional.alltypes b %s) AS t",
+        "SELECT t.* FROM (SELECT b.* FROM functional.alltypes AS a %s " +
+            "functional.alltypes AS b %s) AS t", rightSemiJoinTypes_, joinConditions_);
 
     // Test undoing expr substitution in select-list exprs and on clause.
     testToSql("select t1.int_col, t2.int_col from " +
@@ -861,16 +860,16 @@ public class ToSqlTest extends FrontendTestBase {
         "(select int_col from functional.alltypes) t2 on (t1.int_col = t2.int_col)",
         "SELECT t1.int_col, t2.int_col FROM " +
         "(SELECT int_col, rank() OVER (ORDER BY int_col ASC) " +
-        "FROM functional.alltypes) t1 INNER JOIN " +
-        "(SELECT int_col FROM functional.alltypes) t2 ON (t1.int_col = t2.int_col)");
+        "FROM functional.alltypes) AS t1 INNER JOIN " +
+        "(SELECT int_col FROM functional.alltypes) AS t2 ON (t1.int_col = t2.int_col)");
     // Test undoing expr substitution in aggregates and group by and having clause.
     testToSql("select count(t1.string_col), sum(t2.float_col) from " +
         "(select id, string_col from functional.alltypes) t1 inner join " +
         "(select id, float_col from functional.alltypes) t2 on (t1.id = t2.id) " +
         "group by t1.id, t2.id having count(t2.float_col) > 2",
         "SELECT count(t1.string_col), sum(t2.float_col) FROM " +
-        "(SELECT id, string_col FROM functional.alltypes) t1 INNER JOIN " +
-        "(SELECT id, float_col FROM functional.alltypes) t2 ON (t1.id = t2.id) " +
+        "(SELECT id, string_col FROM functional.alltypes) AS t1 INNER JOIN " +
+        "(SELECT id, float_col FROM functional.alltypes) AS t2 ON (t1.id = t2.id) " +
         "GROUP BY t1.id, t2.id HAVING count(t2.float_col) > 2");
     // Test undoing expr substitution in order by clause.
     testToSql("select t1.id, t2.id from " +
@@ -878,8 +877,8 @@ public class ToSqlTest extends FrontendTestBase {
         "(select id, float_col from functional.alltypes) t2 on (t1.id = t2.id) " +
         "order by t1.id, t2.id nulls first",
         "SELECT t1.id, t2.id FROM " +
-        "(SELECT id, string_col FROM functional.alltypes) t1 INNER JOIN " +
-        "(SELECT id, float_col FROM functional.alltypes) t2 ON (t1.id = t2.id) " +
+        "(SELECT id, string_col FROM functional.alltypes) AS t1 INNER JOIN " +
+        "(SELECT id, float_col FROM functional.alltypes) AS t2 ON (t1.id = t2.id) " +
         "ORDER BY t1.id ASC, t2.id ASC NULLS FIRST");
     // Test undoing expr substitution in where-clause conjuncts.
     testToSql("select t1.id, t2.id from " +
@@ -887,41 +886,42 @@ public class ToSqlTest extends FrontendTestBase {
         "(select id, float_col from functional.alltypes) t2 " +
         "where t1.id = t2.id and t1.string_col = 'abc' and t2.float_col < 10",
         "SELECT t1.id, t2.id FROM " +
-        "(SELECT id, string_col FROM functional.alltypes) t1, " +
-        "(SELECT id, float_col FROM functional.alltypes) t2 " +
+        "(SELECT id, string_col FROM functional.alltypes) AS t1, " +
+        "(SELECT id, float_col FROM functional.alltypes) AS t2 " +
         "WHERE t1.id = t2.id AND t1.string_col = 'abc' AND t2.float_col < 10");
 
     // Test inline views with correlated table refs. Implicit alias only.
     testToSql(
         "select cnt from functional.allcomplextypes t, " +
         "(select count(*) cnt from t.int_array_col) v",
-        "SELECT cnt FROM functional.allcomplextypes t, " +
-        "(SELECT count(*) cnt FROM t.int_array_col) v");
+        "SELECT cnt FROM functional.allcomplextypes AS t, " +
+        "(SELECT count(*) AS cnt FROM t.int_array_col) AS v");
     // Multiple correlated table refs. Explicit aliases.
     testToSql(
         "select avg from functional.allcomplextypes t, " +
-        "(select avg(a1.item) avg from t.int_array_col a1, t.int_array_col a2) v",
-        "SELECT avg FROM functional.allcomplextypes t, " +
-        "(SELECT avg(a1.item) avg FROM t.int_array_col a1, t.int_array_col a2) v");
+        "(select avg(a1.item) avg from t.int_array_col AS a1, t.int_array_col a2) AS v",
+        "SELECT avg FROM functional.allcomplextypes AS t, " +
+        "(SELECT avg(a1.item) AS avg FROM t.int_array_col AS a1, " +
+        "t.int_array_col AS a2) AS v");
     // Correlated table ref has child ref itself. Mix of explicit and implicit aliases.
     testToSql(
         "select key, item from functional.allcomplextypes t, " +
-        "(select a1.key, value.item from t.array_map_col a1, a1.value) v",
-        "SELECT key, item FROM functional.allcomplextypes t, " +
-        "(SELECT a1.key, value.item FROM t.array_map_col a1, a1.value) v");
+        "(select a1.key, value.item from t.array_map_col AS a1, a1.value) AS v",
+        "SELECT key, item FROM functional.allcomplextypes AS t, " +
+        "(SELECT a1.key, value.item FROM t.array_map_col AS a1, a1.value) AS v");
     // Correlated table refs in a union.
     testToSql(
         "select item from functional.allcomplextypes t, " +
-        "(select * from t.int_array_col union all select * from t.int_array_col) v",
-        "SELECT item FROM functional.allcomplextypes t, " +
-        "(SELECT * FROM t.int_array_col UNION ALL SELECT * FROM t.int_array_col) v");
+        "(select * from t.int_array_col union all select * from t.int_array_col) AS v",
+        "SELECT item FROM functional.allcomplextypes AS t, " +
+        "(SELECT * FROM t.int_array_col UNION ALL SELECT * FROM t.int_array_col) AS v");
     // Correlated inline view in WITH-clause.
     testToSql(
         "with w as (select c from functional.allcomplextypes t, " +
         "(select count(a1.key) c from t.array_map_col a1) v1) " +
         "select * from w",
-        "WITH w AS (SELECT c FROM functional.allcomplextypes t, " +
-        "(SELECT count(a1.key) c FROM t.array_map_col a1) v1) " +
+        "WITH w AS (SELECT c FROM functional.allcomplextypes AS t, " +
+        "(SELECT count(a1.key) AS c FROM t.array_map_col AS a1) AS v1) " +
         "SELECT * FROM w");
   }
 
@@ -939,13 +939,13 @@ public class ToSqlTest extends FrontendTestBase {
             "functional_kudu.dimtbl WHERE name < '11'");
 
     testToSql("update a set name = '10' FROM functional_kudu.dimtbl a",
-        "UPDATE a SET name = '10' FROM functional_kudu.dimtbl a");
+        "UPDATE a SET name = '10' FROM functional_kudu.dimtbl AS a");
 
     testToSql(
         "update a set a.name = 'oskar' from functional_kudu.dimtbl a join functional" +
             ".alltypes b on a.id = b.id where zip > 94549",
-        "UPDATE a SET a.name = 'oskar' FROM functional_kudu.dimtbl a INNER JOIN " +
-            "functional.alltypes b ON a.id = b.id WHERE zip > 94549");
+        "UPDATE a SET a.name = 'oskar' FROM functional_kudu.dimtbl AS a INNER JOIN " +
+            "functional.alltypes AS b ON a.id = b.id WHERE zip > 94549");
   }
 
   @Test
@@ -956,7 +956,7 @@ public class ToSqlTest extends FrontendTestBase {
     testToSql("delete from functional_kudu.testtbl where zip = 10",
         "DELETE FROM functional_kudu.testtbl WHERE zip = 10");
     testToSql("delete a from functional_kudu.testtbl a where zip = 10",
-        "DELETE a FROM functional_kudu.testtbl a WHERE zip = 10");
+        "DELETE a FROM functional_kudu.testtbl AS a WHERE zip = 10");
   }
 
   /**
@@ -997,7 +997,7 @@ public class ToSqlTest extends FrontendTestBase {
         "int_col in (select int_col from functional.alltypestiny)) t where " +
         "t.id < 10",
         "SELECT * FROM (SELECT id FROM functional.alltypes WHERE " +
-        "int_col IN (SELECT int_col FROM functional.alltypestiny)) t WHERE " +
+        "int_col IN (SELECT int_col FROM functional.alltypestiny)) AS t WHERE " +
         "t.id < 10");
     // Subquery in a WITH clause
     testToSql("with t as (select * from functional.alltypes where id in " +
@@ -1007,9 +1007,9 @@ public class ToSqlTest extends FrontendTestBase {
     testToSql("with t as (select * from functional.alltypes s where id in " +
         "(select id from functional.alltypestiny t where s.id = t.id)) " +
         "select * from t t1, t t2 where t1.id = t2.id",
-        "WITH t AS (SELECT * FROM functional.alltypes s WHERE id IN " +
-        "(SELECT id FROM functional.alltypestiny t WHERE s.id = t.id)) " +
-        "SELECT * FROM t t1, t t2 WHERE t1.id = t2.id");
+        "WITH t AS (SELECT * FROM functional.alltypes AS s WHERE id IN " +
+        "(SELECT id FROM functional.alltypestiny AS t WHERE s.id = t.id)) " +
+        "SELECT * FROM t AS t1, t AS t2 WHERE t1.id = t2.id");
   }
 
   @Test
@@ -1031,22 +1031,22 @@ public class ToSqlTest extends FrontendTestBase {
         "select t1.x, t2.x from t t1 join t t2 on (t1.x = t2.x)",
         "WITH t AS (SELECT sum(int_col) OVER (PARTITION BY tinyint_col, bool_col " +
         "ORDER BY float_col ASC ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) " +
-        "x FROM functional.alltypes) SELECT t1.x, t2.x FROM t t1 INNER JOIN t t2 ON " +
-        "(t1.x = t2.x)");
+        "AS x FROM functional.alltypes) SELECT t1.x, t2.x FROM t AS t1 " +
+        "INNER JOIN t AS t2 ON (t1.x = t2.x)");
     // WITH clause in select stmt with a join and an ON clause.
     testToSql("with t as (select * from functional.alltypes) " +
         "select * from t a inner join t b on (a.int_col = b.int_col)",
         "WITH t AS (SELECT * FROM functional.alltypes) " +
-        "SELECT * FROM t a INNER JOIN t b ON (a.int_col = b.int_col)");
+        "SELECT * FROM t AS a INNER JOIN t AS b ON (a.int_col = b.int_col)");
     testToSql("with t(c1, c2) as (select * from functional.alltypes) " +
         "select a.c1, a.c2 from t a inner join t b on (a.c1 = b.c2)",
         "WITH t(c1, c2) AS (SELECT * FROM functional.alltypes) " +
-        "SELECT a.c1, a.c2 FROM t a INNER JOIN t b ON (a.c1 = b.c2)");
+        "SELECT a.c1, a.c2 FROM t AS a INNER JOIN t AS b ON (a.c1 = b.c2)");
     // WITH clause in select stmt with a join and a USING clause.
     testToSql("with t as (select * from functional.alltypes) " +
         "select * from t a inner join t b using(int_col)",
         "WITH t AS (SELECT * FROM functional.alltypes) " +
-        "SELECT * FROM t a INNER JOIN t b USING (int_col)");
+        "SELECT * FROM t AS a INNER JOIN t AS b USING (int_col)");
     // WITH clause in a union stmt.
     testToSql("with t1 as (select * from functional.alltypes)" +
         "select * from t1 union all select * from t1",
@@ -1069,35 +1069,35 @@ public class ToSqlTest extends FrontendTestBase {
     // Test joins in WITH-clause view.
     testToSql("with t as (select a.* from functional.alltypes a, " +
             "functional.alltypes b where a.id = b.id) select * from t",
-        "WITH t AS (SELECT a.* FROM functional.alltypes a, " +
-            "functional.alltypes b WHERE a.id = b.id) SELECT * FROM t");
+        "WITH t AS (SELECT a.* FROM functional.alltypes AS a, " +
+            "functional.alltypes AS b WHERE a.id = b.id) SELECT * FROM t");
     testToSql("with t as (select a.* from functional.alltypes a " +
             "cross join functional.alltypes b) select * from t",
-        "WITH t AS (SELECT a.* FROM functional.alltypes a " +
-        "CROSS JOIN functional.alltypes b) SELECT * FROM t");
+        "WITH t AS (SELECT a.* FROM functional.alltypes AS a " +
+        "CROSS JOIN functional.alltypes AS b) SELECT * FROM t");
     runTestTemplate("with t as (select a.* from functional.alltypes a %s " +
         "functional.alltypes b %s) select * from t",
-        "WITH t AS (SELECT a.* FROM functional.alltypes a %s " +
-        "functional.alltypes b %s) SELECT * FROM t", nonSemiJoinTypes_, joinConditions_);
+        "WITH t AS (SELECT a.* FROM functional.alltypes AS a %s " +
+        "functional.alltypes AS b %s) SELECT * FROM t", nonSemiJoinTypes_, joinConditions_);
     runTestTemplate("with t as (select a.* from functional.alltypes a %s " +
         "functional.alltypes b %s) select * from t",
-        "WITH t AS (SELECT a.* FROM functional.alltypes a %s " +
-        "functional.alltypes b %s) SELECT * FROM t",
+        "WITH t AS (SELECT a.* FROM functional.alltypes AS a %s " +
+        "functional.alltypes AS b %s) SELECT * FROM t",
         leftSemiJoinTypes_, joinConditions_);
     runTestTemplate("with t as (select b.* from functional.alltypes a %s " +
         "functional.alltypes b %s) select * from t",
-        "WITH t AS (SELECT b.* FROM functional.alltypes a %s " +
-        "functional.alltypes b %s) SELECT * FROM t",
+        "WITH t AS (SELECT b.* FROM functional.alltypes AS a %s " +
+        "functional.alltypes AS b %s) SELECT * FROM t",
         rightSemiJoinTypes_, joinConditions_);
     // WITH clause in complex query with joins and and order by + limit.
     testToSql("with t as (select int_col x, bigint_col y from functional.alltypestiny " +
         "order by id nulls first limit 2) " +
         "select * from t t1 left outer join t t2 on t1.y = t2.x " +
         "full outer join t t3 on t2.y = t3.x order by t1.x nulls first limit 5 * 2",
-        "WITH t AS (SELECT int_col x, bigint_col y FROM functional.alltypestiny " +
+        "WITH t AS (SELECT int_col AS x, bigint_col AS y FROM functional.alltypestiny " +
         "ORDER BY id ASC NULLS FIRST LIMIT 2) " +
-        "SELECT * FROM t t1 LEFT OUTER JOIN t t2 ON t1.y = t2.x " +
-        "FULL OUTER JOIN t t3 ON t2.y = t3.x ORDER BY t1.x ASC NULLS FIRST LIMIT 5 * 2");
+        "SELECT * FROM t AS t1 LEFT OUTER JOIN t AS t2 ON t1.y = t2.x " +
+        "FULL OUTER JOIN t AS t3 ON t2.y = t3.x ORDER BY t1.x ASC NULLS FIRST LIMIT 5 * 2");
   }
 
   // Test the toSql() output of insert queries.
@@ -1364,7 +1364,7 @@ public class ToSqlTest extends FrontendTestBase {
         "string_col, (string_col), timestamp_col, (timestamp_col) " +
         "from functional.alltypes",
         "SELECT bool_col, (bool_col), int_col, (int_col) " +
-         "string_col, (string_col), timestamp_col, (timestamp_col) " +
+         "AS string_col, (string_col), timestamp_col, (timestamp_col) " +
         "FROM functional.alltypes");
 
     // TimestampArithmeticExpr.
@@ -1421,7 +1421,7 @@ public class ToSqlTest extends FrontendTestBase {
     testToSql(
         "select * from functional.alltypes a " +
         "tablesample system(10) /* +schedule_random */",
-        "SELECT * FROM functional.alltypes a " +
+        "SELECT * FROM functional.alltypes AS a " +
         "TABLESAMPLE SYSTEM(10)\n-- +schedule_random\n");
     testToSql(
         "with t as (select * from functional.alltypes tablesample system(5)) " +
