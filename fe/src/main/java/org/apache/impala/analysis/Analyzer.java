@@ -2386,8 +2386,8 @@ public class Analyzer {
   /**
    * Returns the Table for the given database and table name from the 'stmtTableCache'
    * in the global analysis state.
-   * Throws an AnalysisException if the database or table does not exist.
-   * Throws a TableLoadingException if the registered table failed to load.
+   * @throws AnalysisException if the database or table does not exist.
+   * @throws TableLoadingException if the registered table failed to load.
    * Does not register authorization requests or access events.
    */
   public FeTable getTable(String dbName, String tableName)
@@ -2396,14 +2396,21 @@ public class Analyzer {
     if (table == null) {
       TableName tblName = new TableName(dbName, tableName);
       if (!globalState_.stmtTableCache.dbs.contains(tblName.getDb())) {
-        throw new AnalysisException(DB_DOES_NOT_EXIST_ERROR_MSG + dbName);
+        throw new AnalysisException(DB_DOES_NOT_EXIST_ERROR_MSG + tblName.getDb());
       } else {
-        throw new AnalysisException(TBL_DOES_NOT_EXIST_ERROR_MSG + tableName);
+        throw new AnalysisException(TBL_DOES_NOT_EXIST_ERROR_MSG + tblName.toString());
       }
     }
     return table;
   }
 
+  /**
+   * Returns the Table for the given database and table name from the 'stmtTableCache'
+   * in the global analysis state.
+   * Returns null if the database or table does not exist.
+   * @throws TableLoadingException if the registered table failed to load.
+   * Does not register authorization requests or access events.
+   */
   public FeTable resolveTable(String dbName, String tableName)
       throws AnalysisException, TableLoadingException {
     TableName tblName = new TableName(dbName, tableName);
