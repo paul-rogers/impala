@@ -98,7 +98,7 @@ class SelectListItem {
   public String toSql(ToSqlOptions options) {
     if (!isStar_) {
       String exprStr;
-      if (option == DEFAULT && originalExpr_ != null) {
+      if (options == DEFAULT && originalExpr_ != null) {
         exprStr = originalExpr_;
       } else {
         Preconditions.checkNotNull(expr_);

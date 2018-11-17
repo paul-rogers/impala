@@ -55,6 +55,7 @@ public class QueryFixture {
   private AnalysisContext analysCtx_;
   private StatementBase parsedStmt_;
   private AnalysisResult analysisResult_;
+  private Analyzer analyzer_;
 
   public QueryFixture(AnalysisFixture analysisFixture,
       TQueryCtx queryCtx, String stmt) {
@@ -94,6 +95,7 @@ public class QueryFixture {
       analysisResult_ = analysCtx_.analyzeAndAuthorize(parsedStmt_,
           makeTableCache(), analysisFixture_.frontend_.getAuthzChecker());
       Preconditions.checkNotNull(analysisResult_.getStmt());
+      analyzer_ = analysisResult_.getAnalyzer();
     } catch (AnalysisException e) {
       throw e;
     } catch (ImpalaException e) {
@@ -116,8 +118,9 @@ public class QueryFixture {
     parsedStmt_ = (StatementBase) parse();
 
     try {
-      Analyzer analyzer = analysCtx_.createAnalyzer(makeTableCache());
-      parsedStmt_.analyze(analyzer);
+      analyzer_ = analysCtx_.createAnalyzer(makeTableCache());
+      analyzer_.skipRewrites();
+      parsedStmt_.analyze(analyzer_);
     } catch (ImpalaException e) {
       fail(e.getMessage());
       // To keep the Java parser happy.
@@ -170,7 +173,7 @@ public class QueryFixture {
   public TQueryCtx queryCtx() { return queryCtx_; }
   public String stmt() { return stmt_; }
   public ParseNode parseNode() { return parsedStmt_; }
-  public Analyzer analyzer() { return analysisResult_.getAnalyzer(); }
+  public Analyzer analyzer() { return analyzer_; }
   public SelectStmt selectStmt() {
     return (SelectStmt) parseNode();
   }

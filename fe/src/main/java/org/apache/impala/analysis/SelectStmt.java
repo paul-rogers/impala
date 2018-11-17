@@ -42,6 +42,8 @@ import com.google.common.base.Predicates;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 
+import static org.apache.impala.analysis.ToSqlOptions.DEFAULT;
+
 /**
  * Representation of a single select block, including GROUP BY, ORDER BY and HAVING
  * clauses.
@@ -742,7 +744,7 @@ public class SelectStmt extends QueryStmt {
           throw new AnalysisException(
               "select list expression not produced by aggregation output "
               + "(missing from GROUP BY clause?): "
-              + selectListItem.toSql(false));
+              + selectListItem.toSql(DEFAULT));
         }
       }
       if (orderByElements_ != null) {
@@ -752,7 +754,7 @@ public class SelectStmt extends QueryStmt {
             throw new AnalysisException(
                 "ORDER BY expression not produced by aggregation output "
                 + "(missing from GROUP BY clause?): "
-                + orderByElements_.get(i).getExpr().toSql());
+                + orderByElements_.get(i).getExpr().toSql(DEFAULT));
           }
         }
       }
@@ -761,7 +763,7 @@ public class SelectStmt extends QueryStmt {
           throw new AnalysisException(
               "HAVING clause not produced by aggregation output "
               + "(missing from GROUP BY clause?): "
-              + havingClause_.toSql());
+              + havingClause_.toSql(DEFAULT));
         }
       }
     }

@@ -39,6 +39,17 @@ import com.google.common.collect.Lists;
 
 /**
  * Tests ExprRewriteRules.
+ *
+ * This test is in transition. Rewrites are moving from a separate
+ * rewrite pass to instead be "integrated" into the analysis step.
+ * Since the test structure here assumes a separate rewrite pass,
+ * integrated rewrites are disabled when running these tests.
+ * Another set of tests, {@link SelectRewriteTest} verifies
+ * that the integrated rewrites work; these tests verify that
+ * the rules themselves work as intended.
+ *
+ * TODO: Migrate these tests to work with integrated rewrites
+ * after all clauses are modified to do integrated rewrites.
  */
 public class ExprRewriteRulesTest extends FrontendTestBase {
 

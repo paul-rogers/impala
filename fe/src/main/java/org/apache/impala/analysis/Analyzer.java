@@ -177,6 +177,14 @@ public class Analyzer {
   // except its own. Therefore, only a single semi-joined tuple can be visible at a time.
   private TupleId visibleSemiJoinedTupleId_ = null;
 
+  /**
+   * Temporary backward-compatibility feature to disable
+   * integrated rewrites so that the existing rewriter tests
+   * pass.
+   * TODO: To be removed as work proceeds.
+   */
+  private boolean disableRewrites_;
+
   public void setIsSubquery() {
     isSubquery_ = true;
     globalState_.containsSubquery = true;
@@ -2697,7 +2705,21 @@ public class Analyzer {
   }
 
   public Expr rewrite(Expr expr) throws AnalysisException {
-    return getExprRewriter().rewrite(expr, this);
+    if (disableRewrites_) {
+      return expr;
+    } else {
+      return getExprRewriter().rewrite(expr, this);
+    }
+  }
+
+  /**
+   * Temporary backward-compatibility feature to disable
+   * integrated rewrites so that the existing rewriter tests
+   * pass.
+   * TODO: To be removed as work proceeds.
+   */
+  public void skipRewrites() {
+    disableRewrites_ = true;
   }
 
 }
