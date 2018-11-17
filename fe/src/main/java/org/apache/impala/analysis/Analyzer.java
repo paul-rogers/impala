@@ -178,6 +178,14 @@ public class Analyzer {
   // except its own. Therefore, only a single semi-joined tuple can be visible at a time.
   private TupleId visibleSemiJoinedTupleId_ = null;
 
+  /**
+   * Temporary backward-compatibility feature to disable
+   * integrated rewrites so that the existing rewriter tests
+   * pass.
+   * TODO: To be removed as work proceeds.
+   */
+  private boolean disableRewrites_;
+
   public void setIsSubquery() {
     isSubquery_ = true;
     globalState_.containsSubquery = true;
@@ -782,12 +790,7 @@ public class Analyzer {
       List<TableName> candidateTbls = Path.getCandidateTables(rawPath, getDefaultDb());
       for (int tblNameIdx = 0; tblNameIdx < candidateTbls.size(); ++tblNameIdx) {
         TableName tblName = candidateTbls.get(tblNameIdx);
-        FeTable tbl = null;
-        try {
-          tbl = getTable(tblName.getDb(), tblName.getTbl());
-        } catch (AnalysisException e) {
-          // Ignore to allow path resolution to continue.
-        }
+        FeTable tbl = resolveTable(tblName.getDb(), tblName.getTbl());
         if (tbl != null) {
           candidates.add(new Path(tbl, rawPath.subList(tblNameIdx + 1, rawPath.size())));
         }
@@ -2386,20 +2389,37 @@ public class Analyzer {
   /**
    * Returns the Table for the given database and table name from the 'stmtTableCache'
    * in the global analysis state.
-   * Throws an AnalysisException if the database or table does not exist.
-   * Throws a TableLoadingException if the registered table failed to load.
+   * @throws AnalysisException if the database or table does not exist.
+   * @throws TableLoadingException if the registered table failed to load.
    * Does not register authorization requests or access events.
    */
   public FeTable getTable(String dbName, String tableName)
       throws AnalysisException, TableLoadingException {
-    TableName tblName = new TableName(dbName, tableName);
-    FeTable table = globalState_.stmtTableCache.tables.get(tblName);
+    FeTable table = resolveTable(dbName, tableName);
     if (table == null) {
+      TableName tblName = new TableName(dbName, tableName);
       if (!globalState_.stmtTableCache.dbs.contains(tblName.getDb())) {
         throw new AnalysisException(DB_DOES_NOT_EXIST_ERROR_MSG + tblName.getDb());
       } else {
         throw new AnalysisException(TBL_DOES_NOT_EXIST_ERROR_MSG + tblName.toString());
       }
+    }
+    return table;
+  }
+
+  /**
+   * Returns the Table for the given database and table name from the 'stmtTableCache'
+   * in the global analysis state.
+   * Returns null if the database or table does not exist.
+   * @throws TableLoadingException if the registered table failed to load.
+   * Does not register authorization requests or access events.
+   */
+  public FeTable resolveTable(String dbName, String tableName)
+      throws AnalysisException, TableLoadingException {
+    TableName tblName = new TableName(dbName, tableName);
+    FeTable table = globalState_.stmtTableCache.tables.get(tblName);
+    if (table == null) {
+      return null;
     }
     Preconditions.checkState(table.isLoaded());
     if (table instanceof IncompleteTable) {
@@ -2695,7 +2715,21 @@ public class Analyzer {
   }
 
   public Expr rewrite(Expr expr) throws AnalysisException {
-    return getExprRewriter().rewrite(expr, this);
+    if (disableRewrites_) {
+      return expr;
+    } else {
+      return getExprRewriter().rewrite(expr, this);
+    }
+  }
+
+  /**
+   * Temporary backward-compatibility feature to disable
+   * integrated rewrites so that the existing rewriter tests
+   * pass.
+   * TODO: To be removed as work proceeds.
+   */
+  public void skipRewrites() {
+    disableRewrites_ = true;
   }
 
 }

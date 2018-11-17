@@ -335,18 +335,15 @@ public class InlineViewRef extends TableRef {
   protected String tableRefToSql(boolean rewritten) {
     // Enclose the alias in quotes if Hive cannot parse it without quotes.
     // This is needed for view compatibility between Impala and Hive.
-    String aliasSql = null;
     String alias = getExplicitAlias();
-    if (alias != null) aliasSql = ToSqlUtils.getIdentSql(alias);
     if (view_ != null) {
-      return view_.getTableName().toSql() + (aliasSql == null ? "" : " " + aliasSql);
+      return view_.getTableName().toSql() + ToSqlUtils.formatAlias(alias);
     }
-    Preconditions.checkNotNull(aliasSql);
     StringBuilder sql = new StringBuilder()
         .append("(")
-        .append(queryStmt_.toSql(rewritten))
-        .append(") ")
-        .append(aliasSql);
+        .append(queryStmt_.toSql(/*options*/))
+        .append(")")
+        .append(ToSqlUtils.formatAlias(alias));
     // Add explicit col labels for debugging even though this syntax isn't supported.
     if (explicitColLabels_ != null) {
       sql.append(" (");
