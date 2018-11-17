@@ -577,10 +577,12 @@ public class TableRef implements ParseNode {
   protected String tableRefToSql() { return tableRefToSql(DEFAULT); }
 
   protected String tableRefToSql(ToSqlOptions options) {
+    String aliasSql = null;
+    String alias = getExplicitAlias();
+    if (alias != null) aliasSql = ToSqlUtils.getIdentSql(alias);
     List<String> path = rawPath_;
     if (resolvedPath_ != null) path = resolvedPath_.getFullyQualifiedRawPath();
-    return ToSqlUtils.getPathSql(path) +
-        ToSqlUtils.formatAlias(getExplicitAlias());
+    return ToSqlUtils.getPathSql(path) + ((aliasSql != null) ? " " + aliasSql : "");
   }
 
   @Override

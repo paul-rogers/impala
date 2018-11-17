@@ -295,17 +295,14 @@ public class CastExpr extends Expr {
   }
 
   /**
-   * Returns child expr if this expr is an implicit cast, otherwise returns 'this'.
+   * Returns child expr if the given expr is an implicit cast,
+   * otherwise returns the expr itself.
    */
-  @Override
-  public Expr ignoreImplicitCast() {
-    if (isImplicit_) {
-      // we don't expect to see to consecutive implicit casts
-      Preconditions.checkState(
-          !(getChild(0) instanceof CastExpr) || !((CastExpr) getChild(0)).isImplicit());
-      return getChild(0);
+  public static Expr ignoreImplicitCast(Expr expr) {
+    if (Expr.IS_IMPLICIT_CAST.apply(expr)) {
+      return ((CastExpr) expr).getChild(0);
     } else {
-      return this;
+      return expr;
     }
   }
 

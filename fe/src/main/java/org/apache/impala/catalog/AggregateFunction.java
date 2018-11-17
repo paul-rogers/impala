@@ -20,6 +20,7 @@ package org.apache.impala.catalog;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.apache.impala.analysis.CastExpr;
 import org.apache.impala.analysis.Expr;
 import org.apache.impala.analysis.FunctionCallExpr;
 import org.apache.impala.analysis.FunctionName;
@@ -212,9 +213,9 @@ public class AggregateFunction extends Function {
     Preconditions.checkState(aggFn.isDistinct());
     List<Expr> result = Lists.newArrayList();
     if (aggFn.getFnName().getFunction().equalsIgnoreCase("group_concat")) {
-      result.add(aggFn.getChild(0).ignoreImplicitCast());
+      result.add(CastExpr.ignoreImplicitCast(aggFn.getChild(0)));
     } else {
-      for (Expr c : aggFn.getChildren()) result.add(c.ignoreImplicitCast());
+      for (Expr c : aggFn.getChildren()) result.add(CastExpr.ignoreImplicitCast(c));
     }
     return result;
   }

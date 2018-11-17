@@ -23,7 +23,6 @@ import org.apache.impala.analysis.CastExpr;
 import org.apache.impala.analysis.Expr;
 import org.apache.impala.analysis.LiteralExpr;
 import org.apache.impala.analysis.TypeDef;
-import org.apache.impala.catalog.Type;
 import org.apache.impala.common.AnalysisException;
 
 /**
@@ -64,15 +63,15 @@ public class RemoveRedundantStringCast implements ExprRewriteRule {
     BinaryPredicate.Operator op = ((BinaryPredicate) expr).getOp();
     boolean isPotentiallyRedundantCast =
         (op == BinaryPredicate.Operator.EQ || op == BinaryPredicate.Operator.NE) &&
-        (expr.getChild(0).ignoreImplicitCast() instanceof CastExpr) &&
-        expr.getChild(0).ignoreImplicitCast().getType().isStringType() &&
+        (CastExpr.ignoreImplicitCast(expr.getChild(0)) instanceof CastExpr) &&
+        CastExpr.ignoreImplicitCast(expr.getChild(0)).getType().isStringType() &&
         expr.getChild(1).getType().isStringType() &&
         Expr.IS_LITERAL.apply(expr.getChild(1));
 
     if (!isPotentiallyRedundantCast) return expr;
     // Ignore the implicit casts added during parsing.
-    Expr castExpr = expr.getChild(0).ignoreImplicitCast();
-    Expr castExprChild = castExpr.getChild(0).ignoreImplicitCast();
+    Expr castExpr = CastExpr.ignoreImplicitCast(expr.getChild(0));
+    Expr castExprChild = CastExpr.ignoreImplicitCast(castExpr.getChild(0));
     LiteralExpr literalExpr = (LiteralExpr) expr.getChild(1);
     // Now check for redundancy.
     Expr castForRedundancyCheck = new CastExpr(new TypeDef(castExpr.getType()),
@@ -87,7 +86,7 @@ public class RemoveRedundantStringCast implements ExprRewriteRule {
         resultOfReverseCast.getStringValue().trim()
             .equals(literalExpr.getStringValue().trim())) {
       return new BinaryPredicate(op, castExprChild,
-          castForRedundancyCheck.getChild(0).ignoreImplicitCast());
+          CastExpr.ignoreImplicitCast(castForRedundancyCheck.getChild(0)));
     }
     return expr;
   }

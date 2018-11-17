@@ -292,6 +292,25 @@ abstract public class Expr extends TreeNode<Expr> implements ParseNode, Cloneabl
       }
     };
 
+  /**
+   * @return true if 'this' is an implicit cast expr.
+   */
+  public final static com.google.common.base.Predicate<Expr> IS_IMPLICIT_CAST =
+    new com.google.common.base.Predicate<Expr>() {
+      @Override
+      public boolean apply(Expr arg) {
+        return arg instanceof CastExpr && ((CastExpr) arg).isImplicit();
+      }
+    };
+
+  public final static com.google.common.base.Predicate<Expr> IS_SLOT_REF =
+    new com.google.common.base.Predicate<Expr>() {
+      @Override
+      public boolean apply(Expr arg) {
+        return arg instanceof SlotRef;
+      }
+    };
+
   // id that's unique across the entire query statement and is assigned by
   // Analyzer.registerConjuncts(); only assigned for the top-level terms of a
   // conjunction, and therefore null for most Exprs
@@ -987,18 +1006,23 @@ abstract public class Expr extends TreeNode<Expr> implements ParseNode, Cloneabl
    * override this method and apply the substitution to such exprs as well.
    */
   protected Expr substituteImpl(ExprSubstitutionMap smap, Analyzer analyzer) {
-    if (isImplicitCast()) return getChild(0).substituteImpl(smap, analyzer);
-    if (smap != null) {
-      Expr substExpr = smap.get(this);
-      if (substExpr != null) return substExpr.clone();
+    if (IS_IMPLICIT_CAST.apply(this)) {
+      return CastExpr.ignoreImplicitCast(this).substituteImpl(smap, analyzer);
     }
-    for (int i = 0; i < children_.size(); ++i) {
-      children_.set(i, children_.get(i).substituteImpl(smap, analyzer));
+    Expr substExpr = smap.get(this);
+    if (substExpr != null) return substExpr.clone();
+    boolean revised = false;
+    for (int i = 0; i < getChildCount(); ++i) {
+      Expr newChild = getChild(i).substituteImpl(smap, analyzer);
+      if (! newChild.isAnalyzed()) {
+        revised = true;;
+        setChild(i, newChild);
+      }
     }
     // SlotRefs must remain analyzed to support substitution across query blocks. All
     // other exprs must be analyzed again after the substitution to add implicit casts
     // and for resolving their correct function signature.
-    if (!(this instanceof SlotRef)) resetAnalysisState();
+    if (revised && !IS_SLOT_REF.apply(this)) resetAnalysisState();
     return this;
   }
 
@@ -1023,7 +1047,8 @@ abstract public class Expr extends TreeNode<Expr> implements ParseNode, Cloneabl
    * Resets the internal analysis state of this expr tree. Removes implicit casts.
    */
   public Expr reset() {
-    if (isImplicitCast()) return getChild(0).reset();
+    if (IS_IMPLICIT_CAST.apply(this))
+      return CastExpr.ignoreImplicitCast(this).reset();
     for (int i = 0; i < children_.size(); ++i) {
       children_.set(i, children_.get(i).reset());
     }
@@ -1365,7 +1390,6 @@ abstract public class Expr extends TreeNode<Expr> implements ParseNode, Cloneabl
     setChild(childIndex, newChild);
   }
 
-
   /**
    * Convert child to to targetType, possibly by inserting an implicit cast, or by
    * returning an altogether new expression, or by returning 'this' with a modified
@@ -1380,21 +1404,6 @@ abstract public class Expr extends TreeNode<Expr> implements ParseNode, Cloneabl
     Expr child = getChild(childIndex);
     Expr newChild = child.uncheckedCastTo(targetType);
     setChild(childIndex, newChild);
-  }
-
-  /**
-   * Returns child expr if this expr is an implicit cast, otherwise returns 'this'.
-   */
-  public Expr ignoreImplicitCast() {
-    if (isImplicitCast()) return getChild(0).ignoreImplicitCast();
-    return this;
-  }
-
-  /**
-   * Returns true if 'this' is an implicit cast expr.
-   */
-  public boolean isImplicitCast() {
-    return this instanceof CastExpr && ((CastExpr) this).isImplicit();
   }
 
   @Override

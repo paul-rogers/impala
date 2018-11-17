@@ -251,7 +251,6 @@ public class SelectStmt extends QueryStmt {
           // Item's analysis function performs expression rewrites.
           item.analyze(analyzer_);
           Expr expr = item.getExpr();
-          item.setExpr(expr);
           resultExprs_.add(expr);
           String label = item.toColumnLabel(i, analyzer_.useHiveColLabels());
           SlotRef aliasRef = new SlotRef(label);

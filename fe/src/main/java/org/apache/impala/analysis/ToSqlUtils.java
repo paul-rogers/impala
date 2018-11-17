@@ -483,6 +483,6 @@ public class ToSqlUtils {
 
   public static String formatAlias(String alias) {
     if (alias == null) return "";
-    return " AS " + getIdentSql(alias);
+    return " " + getIdentSql(alias);
   }
 }

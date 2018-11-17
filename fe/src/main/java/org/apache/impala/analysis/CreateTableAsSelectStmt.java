@@ -189,7 +189,6 @@ public class CreateTableAsSelectStmt extends StatementBase {
     }
     createStmt_.analyze(analyzer);
 
-
     // The full privilege check for the database will be done as part of the INSERT
     // analysis.
     FeDb db = analyzer.getDb(createStmt_.getDb(), Privilege.ANY);

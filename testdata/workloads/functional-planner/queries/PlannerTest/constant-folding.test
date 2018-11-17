@@ -444,9 +444,9 @@ select sum(id + c3) from
   ) v3
 ---- PLAN
 Analyzed query: SELECT sum(CAST(id AS BIGINT) + CAST(c3 AS BIGINT)) FROM (SELECT
-id, CAST(10 AS INT) + CAST(c2 AS INT) AS c3 FROM (SELECT id, CAST(20 AS
-SMALLINT) + CAST(c1 AS SMALLINT) AS c2 FROM (SELECT id, CAST(30 AS TINYINT) AS
-c1 FROM functional.alltypes LIMIT CAST(2 AS TINYINT)) v1) v2) v3
+id, CAST(10 AS INT) + CAST(c2 AS INT) c3 FROM (SELECT id, CAST(20 AS SMALLINT) +
+CAST(c1 AS SMALLINT) c2 FROM (SELECT id, CAST(30 AS TINYINT) c1 FROM
+functional.alltypes LIMIT CAST(2 AS TINYINT)) v1) v2) v3
 F00:PLAN FRAGMENT [UNPARTITIONED] hosts=1 instances=1
 |  Per-Host Resources: mem-estimate=138.00MB mem-reservation=32.00KB thread-reservation=2
 PLAN-ROOT SINK

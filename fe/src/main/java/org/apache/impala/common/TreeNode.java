@@ -42,6 +42,8 @@ public abstract class TreeNode<NodeType extends TreeNode<NodeType>> {
 
   public void clearChildren() { children_.clear(); }
 
+  public int getChildCount() { return children_.size(); }
+
   public void addChildren(List<? extends NodeType> l) {
     children_.addAll(l);
   }
