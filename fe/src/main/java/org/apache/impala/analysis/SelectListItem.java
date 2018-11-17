@@ -104,7 +104,7 @@ class SelectListItem {
         Preconditions.checkNotNull(expr_);
         // Enclose aliases in quotes if Hive cannot parse them without quotes.
         // This is needed for view compatibility between Impala and Hive.
-        exprStr = expr_.toSql();
+        exprStr = expr_.toSql(options);
       }
       if (alias_ != null) {
         exprStr += " AS " + ToSqlUtils.getIdentSql(alias_);
