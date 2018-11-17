@@ -139,24 +139,24 @@ public class Analyzer {
   private final User user_;
 
   // Indicates whether this query block contains a straight join hint.
-  private boolean isStraightJoin_ = false;
+  private boolean isStraightJoin_;
 
   // Whether to use Hive's auto-generated column labels.
-  private boolean useHiveColLabels_ = false;
+  private boolean useHiveColLabels_;
 
   // True if the corresponding select block has a limit and/or offset clause.
-  private boolean hasLimitOffsetClause_ = false;
+  private boolean hasLimitOffsetClause_;
 
   // Current depth of nested analyze() calls. Used for enforcing a
   // maximum expr-tree depth. Needs to be manually maintained by the user
   // of this Analyzer with incrementCallDepth() and decrementCallDepth().
-  private int callDepth_ = 0;
+  private int callDepth_;
 
   // Flag indicating if this analyzer instance belongs to a subquery.
-  private boolean isSubquery_ = false;
+  private boolean isSubquery_ ;
 
   // Flag indicating whether this analyzer belongs to a WITH clause view.
-  private boolean hasWithClause_ = false;
+  private boolean hasWithClause_ ;
 
   // If set, when masked privilege requests are registered they will use this error
   // error message.
@@ -164,7 +164,7 @@ public class Analyzer {
 
   // If true privilege requests are added in maskedPrivileReqs_. Otherwise, privilege
   // requests are added to privilegeReqs_.
-  private boolean maskPrivChecks_ = false;
+  private boolean maskPrivChecks_;
 
   // If false, privilege requests are not registered.
   private boolean enablePrivChecks_ = true;
@@ -175,7 +175,7 @@ public class Analyzer {
   // In particular, if there are multiple semi-joins in the same query block, then the
   // On-clause of any such semi-join is not allowed to reference other semi-joined tuples
   // except its own. Therefore, only a single semi-joined tuple can be visible at a time.
-  private TupleId visibleSemiJoinedTupleId_ = null;
+  private TupleId visibleSemiJoinedTupleId_;
 
   /**
    * Temporary backward-compatibility feature to disable
@@ -379,12 +379,12 @@ public class Analyzer {
 
   // Indicates whether this analyzer/block is guaranteed to have an empty result set
   // due to a limit 0 or constant conjunct evaluating to false.
-  private boolean hasEmptyResultSet_ = false;
+  private boolean hasEmptyResultSet_;
 
   // Indicates whether the select-project-join (spj) portion of this query block
   // is guaranteed to return an empty result set. Set due to a constant non-Having
   // conjunct evaluating to false.
-  private boolean hasEmptySpjResultSet_ = false;
+  private boolean hasEmptySpjResultSet_;
 
   public Analyzer(StmtTableCache stmtTableCache, TQueryCtx queryCtx,
       AuthorizationConfig authzConfig) {
