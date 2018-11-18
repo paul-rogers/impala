@@ -182,13 +182,24 @@ public class ArithmeticExpr extends Expr {
       }
     }
 
+    // The analyzer makes multiple passes though this
+    // method for some operators. Each pass promotes the input
+    // types to produce an output type, then converts the
+    // type of numeric literals to that promoted type. Multiple
+    // passes results in continued literal, hence expression type
+    // promotion. To avoid this, any numeric literals have their
+    // types reset on each pass so that each pass starts from the
+    // same state.
+
     convertNumericLiteralsFromDecimal(analyzer);
+    NumericLiteral.resetType(getChild(0));
     Type t0 = getChild(0).getType();
     Type t1 = null;
     if (op_.isUnary()) {
       Preconditions.checkState(children_.size() == 1);
     } else if (op_.isBinary()) {
       Preconditions.checkState(children_.size() == 2);
+      NumericLiteral.resetType(getChild(1));
       t1 = getChild(1).getType();
     }
 

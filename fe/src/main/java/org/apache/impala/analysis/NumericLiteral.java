@@ -198,6 +198,16 @@ public class NumericLiteral extends LiteralExpr {
 
   @Override
   protected void analyzeImpl(Analyzer analyzer) throws AnalysisException {
+    inferType();
+  }
+
+  public static void resetType(Expr expr) throws AnalysisException {
+    if (expr instanceof NumericLiteral) {
+      ((NumericLiteral) expr).inferType();
+    }
+  }
+
+  public void inferType() throws AnalysisException {
     if (!explicitlyCast_) {
       // Compute the precision and scale from the BigDecimal.
       type_ = TypesUtil.computeDecimalType(value_);

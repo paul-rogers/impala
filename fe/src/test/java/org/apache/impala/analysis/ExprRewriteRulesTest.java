@@ -17,8 +17,13 @@
 
 package org.apache.impala.analysis;
 
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.fail;
+
 import java.util.List;
 
+import org.apache.impala.catalog.ScalarType;
 import org.apache.impala.common.AnalysisException;
 import org.apache.impala.common.FrontendTestBase;
 import org.apache.impala.common.ImpalaException;
@@ -34,7 +39,6 @@ import org.apache.impala.rewrite.NormalizeExprsRule;
 import org.apache.impala.rewrite.RemoveRedundantStringCast;
 import org.apache.impala.rewrite.SimplifyConditionalsRule;
 import org.apache.impala.rewrite.SimplifyDistinctFromRule;
-import org.junit.Assert;
 import org.junit.Test;
 
 import com.google.common.collect.ImmutableList;
@@ -131,24 +135,14 @@ public class ExprRewriteRulesTest extends FrontendTestBase {
       // rule that is intended for the test.
       for (ExprRewriteRule r : wrappedRules) {
         CountingRewriteRuleWrapper w = (CountingRewriteRuleWrapper) r;
-        Assert.assertTrue("Rule " + w.wrapped.toString() + " didn't fire.",
+        assertTrue("Rule " + w.wrapped.toString() + " didn't fire.",
           w.rewrites > 0);
       }
     } else {
       assertEquals(origSql, rewrittenSql);
     }
-    Assert.assertEquals(expectChange, rewriter.changed());
+    assertEquals(expectChange, rewriter.changed());
     return rewrittenExpr;
-  }
-
-
-  /**
-   * Helper for prettier error messages than what JUnit.Assert provides.
-   */
-  private void assertEquals(String expected, String actual) {
-    if (!actual.equals(expected)) {
-      Assert.fail(String.format("\nActual: %s\nExpected: %s\n", actual, expected));
-    }
   }
 
   @Test
@@ -694,5 +688,32 @@ public class ExprRewriteRulesTest extends FrontendTestBase {
     // more complicated things like nullif(int_col + 1, 1 + int_col)
     // are not simplified
     RewritesOk("nullif(1 + int_col, 1 + int_col)", rules, "NULL");
+  }
+
+  /**
+   * Verify that type propagation is done once, not repeatedly.
+   * In the following, we create an expression that the
+   * rewriter cannot optimize:
+   * (tinyint_col + 1)
+   * If type propagation is stateful, the constant will
+   * grow in type width, resulting in a type other than the
+   * expected SMALLINT.
+   */
+  @Test
+  public void testTypePropagation() throws ImpalaException {
+    // Known issue that trailing constants are not folded.
+    Expr expr = RewritesOk("tinyint_col + 1",
+        FoldConstantsRule.INSTANCE, null);
+    assertEquals(ScalarType.SMALLINT, expr.getType());
+
+    // The following silliness is expected, if not wanted.
+    // The rewriter cannot (yet) optimize trailing constants.
+    // Types widen with each math operation.
+    expr = RewritesOk("tinyint_col + 1 + 1",
+        FoldConstantsRule.INSTANCE, null);
+    assertEquals(ScalarType.INT, expr.getType());
+    expr = RewritesOk("tinyint_col + 1 + 1 + 1",
+        FoldConstantsRule.INSTANCE, null);
+    assertEquals(ScalarType.BIGINT, expr.getType());
   }
 }

@@ -229,18 +229,23 @@ public class ExprRewriterTest extends AnalyzerTest {
     }
   }
 
-  @Test
-  public void TestToSql() {
+  private void assertToSql(String query, String expectedToSql,
+      String expectedToRewrittenSql) {
     TQueryOptions options = new TQueryOptions();
     options.setEnable_expr_rewrites(true);
     AnalysisContext ctx = createAnalysisCtx(options);
+    assertToSql(ctx, query, expectedToSql, expectedToRewrittenSql);
+  }
+
+  @Test
+  public void TestSelectToSql() {
 
     //----------------------
     // Test query rewrites.
     //----------------------
-    assertToSql(ctx, "select 1 + 1", "SELECT 1 + 1", "SELECT 2");
+    assertToSql("select 1 + 1", "SELECT 1 + 1", "SELECT 2");
 
-    assertToSql(ctx,
+    assertToSql(
         "select (case when true then 1 else id end) from functional.alltypes " +
         "union " +
         "select 1 + 1",
@@ -249,21 +254,25 @@ public class ExprRewriterTest extends AnalyzerTest {
         "SELECT 1 + 1",
         "SELECT 1 FROM functional.alltypes UNION SELECT 2");
 
-    assertToSql(ctx,
+    assertToSql(
         "values(1, '2', 3, 4.1), (1, '2', 3, 4.1)",
         "VALUES((1, '2', 3, 4.1), (1, '2', 3, 4.1))",
         "SELECT 1, '2', 3, 4.1 UNION ALL SELECT 1, '2', 3, 4.1");
+  }
+
+  @Test
+  public void TestSubqueryToSql() {
 
     //-------------------------
     // Test subquery rewrites.
     //-------------------------
-    assertToSql(ctx, "select * from (" +
+    assertToSql("select * from (" +
         "select * from functional.alltypes where id = (select 1 + 1)) a",
         "SELECT * FROM (SELECT * FROM functional.alltypes WHERE id = (SELECT 1 + 1)) a",
         "SELECT * FROM (SELECT * FROM functional.alltypes LEFT SEMI JOIN " +
         "(SELECT 2) `$a$1` (`$c$1`) ON id = `$a$1`.`$c$1`) a");
 
-    assertToSql(ctx,
+    assertToSql(
         "select * from (select * from functional.alltypes where id = (select 1 + 1)) a " +
         "union " +
         "select * from (select * from functional.alltypes where id = (select 1 + 1)) b",
@@ -276,18 +285,22 @@ public class ExprRewriterTest extends AnalyzerTest {
         "SELECT * FROM (SELECT * FROM functional.alltypes LEFT SEMI JOIN (SELECT 2) " +
         "`$a$1` (`$c$1`) ON id = `$a$1`.`$c$1`) b");
 
-    assertToSql(ctx, "select * from " +
+    assertToSql("select * from " +
         "(select (case when true then 1 else id end) from functional.alltypes " +
         "union select 1 + 1) v",
         "SELECT * FROM (SELECT (CASE WHEN TRUE THEN 1 ELSE id END) " +
         "FROM functional.alltypes UNION SELECT 1 + 1) v",
         "SELECT * FROM (SELECT 1 FROM functional.alltypes " +
         "UNION SELECT 2) v");
+  }
+
+  @Test
+  public void TestCTASToSql() {
 
     //---------------------
     // Test CTAS rewrites.
     //---------------------
-    assertToSql(ctx,
+    assertToSql(
         "create table ctas_test as select 1 + 1",
         "CREATE TABLE default.ctas_test\n" +
         "STORED AS TEXTFILE\n" +
@@ -295,22 +308,30 @@ public class ExprRewriterTest extends AnalyzerTest {
         "CREATE TABLE default.ctas_test\n" +
         "STORED AS TEXTFILE\n" +
         " AS SELECT 2");
+  }
+
+  @Test
+  public void TestDMLToSql() {
 
     //--------------------
     // Test DML rewrites.
     //--------------------
     // Insert
-    assertToSql(ctx,
+    assertToSql(
         "insert into functional.alltypes(id) partition(year=2009, month=10) " +
         "select 1 + 1",
         "INSERT INTO TABLE functional.alltypes(id) " +
         "PARTITION (year=2009, month=10) SELECT 1 + 1",
         "INSERT INTO TABLE functional.alltypes(id) " +
         "PARTITION (year=2009, month=10) SELECT 2");
+  }
+
+  @Test
+  public void TestKuduToSql() {
 
     if (RuntimeEnv.INSTANCE.isKuduSupported()) {
       // Update.
-      assertToSql(ctx,
+      assertToSql(
           "update functional_kudu.alltypes "
               + "set string_col = 'test' where id = (select 1 + 1)",
           "UPDATE functional_kudu.alltypes SET string_col = 'test' "
@@ -320,7 +341,7 @@ public class ExprRewriterTest extends AnalyzerTest {
               + "ON id = `$a$1`.`$c$1` WHERE id = (SELECT 2)");
 
       // Delete
-      assertToSql(ctx,
+      assertToSql(
           "delete functional_kudu.alltypes "
               + "where id = (select 1 + 1)",
           "DELETE FROM functional_kudu.alltypes "
@@ -329,6 +350,13 @@ public class ExprRewriterTest extends AnalyzerTest {
               + "FROM functional_kudu.alltypes LEFT SEMI JOIN (SELECT 2) `$a$1` (`$c$1`) "
               + "ON id = `$a$1`.`$c$1` WHERE id = (SELECT 2)");
     }
+  }
+
+  @Test
+  public void TestWithToSql() {
+    TQueryOptions options = new TQueryOptions();
+    options.setEnable_expr_rewrites(true);
+    AnalysisContext ctx = createAnalysisCtx(options);
 
     // We don't do any rewrite for WITH clause.
     StatementBase stmt = (StatementBase) AnalyzesOk("with t as (select 1 + 1) " +
