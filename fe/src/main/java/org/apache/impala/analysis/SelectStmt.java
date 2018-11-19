@@ -537,25 +537,36 @@ public class SelectStmt extends QueryStmt {
       verifyAggregation();
     }
 
+    /**
+     * Analyze the HAVING clause. The HAVING clause is a predicate, not a list
+     * (like GROUP BY or ORDER BY) and so cannot contain ordinals.
+     *
+     * At present, Impala's alias substitution logic only works for top-level
+     * expressions in a list. Since HAVING is a predicate, alias substitution
+     * does not work (the top-level predicate in HAVING is a Boolean expression.)
+     *
+     * TODO: Modify alias substitution to work like column resolution so that aliases
+     * can appear anywhere in the list. Then, enable alias substitution in HAVING.
+     */
     private void analyzeHavingClause() throws AnalysisException {
       // Analyze the HAVING clause first so we can check if it contains aggregates.
       // We need to analyze/register it even if we are not computing aggregates.
-      if (havingClause_ != null) {
-        // can't contain subqueries
-        if (havingClause_.contains(Predicates.instanceOf(Subquery.class))) {
-          throw new AnalysisException(
-              "Subqueries are not supported in the HAVING clause.");
-        }
-        havingPred_ = substituteOrdinalOrAlias(havingClause_, "HAVING", analyzer_);
-        // can't contain analytic exprs
-        Expr analyticExpr = havingPred_.findFirstOf(AnalyticExpr.class);
-        if (analyticExpr != null) {
-          throw new AnalysisException(
-              "HAVING clause must not contain analytic expressions: "
-                 + analyticExpr.toSql());
-        }
-        havingPred_.checkReturnsBool("HAVING clause", true);
+      if (havingClause_ == null) return;
+      // can't contain subqueries
+      if (havingClause_.contains(Predicates.instanceOf(Subquery.class))) {
+        throw new AnalysisException(
+            "Subqueries are not supported in the HAVING clause.");
       }
+      // Resolve (top-level) aliases and analyzes
+      havingPred_ = resolveReferenceExpr(havingClause_, "HAVING", analyzer_, false);
+      // can't contain analytic exprs
+      Expr analyticExpr = havingPred_.findFirstOf(AnalyticExpr.class);
+      if (analyticExpr != null) {
+        throw new AnalysisException(
+            "HAVING clause must not contain analytic expressions: "
+               + analyticExpr.toSql());
+      }
+      havingPred_.checkReturnsBool("HAVING clause", true);
     }
 
     private boolean checkForAggregates() throws AnalysisException {
