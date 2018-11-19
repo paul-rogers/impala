@@ -316,30 +316,20 @@ public abstract class QueryStmt extends StatementBase {
     substituteResultExprs(smap, analyzer);
   }
 
-  /**
-   * Substitutes an ordinal or an alias. An ordinal is an integer NumericLiteral
-   * that refers to a select-list expression by ordinal. An alias is a SlotRef
-   * that matches the alias of a select-list expression (tracked by 'aliasMap_').
-   * We should substitute by ordinal or alias but not both to avoid an incorrect
-   * double substitution.
-   * Returns clone() of 'expr' if it is not an ordinal, nor an alias.
-   * The returned expr is analyzed regardless of whether substitution was performed.
-   */
-  protected Expr substituteOrdinalOrAlias(Expr expr, String errorPrefix,
-      Analyzer analyzer) throws AnalysisException {
-    Expr substituteExpr = trySubstituteOrdinal(expr, errorPrefix, analyzer);
-    if (substituteExpr != null) return substituteExpr;
-    if (ambiguousAliasList_.contains(expr)) {
-      throw new AnalysisException("Column '" + expr.toSql() +
-          "' in " + errorPrefix + " clause is ambiguous");
+  public static class Resolution {
+    public final Expr origExpr_;
+    public final String origExprSql_;
+    public final Expr resolvedExpr_;
+
+    public Resolution(Expr origExpr, String origExprSql, Expr resolvedExpr) {
+      origExpr_ = origExpr;
+      origExprSql_ = origExprSql;
+      resolvedExpr_ = resolvedExpr;
     }
-    if (expr instanceof SlotRef) {
-      substituteExpr = expr.trySubstitute(aliasSmap_, analyzer, false);
-    } else {
-      expr.analyze(analyzer);
-      substituteExpr = expr;
+
+    public boolean needsRewrite() {
+      return origExpr_ == resolvedExpr_;
     }
-    return substituteExpr;
   }
 
   /**
@@ -352,30 +342,77 @@ public abstract class QueryStmt extends StatementBase {
   protected void substituteOrdinalsAndAliases(List<Expr> exprs, String errorPrefix,
       Analyzer analyzer) throws AnalysisException {
     for (int i = 0; i < exprs.size(); ++i) {
-      exprs.set(i, substituteOrdinalOrAlias(exprs.get(i), errorPrefix, analyzer));
+      Resolution resolution = resolveReferenceExpr(exprs.get(i), errorPrefix,
+          analyzer, true);
+      exprs.set(i, resolution.resolvedExpr_);
     }
   }
 
-  // Attempt to replace an expression of form "<number>" with the corresponding
-  // select list items.  Return null if not an ordinal expression.
-  private Expr trySubstituteOrdinal(Expr expr, String errorPrefix,
-      Analyzer analyzer) throws AnalysisException {
-    if (!(expr instanceof NumericLiteral)) return null;
-    expr.analyze(analyzer);
-    if (!expr.getType().isIntegerType()) return null;
-    long pos = ((NumericLiteral) expr).getLongValue();
-    if (pos < 1) {
-      throw new AnalysisException(
-          errorPrefix + ": ordinal must be >= 1: " + expr.toSql());
-    }
-    if (pos > resultExprs_.size()) {
-      throw new AnalysisException(
-          errorPrefix + ": ordinal exceeds number of items in select list: "
-          + expr.toSql());
+  /**
+   * Substitutes an ordinal or an alias. An ordinal is an integer NumericLiteral
+   * that refers to a select-list expression by ordinal. An alias is a SlotRef
+   * that matches the alias of a select-list expression (tracked by 'aliasMap_').
+   * We should substitute by ordinal or alias but not both to avoid an incorrect
+   * double substitution.
+   *
+   * Logic is a bit tricky. The SlotRef, if it exists, cannot be resolved until
+   * we check for an alias. (Resolving the SlotRef may find a column, or trigger
+   * an error, which is not what we want.)
+   *
+   * After the alias check, then we can resolve (analyze) the expression. At
+   * this point, we take a copy of the expression text to use for error
+   * messages. Then, if the expression is an ordinal, replace it. Else, the
+   * expression is "ordinary" and can be rewritten by the caller.
+   *
+   * @return both the original expression text and the rewritten or
+   * substituted expression. If the expression is an ordinal or alias, then
+   * the returned expression is a clone of the original.
+   */
+  protected Resolution resolveReferenceExpr(Expr expr,
+      String errorPrefix,
+      Analyzer analyzer, boolean allowOrdinal) throws AnalysisException {
+    // Check for a SlotRef (representing an alias) before analysis. Since
+    // the slot does not reference a real column, the analysis will fail.
+    // TODO: Seems an odd state of affairs. Consider revisiting by putting
+    // alias in a namespace that can be resolved more easily.
+    Expr resolved = null;
+    if (expr instanceof SlotRef) {
+      if (ambiguousAliasList_.contains(expr)) {
+          throw new AnalysisException(errorPrefix +
+              ": ambiguous alias: '" + expr.toSql() + "'");
+      }
+      resolved = expr.trySubstitute(aliasSmap_, analyzer_, false);
+      if (resolved != null) {
+        // Note that the expr is not analyzed. Fortunately,
+        // a SlotRef produces reasonable SQL anyway.
+        return new Resolution(expr, expr.toSql(), resolved.clone());
+      }
     }
 
-    // Create copy to protect against accidentally shared state.
-    return resultExprs_.get((int) pos - 1).clone();
+    // Expression is safe to analyze.
+    expr.analyze(analyzer_);
+    String origExpr = expr.toSql();
+
+    // Ordinal reference?
+    if (allowOrdinal && Expr.IS_INT_LITERAL.apply(expr)) {
+      long pos = ((NumericLiteral) expr).getLongValue();
+      if (pos < 1) {
+        throw new AnalysisException(
+              errorPrefix + ": ordinal must be >= 1: " + origExpr);
+      }
+      if (pos > resultExprs_.size()) {
+        throw new AnalysisException(
+              errorPrefix + ": ordinal exceeds the number of items in the SELECT list: " +
+              origExpr);
+      }
+
+      // Create copy to protect against accidentally shared state.
+      return new Resolution(expr, origExpr,
+          resultExprs_.get((int) pos - 1).clone());
+    }
+
+    // Expression is an ordinary one.
+    return new Resolution(expr, origExpr, expr);
   }
 
   /**
