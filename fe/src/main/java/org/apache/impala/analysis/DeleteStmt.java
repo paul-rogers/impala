@@ -19,13 +19,11 @@ package org.apache.impala.analysis;
 
 import java.util.List;
 
-import org.apache.impala.common.Pair;
 import org.apache.impala.planner.DataSink;
 import org.apache.impala.planner.TableSink;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Lists;
 
 /**
  * Representation of a DELETE statement.
@@ -42,13 +40,12 @@ public class DeleteStmt extends ModifyStmt {
 
   public DeleteStmt(List<String> targetTablePath, FromClause tableRefs,
       Expr wherePredicate) {
-    super(targetTablePath, tableRefs, Lists.<Pair<SlotRef, Expr>>newArrayList(),
-        wherePredicate);
+    super(targetTablePath, tableRefs, wherePredicate);
   }
 
   public DeleteStmt(DeleteStmt other) {
     super(other.targetTablePath_, other.fromClause_.clone(),
-        Lists.<Pair<SlotRef, Expr>>newArrayList(), other.wherePredicate_.clone());
+        other.wherePredicate_.clone());
   }
 
   @Override
