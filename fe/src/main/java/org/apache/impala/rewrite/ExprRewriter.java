@@ -91,6 +91,29 @@ public class ExprRewriter {
     for (int i = 0; i < exprs.size(); ++i) exprs.set(i, rewrite(exprs.get(i), analyzer));
   }
 
+  /**
+   * Minimal form of rewrite used by the {@link ExprAnalyzer} class
+   * which does traversal and repeated-rule application. Rewrites just one
+   * node (not the children), applying the first rule that matches.
+   *
+   * TODO: revise to continue with the same rules as the previous
+   * pass rather than starting over on each rewrite.
+   *
+   * @param expr the expression to rewrite
+   * @param analyzer TODO: remove this as it should not be needed
+   * @return the rewritten expression, or the original expression
+   * if no changes
+   * @throws AnalysisException for errors (though this should never
+   * happen)
+   */
+  public Expr rewriteNode(Expr expr, Analyzer analyzer) throws AnalysisException {
+    for (ExprRewriteRule rule: rules_) {
+      Expr rewrittenExpr = rule.apply(expr, analyzer);
+      if (rewrittenExpr != expr) return rewrittenExpr;
+    }
+    return expr;
+  }
+
   public void reset() { numChanges_ = 0; }
   public boolean changed() { return numChanges_ > 0; }
   public int getNumChanges() { return numChanges_; }

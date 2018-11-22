@@ -18,6 +18,7 @@
 package org.apache.impala.analysis;
 
 import org.apache.impala.common.AnalysisException;
+import org.apache.impala.rewrite.ExprRewriter;
 import org.apache.kudu.shaded.com.google.common.base.Preconditions;
 
 /**
@@ -29,10 +30,16 @@ import org.apache.kudu.shaded.com.google.common.base.Preconditions;
 public class ExprAnalyzer {
 
   private final Analyzer analyzer_;
+  private final ExprRewriter rewriter_;
   private int depth_;
+  private int rewriteCount_;
+  // No rewrites by default until all clauses
+  // are converted.
+  private boolean enableRewrites_;
 
   public ExprAnalyzer(Analyzer analyzer) {
     analyzer_ = analyzer;
+    rewriter_ = analyzer_.getExprRewriter();
   }
 
   /**
@@ -44,10 +51,21 @@ public class ExprAnalyzer {
    * @throws AnalysisException for all analysis errors
    */
   public Expr analyze(Expr expr) throws AnalysisException {
+    return analyze(expr, enableRewrites_);
+  }
+
+  public Expr analyze(Expr expr, boolean withRewrite) throws AnalysisException {
+    // Should be zero; appears that depth is used only for
+    // expressions. TODO: revisit this.
     int startDepth = analyzer_.getCallDepth();
+    // Temporary hack to allow enabling rewrites per clause until
+    // all clauses are converted.
+    boolean oldRewriteFlag = enableRewrites_;
+    enableRewrites_ = withRewrite;
     depth_ = startDepth;
     analyzeExpr(expr);
     Preconditions.checkState(depth_ == startDepth);
+    enableRewrites_ = oldRewriteFlag;
     return expr;
   }
 
@@ -77,9 +95,26 @@ public class ExprAnalyzer {
           Expr.EXPR_CHILDREN_LIMIT, expr.getChildCount(), sqlSubstr));
     }
 
+    // Depth-first, bottom up analysis
     for (Expr child: expr.getChildren()) {
       analyzeExpr(child);
     }
+    analyzeNode(expr);
+
+    // Rewrite just this level of expression
+    if (enableRewrites_) {
+      for (;;) {
+        Expr result = rewriter_.rewriteNode(expr, analyzer_);
+        if (result == expr) break;
+        rewriteCount_++;
+        analyzeNode(result);
+      }
+    }
+    depth_--;
+    return expr;
+  }
+
+  private void analyzeNode(Expr expr) throws AnalysisException {
     // Why is this done before resolving slot refs?
     expr.computeNumDistinctValues();
 
@@ -87,8 +122,18 @@ public class ExprAnalyzer {
     expr.analyzeImpl(analyzer_);
     expr.evalCost_ = expr.computeEvalCost();
     expr.analysisDone();
-    depth_--;
-    return expr;
   }
+
+  /**
+   * Temporary backward-compatibility feature to disable
+   * integrated rewrites so that the existing rewriter tests
+   * pass.
+   * TODO: To be removed as work proceeds.
+   */
+  public void enableRewrites() {
+    enableRewrites_ = true;
+  }
+
+  public int rewriteCount() { return rewriteCount_; }
 
 }

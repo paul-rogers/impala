@@ -2696,4 +2696,14 @@ public class Analyzer {
     return getAuthzConfig().isEnabled() ? getAuthzConfig().getServerName().intern() :
         null;
   }
+
+  /**
+   * Temporary backward-compatibility feature to disable
+   * integrated rewrites so that the existing rewriter tests
+   * pass.
+   * TODO: To be removed as work proceeds.
+   */
+  public void enableIntegratedRewrites() {
+    exprAnalyzer_.enableRewrites();
+  }
 }

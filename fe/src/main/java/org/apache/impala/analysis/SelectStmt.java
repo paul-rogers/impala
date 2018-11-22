@@ -233,7 +233,6 @@ public class SelectStmt extends QueryStmt {
       selectList_.analyzePlanHints(analyzer_);
 
       // populate resultExprs_, aliasSmap_, and colLabels_
-      ExprAnalyzer exprAnalyzer = analyzer_.getExprAnalyzer();
       for (int i = 0; i < selectList_.getItems().size(); ++i) {
         SelectListItem item = selectList_.getItems().get(i);
         if (item.isStar()) {
@@ -246,21 +245,19 @@ public class SelectStmt extends QueryStmt {
         } else {
           // Analyze the resultExpr before generating a label to ensure enforcement
           // of expr child and depth limits (toColumn() label may call toSql()).
-          exprAnalyzer.analyze(item.getExpr());
-          if (item.getExpr().contains(Predicates.instanceOf(Subquery.class))) {
-            throw new AnalysisException(
-                "Subqueries are not supported in the select list.");
-          }
-          resultExprs_.add(item.getExpr());
+          // Item's analysis function performs expression rewrites.
+          item.analyze(analyzer_);
+          Expr expr = item.getExpr();
+          resultExprs_.add(expr);
           String label = item.toColumnLabel(i, analyzer_.useHiveColLabels());
           SlotRef aliasRef = new SlotRef(label);
           Expr existingAliasExpr = aliasSmap_.get(aliasRef);
-          if (existingAliasExpr != null && !existingAliasExpr.equals(item.getExpr())) {
+          if (existingAliasExpr != null && !existingAliasExpr.equals(expr)) {
             // If we have already seen this alias, it refers to more than one column and
             // therefore is ambiguous.
             ambiguousAliasList_.add(aliasRef);
           }
-          aliasSmap_.put(aliasRef, item.getExpr().clone());
+          aliasSmap_.put(aliasRef, expr.clone());
           colLabels_.add(label);
         }
       }
@@ -804,6 +801,7 @@ public class SelectStmt extends QueryStmt {
 
       com.google.common.base.Predicate<FunctionCallExpr> isNotDistinctPred =
           new com.google.common.base.Predicate<FunctionCallExpr>() {
+            @Override
             public boolean apply(FunctionCallExpr expr) {
               return !expr.isDistinct();
             }
@@ -815,6 +813,7 @@ public class SelectStmt extends QueryStmt {
 
       com.google.common.base.Predicate<FunctionCallExpr> isCountPred =
           new com.google.common.base.Predicate<FunctionCallExpr>() {
+            @Override
             public boolean apply(FunctionCallExpr expr) {
               return expr.getFnName().getFunction().equals("count");
             }
