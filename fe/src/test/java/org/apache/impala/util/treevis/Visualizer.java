@@ -74,16 +74,17 @@ public class Visualizer {
       AtomicLong.class
   };
 
-  private TreeVisualizer treeVis;
-  private Set<Class<?>> scalarTypes = new HashSet<>();
-  private Set<Class<?>> ignoreTypes = new HashSet<>();
+  private TreeVisualizer treeVis_;
+  private Set<Class<?>> scalarTypes_ = new HashSet<>();
+  private Set<Class<?>> ignoreTypes_ = new HashSet<>();
+  // Infinite recursion preventer.
   // Since there is no IdentityHashMap. Values ignored.
-  private Map<Object, Object> parents = new IdentityHashMap<>();
+  private Map<Object, Object> parents_ = new IdentityHashMap<>();
 
   public Visualizer(TreeVisualizer treeVis) {
-    this.treeVis = treeVis;
+    this.treeVis_ = treeVis;
     for (Class<?> c : STD_SCALARS) {
-      scalarTypes.add(c);
+      scalarTypes_.add(c);
     }
   }
 
@@ -95,7 +96,7 @@ public class Visualizer {
    * @param cls the class to skip
    */
   public void ignore(Class<?> cls) {
-    ignoreTypes.add(cls);
+    ignoreTypes_.add(cls);
   }
 
   /**
@@ -105,7 +106,7 @@ public class Visualizer {
    * @param cls the class to render using toString()
    */
   public void scalar(Class<?> cls) {
-    scalarTypes.add(cls);
+    scalarTypes_.add(cls);
   }
 
   /**
@@ -114,9 +115,9 @@ public class Visualizer {
    * @param root the object to visualize
    */
   public void visualize(Object root) {
-    treeVis.startObj("<root>", root);
+    treeVis_.startObj("<root>", root);
     visit(root);
-    treeVis.endObj();
+    treeVis_.endObj();
   }
 
   public void visit(Object obj) {
@@ -158,14 +159,14 @@ public class Visualizer {
         Object value = field.get(obj);
         visitValue(name, value);
       } catch (IllegalArgumentException | IllegalAccessException e) {
-        treeVis.special(name, "<unavailable>");
+        treeVis_.special(name, "<unavailable>");
       }
     }
   }
 
   public void visitValue(String name, Object value) {
     if (value == null) {
-      treeVis.field(name, value);
+      treeVis_.field(name, value);
       return;
     }
     Class<?> valueClass = value.getClass();
@@ -173,49 +174,49 @@ public class Visualizer {
       visualizeArray(name, value);
       return;
     }
-    if (scalarTypes.contains(valueClass)) {
-      treeVis.field(name, value);
+    if (scalarTypes_.contains(valueClass)) {
+      treeVis_.field(name, value);
       return;
     }
-    if (ignoreTypes.contains(valueClass)) {
-      treeVis.special(name, "<Skip " + valueClass.getSimpleName() + ">");
+    if (ignoreTypes_.contains(valueClass)) {
+      treeVis_.special(name, "<Skip " + valueClass.getSimpleName() + ">");
       return;
     }
-    if (parents.containsKey(value)) {
-      treeVis.special(name, "<Back pointer to " + valueClass.getSimpleName() + ">");
+    if (parents_.containsKey(value)) {
+      treeVis_.special(name, "<Back pointer to " + valueClass.getSimpleName() + ">");
       return;
     }
-    parents.put(value, value);
+    parents_.put(value, value);
     if (value instanceof Collection) {
       visitCollection(name, (Collection<?>) value);
     } else {
-      treeVis.startObj(name, value);
+      treeVis_.startObj(name, value);
       visit(value);
-      treeVis.endObj();
+      treeVis_.endObj();
     }
-    parents.remove(value);
+    parents_.remove(value);
   }
 
   private void visualizeArray(String name, Object value) {
     // TODO: Specially handle scalar arrays
     int len = Array.getLength(value);
     if (len == 0) {
-      treeVis.special(name, "[]");
+      treeVis_.special(name, "[]");
       return;
     }
-    treeVis.startArray(name);
+    treeVis_.startArray(name);
     for (int i = 0; i < len; i++) {
       visitValue(Integer.toString(i), Array.get(value, i));
     }
-    treeVis.endArray();
+    treeVis_.endArray();
   }
 
   private void visitCollection(String name, Collection<?> col) {
     if (col.isEmpty()) {
-      treeVis.special(name, "[]");
+      treeVis_.special(name, "[]");
       return;
     }
-    treeVis.startArray(name);
+    treeVis_.startArray(name);
     if (col instanceof Map) {
       Map<?, ?> map = (Map<?, ?>) col;
       for (Entry<?, ?> entry : map.entrySet()) {
@@ -227,6 +228,6 @@ public class Visualizer {
         visitValue(Integer.toString(i++), member);
       }
     }
-    treeVis.endArray();
+    treeVis_.endArray();
   }
 }

@@ -34,73 +34,75 @@ public class TreePrinter implements TreeVisualizer {
 
   private enum LevelType { OBJ, ARRAY }
 
-  private final PrintWriter out;
-  private final Deque<LevelType> levels = new ArrayDeque<>();
+  private final PrintWriter out_;
+  private final Deque<LevelType> levels_ = new ArrayDeque<>();
 
   public TreePrinter(PrintWriter out) {
-    this.out = out;
+    this.out_ = out;
   }
 
   @Override
   public void startObj(String name, Object obj) {
     indent();
     printName(name);
-    out.print(" (");
-    out.print(obj.getClass().getSimpleName());
-    out.println( "): {");
-    levels.push(LevelType.OBJ);
+    out_.print(" (");
+    out_.print(obj.getClass().getSimpleName());
+    out_.println( "): {");
+    levels_.push(LevelType.OBJ);
   }
 
   private void printName(String name) {
+    // Remove Impala's trailing _
+    // foo_ --> foo
     name = name.replaceAll("_$", "");
-    out.print(name);
+    out_.print(name);
   }
 
   @Override
   public void startArray(String name) {
     indent();
     printName(name);
-    out.println( ": [");
-    levels.push(LevelType.ARRAY);
+    out_.println( ": [");
+    levels_.push(LevelType.ARRAY);
   }
 
   @Override
   public void field(String name, Object value) {
     indent();
     printName(name);
-    out.print(": ");
+    out_.print(": ");
     if (value == null) {
-      out.println("<null>");
+      out_.println("<null>");
     } else if (value instanceof String) {
-      out.print("\"");
-      out.print(value);
-      out.println("\"");
+      out_.print("\"");
+      out_.print(value);
+      out_.println("\"");
     } else {
-      out.println(value.toString());
+      out_.println(value.toString());
     }
   }
 
   @Override
   public void endArray() {
-    Preconditions.checkState(! levels.isEmpty());
-    Preconditions.checkState(levels.peek() == LevelType.ARRAY);
-    levels.pop();
+    Preconditions.checkState(! levels_.isEmpty());
+    Preconditions.checkState(levels_.peek() == LevelType.ARRAY);
+    levels_.pop();
     indent();
-    out.println("]");
+    out_.println("]");
   }
 
   @Override
   public void endObj() {
-    Preconditions.checkState(! levels.isEmpty());
-    Preconditions.checkState(levels.peek() == LevelType.OBJ);
-    levels.pop();
+    Preconditions.checkState(! levels_.isEmpty());
+    Preconditions.checkState(levels_.peek() == LevelType.OBJ);
+    levels_.pop();
     indent();
-    out.println("}");
+    out_.println("}");
   }
 
   private void indent() {
-    for (int i = 0; i < levels.size(); i++) {
-      out.print(". ");
+    for (int i = 0; i < levels_.size(); i++) {
+      out_.print(". ");
     }
   }
 
@@ -108,7 +110,7 @@ public class TreePrinter implements TreeVisualizer {
   public void special(String name, String value) {
     indent();
     printName(name);
-    out.print(": ");
-    out.println(value);
+    out_.print(": ");
+    out_.println(value);
   }
 }
