@@ -233,6 +233,7 @@ public class SelectStmt extends QueryStmt {
       selectList_.analyzePlanHints(analyzer_);
 
       // populate resultExprs_, aliasSmap_, and colLabels_
+      ExprAnalyzer exprAnalyzer = analyzer_.getExprAnalyzer();
       for (int i = 0; i < selectList_.getItems().size(); ++i) {
         SelectListItem item = selectList_.getItems().get(i);
         if (item.isStar()) {
@@ -245,7 +246,7 @@ public class SelectStmt extends QueryStmt {
         } else {
           // Analyze the resultExpr before generating a label to ensure enforcement
           // of expr child and depth limits (toColumn() label may call toSql()).
-          item.getExpr().analyze(analyzer_);
+          exprAnalyzer.analyze(item.getExpr());
           if (item.getExpr().contains(Predicates.instanceOf(Subquery.class))) {
             throw new AnalysisException(
                 "Subqueries are not supported in the select list.");

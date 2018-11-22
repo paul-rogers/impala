@@ -177,6 +177,8 @@ public class Analyzer {
   // except its own. Therefore, only a single semi-joined tuple can be visible at a time.
   private TupleId visibleSemiJoinedTupleId_ = null;
 
+  private final ExprAnalyzer exprAnalyzer_;
+
   public void setIsSubquery() {
     isSubquery_ = true;
     globalState_.containsSubquery = true;
@@ -383,6 +385,7 @@ public class Analyzer {
     ancestors_ = Lists.newArrayList();
     globalState_ = new GlobalState(stmtTableCache, queryCtx, authzConfig);
     user_ = new User(TSessionStateUtil.getEffectiveUser(queryCtx.session));
+    exprAnalyzer_ = new ExprAnalyzer(this);
   }
 
   /**
@@ -406,6 +409,7 @@ public class Analyzer {
     maskPrivChecks_ = parentAnalyzer.maskPrivChecks_;
     enablePrivChecks_ = parentAnalyzer.enablePrivChecks_;
     isWithClause_ = parentAnalyzer.isWithClause_;
+    exprAnalyzer_ = new ExprAnalyzer(this);
   }
 
   /**
@@ -417,6 +421,8 @@ public class Analyzer {
         parentAnalyzer.getQueryCtx(), parentAnalyzer.getAuthzConfig());
     return new Analyzer(parentAnalyzer, globalState);
   }
+
+  public ExprAnalyzer getExprAnalyzer() { return exprAnalyzer_; }
 
   /**
    * Makes the given semi-joined tuple visible such that its slots can be referenced.

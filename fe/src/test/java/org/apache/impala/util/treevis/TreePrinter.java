@@ -47,6 +47,8 @@ public class TreePrinter implements TreeVisualizer {
     printName(name);
     out_.print(" (");
     out_.print(obj.getClass().getSimpleName());
+    out_.print(", ");
+    out_.print(System.identityHashCode(obj) % 1000);
     out_.println( "): {");
     levels_.push(LevelType.OBJ);
   }

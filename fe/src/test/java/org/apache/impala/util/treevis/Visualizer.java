@@ -22,6 +22,8 @@ import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
@@ -71,7 +73,9 @@ public class Visualizer {
       String.class,
       Boolean.class,
       Enum.class,
-      AtomicLong.class
+      AtomicLong.class,
+      BigDecimal.class,
+      BigInteger.class
   };
 
   private TreeVisualizer treeVis_;

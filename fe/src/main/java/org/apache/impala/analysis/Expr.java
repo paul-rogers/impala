@@ -100,6 +100,7 @@ abstract public class Expr extends TreeNode<Expr> implements ParseNode, Cloneabl
   // returns true if an Expr is a non-analytic aggregate.
   private final static com.google.common.base.Predicate<Expr> isAggregatePredicate_ =
       new com.google.common.base.Predicate<Expr>() {
+        @Override
         public boolean apply(Expr arg) {
           return arg instanceof FunctionCallExpr &&
               ((FunctionCallExpr)arg).isAggregateFunction();
@@ -387,37 +388,51 @@ abstract public class Expr extends TreeNode<Expr> implements ParseNode, Cloneabl
    * Throws exception if any errors found.
    * @see ParseNode#analyze(Analyzer)
    */
+  @Override
   public final void analyze(Analyzer analyzer) throws AnalysisException {
-    if (isAnalyzed()) return;
-
-    // Check the expr child limit.
-    if (children_.size() > EXPR_CHILDREN_LIMIT) {
-      String sql = toSql();
-      String sqlSubstr = sql.substring(0, Math.min(80, sql.length()));
-      throw new AnalysisException(String.format("Exceeded the maximum number of child " +
-          "expressions (%s).\nExpression has %s children:\n%s...",
-          EXPR_CHILDREN_LIMIT, children_.size(), sqlSubstr));
+    if (analyzer == null) {
+      // Analyzer is null when called for literals when loading metadata.
+      // TODO: Reconsider this pattern, handle literals specially.
+      if (isAnalyzed()) return;
+      computeNumDistinctValues();
+      analyzeImpl(analyzer);
+      evalCost_ = computeEvalCost();
+      analysisDone();
+      return;
     }
+    Expr result = analyzer.getExprAnalyzer().analyzeExpr(this);
+    // This legacy form cannot handle rewrites.
+    Preconditions.checkState(result == this);
+//    if (isAnalyzed()) return;
 
-    // analyzer may be null for certain literal constructions (e.g. IntLiteral).
-    if (analyzer != null) {
-      analyzer.incrementCallDepth();
-      // Check the expr depth limit. Do not print the toSql() to not overflow the stack.
-      if (analyzer.getCallDepth() > EXPR_DEPTH_LIMIT) {
-        throw new AnalysisException(String.format("Exceeded the maximum depth of an " +
-            "expression tree (%s).", EXPR_DEPTH_LIMIT));
-      }
-    }
-    for (Expr child: children_) {
-      child.analyze(analyzer);
-    }
-    if (analyzer != null) analyzer.decrementCallDepth();
-    computeNumDistinctValues();
-
-    // Do all the analysis for the expr subclass before marking the Expr analyzed.
-    analyzeImpl(analyzer);
-    evalCost_ = computeEvalCost();
-    analysisDone();
+//    // Check the expr child limit.
+//    if (children_.size() > EXPR_CHILDREN_LIMIT) {
+//      String sql = toSql();
+//      String sqlSubstr = sql.substring(0, Math.min(80, sql.length()));
+//      throw new AnalysisException(String.format("Exceeded the maximum number of child " +
+//          "expressions (%s).\nExpression has %s children:\n%s...",
+//          EXPR_CHILDREN_LIMIT, children_.size(), sqlSubstr));
+//    }
+//
+//    // analyzer may be null for certain literal constructions (e.g. IntLiteral).
+//    if (analyzer != null) {
+//      analyzer.incrementCallDepth();
+//      // Check the expr depth limit. Do not print the toSql() to not overflow the stack.
+//      if (analyzer.getCallDepth() > EXPR_DEPTH_LIMIT) {
+//        throw new AnalysisException(String.format("Exceeded the maximum depth of an " +
+//            "expression tree (%s).", EXPR_DEPTH_LIMIT));
+//      }
+//    }
+//    for (Expr child: children_) {
+//      child.analyze(analyzer);
+//    }
+//    if (analyzer != null) analyzer.decrementCallDepth();
+//    computeNumDistinctValues();
+//
+//    // Do all the analysis for the expr subclass before marking the Expr analyzed.
+//    analyzeImpl(analyzer);
+//    evalCost_ = computeEvalCost();
+//    analysisDone();
   }
 
   /**
