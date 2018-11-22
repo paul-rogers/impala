@@ -17,21 +17,15 @@
 
 package org.apache.impala.common;
 
-
 /**
- * The parent class of all custom Impala exceptions.
+ * Indicates a plan-time cast exception which is caught
+ * and handled by some parts of the planer.
  */
 @SuppressWarnings("serial")
-abstract public class ImpalaException extends java.lang.Exception {
-  public ImpalaException(String msg, Throwable cause) {
-    super(msg, cause);
-  }
+public class SqlCastException extends AnalysisException {
 
-  protected ImpalaException(String msg) {
+  public SqlCastException(String msg) {
     super(msg);
   }
 
-  protected ImpalaException(Throwable cause) {
-    super(cause);
-  }
 }

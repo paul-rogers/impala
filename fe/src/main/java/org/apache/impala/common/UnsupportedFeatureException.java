@@ -17,21 +17,15 @@
 
 package org.apache.impala.common;
 
-
 /**
- * The parent class of all custom Impala exceptions.
+ * Identifies that a feature or operation is not supported in
+ * the analyzer. Allows fine-grain error checking in tests.
  */
 @SuppressWarnings("serial")
-abstract public class ImpalaException extends java.lang.Exception {
-  public ImpalaException(String msg, Throwable cause) {
-    super(msg, cause);
-  }
+public class UnsupportedFeatureException extends AnalysisException {
 
-  protected ImpalaException(String msg) {
+  public UnsupportedFeatureException(String msg) {
     super(msg);
   }
 
-  protected ImpalaException(Throwable cause) {
-    super(cause);
-  }
 }

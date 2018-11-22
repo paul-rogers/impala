@@ -5,7 +5,7 @@ from tpch_parquet.customer
 ---- DISTRIBUTEDPLAN
 Max Per-Host Resource Reservation: Memory=18.97MB Threads=5
 Per-Host Resource Estimates: Memory=53MB
-Analyzed query: SELECT 
+Analyzed query: SELECT
 -- +straight_join
 * FROM tpch_parquet.customer INNER JOIN tpch_parquet.nation ON c_nationkey =
 n_nationkey
@@ -60,7 +60,7 @@ Per-Host Resources: mem-estimate=26.95MB mem-reservation=18.94MB thread-reservat
 ---- PARALLELPLANS
 Max Per-Host Resource Reservation: Memory=37.94MB Threads=5
 Per-Host Resource Estimates: Memory=97MB
-Analyzed query: SELECT 
+Analyzed query: SELECT
 -- +straight_join
 * FROM tpch_parquet.customer INNER JOIN tpch_parquet.nation ON c_nationkey =
 n_nationkey
@@ -128,7 +128,7 @@ from tpch_parquet.lineitem
 ---- DISTRIBUTEDPLAN
 Max Per-Host Resource Reservation: Memory=98.00MB Threads=5
 Per-Host Resource Estimates: Memory=410MB
-Analyzed query: SELECT 
+Analyzed query: SELECT
 -- +straight_join
 * FROM tpch_parquet.lineitem LEFT OUTER JOIN tpch_parquet.orders ON l_orderkey =
 o_orderkey
@@ -181,7 +181,7 @@ Per-Host Resources: mem-estimate=359.29MB mem-reservation=74.00MB thread-reserva
 ---- PARALLELPLANS
 Max Per-Host Resource Reservation: Memory=196.00MB Threads=5
 Per-Host Resource Estimates: Memory=790MB
-Analyzed query: SELECT 
+Analyzed query: SELECT
 -- +straight_join
 * FROM tpch_parquet.lineitem LEFT OUTER JOIN tpch_parquet.orders ON l_orderkey =
 o_orderkey
@@ -247,9 +247,9 @@ from tpch_parquet.orders
 ---- DISTRIBUTEDPLAN
 Max Per-Host Resource Reservation: Memory=59.00MB Threads=6
 Per-Host Resource Estimates: Memory=114MB
-Analyzed query: SELECT 
+Analyzed query: SELECT
 -- +straight_join
-* FROM tpch_parquet.orders INNER JOIN 
+* FROM tpch_parquet.orders INNER JOIN
 -- +shuffle
 tpch_parquet.customer ON o_custkey = c_custkey
 
@@ -310,9 +310,9 @@ Per-Host Resources: mem-estimate=41.00MB mem-reservation=25.00MB thread-reservat
 ---- PARALLELPLANS
 Max Per-Host Resource Reservation: Memory=101.00MB Threads=7
 Per-Host Resource Estimates: Memory=182MB
-Analyzed query: SELECT 
+Analyzed query: SELECT
 -- +straight_join
-* FROM tpch_parquet.orders INNER JOIN 
+* FROM tpch_parquet.orders INNER JOIN
 -- +shuffle
 tpch_parquet.customer ON o_custkey = c_custkey
 
@@ -386,9 +386,9 @@ from tpch_parquet.orders
 ---- DISTRIBUTEDPLAN
 Max Per-Host Resource Reservation: Memory=75.00MB Threads=5
 Per-Host Resource Estimates: Memory=120MB
-Analyzed query: SELECT 
+Analyzed query: SELECT
 -- +straight_join
-* FROM tpch_parquet.orders INNER JOIN 
+* FROM tpch_parquet.orders INNER JOIN
 -- +broadcast
 tpch_parquet.customer ON o_custkey = c_custkey
 
@@ -442,9 +442,9 @@ Per-Host Resources: mem-estimate=85.45MB mem-reservation=59.00MB thread-reservat
 ---- PARALLELPLANS
 Max Per-Host Resource Reservation: Memory=150.00MB Threads=5
 Per-Host Resource Estimates: Memory=210MB
-Analyzed query: SELECT 
+Analyzed query: SELECT
 -- +straight_join
-* FROM tpch_parquet.orders INNER JOIN 
+* FROM tpch_parquet.orders INNER JOIN
 -- +broadcast
 tpch_parquet.customer ON o_custkey = c_custkey
 
@@ -513,7 +513,7 @@ Max Per-Host Resource Reservation: Memory=34.17MB Threads=5
 Per-Host Resource Estimates: Memory=2.03GB
 WARNING: The following tables are missing relevant table and/or column statistics.
 functional_parquet.alltypes, functional_parquet.alltypestiny
-Analyzed query: SELECT 
+Analyzed query: SELECT
 -- +straight_join
 * FROM functional_parquet.alltypes LEFT OUTER JOIN
 functional_parquet.alltypestiny ON alltypes.id = alltypestiny.id
@@ -570,7 +570,7 @@ Max Per-Host Resource Reservation: Memory=68.34MB Threads=5
 Per-Host Resource Estimates: Memory=4.06GB
 WARNING: The following tables are missing relevant table and/or column statistics.
 functional_parquet.alltypestiny
-Analyzed query: SELECT 
+Analyzed query: SELECT
 -- +straight_join
 * FROM functional_parquet.alltypes LEFT OUTER JOIN
 functional_parquet.alltypestiny ON alltypes.id = alltypestiny.id
@@ -741,11 +741,11 @@ having count(*) = 1
 ---- DISTRIBUTEDPLAN
 Max Per-Host Resource Reservation: Memory=82.00MB Threads=7
 Per-Host Resource Estimates: Memory=244MB
-Analyzed query: SELECT 
+Analyzed query: SELECT
 -- +straight_join
 l_orderkey, o_orderstatus, count(*) FROM tpch_parquet.lineitem INNER JOIN
-tpch_parquet.orders ON o_orderkey = l_orderkey GROUP BY CAST(1 AS INVALID_TYPE),
-CAST(2 AS INVALID_TYPE) HAVING count(*) = CAST(1 AS BIGINT)
+tpch_parquet.orders ON o_orderkey = l_orderkey GROUP BY l_orderkey,
+o_orderstatus HAVING count(*) = CAST(1 AS BIGINT)
 
 F04:PLAN FRAGMENT [UNPARTITIONED] hosts=1 instances=1
 |  Per-Host Resources: mem-estimate=10.10MB mem-reservation=0B thread-reservation=1
@@ -826,11 +826,11 @@ Per-Host Resources: mem-estimate=81.00MB mem-reservation=5.00MB thread-reservati
 ---- PARALLELPLANS
 Max Per-Host Resource Reservation: Memory=130.00MB Threads=9
 Per-Host Resource Estimates: Memory=400MB
-Analyzed query: SELECT 
+Analyzed query: SELECT
 -- +straight_join
 l_orderkey, o_orderstatus, count(*) FROM tpch_parquet.lineitem INNER JOIN
-tpch_parquet.orders ON o_orderkey = l_orderkey GROUP BY CAST(1 AS INVALID_TYPE),
-CAST(2 AS INVALID_TYPE) HAVING count(*) = CAST(1 AS BIGINT)
+tpch_parquet.orders ON o_orderkey = l_orderkey GROUP BY l_orderkey,
+o_orderstatus HAVING count(*) = CAST(1 AS BIGINT)
 
 F04:PLAN FRAGMENT [UNPARTITIONED] hosts=1 instances=1
 |  Per-Host Resources: mem-estimate=10.19MB mem-reservation=0B thread-reservation=1

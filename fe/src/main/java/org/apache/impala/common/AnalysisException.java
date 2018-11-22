@@ -21,6 +21,7 @@ package org.apache.impala.common;
  * Thrown for errors encountered during analysis of a SQL statement.
  *
  */
+@SuppressWarnings("serial")
 public class AnalysisException extends ImpalaException {
   public AnalysisException(String msg, Throwable cause) {
     super(msg, cause);

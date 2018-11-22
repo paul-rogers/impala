@@ -19,6 +19,7 @@ package org.apache.impala.analysis;
 
 import org.apache.impala.catalog.Type;
 import org.apache.impala.common.AnalysisException;
+import org.apache.impala.common.InvalidValueException;
 import org.apache.impala.thrift.TBoolLiteral;
 import org.apache.impala.thrift.TExprNode;
 import org.apache.impala.thrift.TExprNodeType;
@@ -33,14 +34,14 @@ public class BoolLiteral extends LiteralExpr {
     type_ = Type.BOOLEAN;
   }
 
-  public BoolLiteral(String value) throws AnalysisException {
+  public BoolLiteral(String value) throws InvalidValueException {
     type_ = Type.BOOLEAN;
     if (value.toLowerCase().equals("true")) {
       this.value_ = true;
     } else if (value.toLowerCase().equals("false")) {
       this.value_ = false;
     } else {
-      throw new AnalysisException("invalid BOOLEAN literal: " + value);
+      throw new InvalidValueException("Invalid BOOLEAN literal: " + value);
     }
   }
 

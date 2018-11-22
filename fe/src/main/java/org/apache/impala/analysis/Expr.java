@@ -328,7 +328,7 @@ abstract public class Expr extends TreeNode<Expr> implements ParseNode, Cloneabl
   protected long numDistinctValues_;
 
   // Cached value of IsConstant(), set during analyze() and valid if isAnalyzed_ is true.
-  private boolean isConstant_;
+  protected boolean isConstant_;
 
   // The function to call. This can either be a scalar or aggregate function.
   // Set in analyze().
@@ -336,7 +336,7 @@ abstract public class Expr extends TreeNode<Expr> implements ParseNode, Cloneabl
 
   // True after analysis successfully completed. Protected by accessors isAnalyzed() and
   // analysisDone().
-  private boolean isAnalyzed_ = false;
+  protected boolean isAnalyzed_ = false;
 
   protected Expr() {
     super();
@@ -404,36 +404,6 @@ abstract public class Expr extends TreeNode<Expr> implements ParseNode, Cloneabl
     Expr result = analyzer.getExprAnalyzer().analyzeExpr(this);
     // This legacy form cannot handle rewrites.
     Preconditions.checkState(result == this);
-//    if (isAnalyzed()) return;
-
-//    // Check the expr child limit.
-//    if (children_.size() > EXPR_CHILDREN_LIMIT) {
-//      String sql = toSql();
-//      String sqlSubstr = sql.substring(0, Math.min(80, sql.length()));
-//      throw new AnalysisException(String.format("Exceeded the maximum number of child " +
-//          "expressions (%s).\nExpression has %s children:\n%s...",
-//          EXPR_CHILDREN_LIMIT, children_.size(), sqlSubstr));
-//    }
-//
-//    // analyzer may be null for certain literal constructions (e.g. IntLiteral).
-//    if (analyzer != null) {
-//      analyzer.incrementCallDepth();
-//      // Check the expr depth limit. Do not print the toSql() to not overflow the stack.
-//      if (analyzer.getCallDepth() > EXPR_DEPTH_LIMIT) {
-//        throw new AnalysisException(String.format("Exceeded the maximum depth of an " +
-//            "expression tree (%s).", EXPR_DEPTH_LIMIT));
-//      }
-//    }
-//    for (Expr child: children_) {
-//      child.analyze(analyzer);
-//    }
-//    if (analyzer != null) analyzer.decrementCallDepth();
-//    computeNumDistinctValues();
-//
-//    // Do all the analysis for the expr subclass before marking the Expr analyzed.
-//    analyzeImpl(analyzer);
-//    evalCost_ = computeEvalCost();
-//    analysisDone();
   }
 
   /**

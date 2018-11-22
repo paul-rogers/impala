@@ -42,7 +42,6 @@ public class NullLiteral extends LiteralExpr {
    */
   public static NullLiteral create(Type type) {
     NullLiteral l = new NullLiteral();
-    l.analyzeNoThrow(null);
     l.uncheckedCastTo(type);
     return l;
   }

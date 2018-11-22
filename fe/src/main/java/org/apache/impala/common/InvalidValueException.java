@@ -17,21 +17,19 @@
 
 package org.apache.impala.common;
 
-
 /**
- * The parent class of all custom Impala exceptions.
+ * Indicates an invalid value: constant, name, etc.
+ * Fine-grained exception for better testing.
  */
 @SuppressWarnings("serial")
-abstract public class ImpalaException extends java.lang.Exception {
-  public ImpalaException(String msg, Throwable cause) {
-    super(msg, cause);
-  }
+public class InvalidValueException extends AnalysisException {
 
-  protected ImpalaException(String msg) {
+  public InvalidValueException(String msg) {
     super(msg);
   }
 
-  protected ImpalaException(Throwable cause) {
-    super(cause);
+  public InvalidValueException(String msg, NumberFormatException e) {
+    super(msg, e);
   }
+
 }

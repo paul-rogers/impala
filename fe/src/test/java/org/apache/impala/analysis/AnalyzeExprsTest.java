@@ -2695,7 +2695,7 @@ public class AnalyzeExprsTest extends AnalyzerTest {
    */
   private void testInfixExprDepthLimit(String prefix, String repeatSuffix) {
     StringBuilder exprStr = new StringBuilder(prefix);
-    for (int i = 0; i < Expr.EXPR_DEPTH_LIMIT - 1; ++i) {
+    for (int i = 0; i < Expr.EXPR_DEPTH_LIMIT; ++i) {
       exprStr.append(repeatSuffix);
     }
     AnalyzesOk(exprStr.toString());
@@ -2722,7 +2722,7 @@ public class AnalyzeExprsTest extends AnalyzerTest {
     AnalyzesOk("select " + getNestedFuncExpr(openFunc, baseArg, closeFunc,
         Expr.EXPR_DEPTH_LIMIT - 1));
     AnalysisError("select " + getNestedFuncExpr(openFunc, baseArg, closeFunc,
-        Expr.EXPR_DEPTH_LIMIT),
+        Expr.EXPR_DEPTH_LIMIT + 1),
         String.format("Exceeded the maximum depth of an expression tree (%s).",
         Expr.EXPR_DEPTH_LIMIT));
     // Test 10x the safe depth.

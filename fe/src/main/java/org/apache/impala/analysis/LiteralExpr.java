@@ -25,7 +25,9 @@ import org.apache.impala.catalog.ScalarType;
 import org.apache.impala.catalog.Type;
 import org.apache.impala.common.AnalysisException;
 import org.apache.impala.common.InternalException;
-import org.apache.impala.common.NotImplementedException;
+import org.apache.impala.common.InvalidValueException;
+import org.apache.impala.common.SqlCastException;
+import org.apache.impala.common.UnsupportedFeatureException;
 import org.apache.impala.service.FeSupport;
 import org.apache.impala.thrift.TColumnValue;
 import org.apache.impala.thrift.TExprNode;
@@ -43,8 +45,12 @@ public abstract class LiteralExpr extends Expr implements Comparable<LiteralExpr
   private final static Logger LOG = LoggerFactory.getLogger(LiteralExpr.class);
 
   public LiteralExpr() {
+    // Literals start analyzed: there is nothing more to check.
     evalCost_ = LITERAL_COST;
     numDistinctValues_ = 1;
+    isConstant_ = true;
+    isAnalyzed_ = true;
+    // Super type is responsible for setting the type
   }
 
   /**
@@ -59,7 +65,9 @@ public abstract class LiteralExpr extends Expr implements Comparable<LiteralExpr
    * LiteralExpr subclass, e.g. TIMESTAMP.
    */
   public static LiteralExpr create(String value, Type type) throws AnalysisException {
-    Preconditions.checkArgument(type.isValid());
+    if (! type.isValid()) {
+      throw new UnsupportedFeatureException("Invalid literal type: " + type.toSql());
+    }
     LiteralExpr e = null;
     switch (type.getPrimitiveType()) {
       case NULL_TYPE:
@@ -86,21 +94,40 @@ public abstract class LiteralExpr extends Expr implements Comparable<LiteralExpr
       case DATETIME:
       case TIMESTAMP:
         // TODO: we support TIMESTAMP but no way to specify it in SQL.
-        return null;
+        throw new UnsupportedFeatureException("Literal unsupported: " + type.toSql());
       default:
-        Preconditions.checkState(false,
+        throw new UnsupportedFeatureException(
             String.format("Literals of type '%s' not supported.", type.toSql()));
     }
-    e.analyze(null);
+    // Literals are implicitly analyzed during creation
+    Preconditions.checkState(e.isAnalyzed());
+    Preconditions.checkNotNull(e.getType());
     // Need to cast since we cannot infer the type from the value. e.g. value
     // can be parsed as tinyint but we need a bigint.
-    return (LiteralExpr) e.uncheckedCastTo(type);
+    try {
+      Expr result = e.uncheckedCastTo(type);
+      if (result != e) {
+        // Explicit DECIMAL cast required, value is invalid
+        throw new InvalidValueException("Value " + value +
+            " cannot be cast to type " + type.toSql());
+      }
+    } catch (SqlCastException ex) {
+      // Convert DECIMAL issues into an invalid value exception
+      throw new InvalidValueException(ex.getMessage());
+    }
+    return e;
   }
 
+  // Literals require no analysis.
   @Override
-  protected void analyzeImpl(Analyzer analyzer) throws AnalysisException {
-    // Literals require no analysis.
-  }
+  protected void analyzeImpl(Analyzer analyzer) { }
+
+  /**
+   * Literals are analyzed once on creation and need never
+   * be reset.
+   */
+  @Override
+  public Expr reset() { return this; }
 
   @Override
   protected float computeEvalCost() {
@@ -159,8 +186,8 @@ public abstract class LiteralExpr extends Expr implements Comparable<LiteralExpr
 
   // Swaps the sign of numeric literals.
   // Throws for non-numeric literals.
-  public void swapSign() throws NotImplementedException {
-    throw new NotImplementedException("swapSign() only implemented for numeric" +
+  public void swapSign() throws AnalysisException {
+    throw new UnsupportedFeatureException("swapSign() only implemented for numeric" +
         "literals");
   }
 
@@ -268,8 +295,8 @@ public abstract class LiteralExpr extends Expr implements Comparable<LiteralExpr
     // None of the fields in the thrift struct were set indicating a NULL.
     if (result == null) result = new NullLiteral();
 
-    result.analyzeNoThrow(null);
-    return (LiteralExpr)result;
+    Preconditions.checkState(result.isAnalyzed());
+    return result;
   }
 
   // Order NullLiterals based on the SQL ORDER BY default behavior: NULLS LAST.
