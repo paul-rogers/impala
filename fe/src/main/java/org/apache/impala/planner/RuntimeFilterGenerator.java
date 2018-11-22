@@ -41,8 +41,10 @@ import org.apache.impala.analysis.TupleIsNullPredicate;
 import org.apache.impala.catalog.FeTable;
 import org.apache.impala.catalog.KuduColumn;
 import org.apache.impala.catalog.Type;
+import org.apache.impala.common.AnalysisException;
 import org.apache.impala.common.IdGenerator;
 import org.apache.impala.common.InternalException;
+import org.apache.impala.common.SqlCastException;
 import org.apache.impala.planner.JoinNode.DistributionMode;
 import org.apache.impala.service.BackendConfig;
 import org.apache.impala.service.FeSupport;
@@ -786,8 +788,12 @@ public final class RuntimeFilterGenerator {
     if (!targetExpr.getType().equals(srcType)) {
       try {
         targetExpr = targetExpr.castTo(srcType);
-      } catch (Exception e) {
+      } catch (SqlCastException e) {
+        // Different types, skip this filter
         return null;
+      } catch (AnalysisException e) {
+        // Unexpected
+        throw new IllegalStateException(e);
       }
     }
     return targetExpr;

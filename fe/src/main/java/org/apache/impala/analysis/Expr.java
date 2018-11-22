@@ -34,6 +34,7 @@ import org.apache.impala.catalog.ScalarType;
 import org.apache.impala.catalog.Type;
 import org.apache.impala.common.AnalysisException;
 import org.apache.impala.common.InternalException;
+import org.apache.impala.common.SqlCastException;
 import org.apache.impala.common.TreeNode;
 import org.apache.impala.rewrite.ExprRewriter;
 import org.apache.impala.service.FeSupport;
@@ -1351,8 +1352,10 @@ abstract public class Expr extends TreeNode<Expr> implements ParseNode, Cloneabl
     if (!targetType.isDecimal()) {
       // requested cast must be to assignment-compatible type
       // (which implies no loss of precision)
-      Preconditions.checkArgument(targetType.equals(type),
-          "targetType=" + targetType + " type=" + type);
+      if (! targetType.equals(type)) {
+        throw new SqlCastException(
+            "targetType=" + targetType + " type=" + type);
+      }
     }
     return uncheckedCastTo(targetType);
   }
