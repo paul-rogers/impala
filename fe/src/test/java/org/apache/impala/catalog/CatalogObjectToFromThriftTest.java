@@ -231,7 +231,7 @@ public class CatalogObjectToFromThriftTest {
         TAccessLevel.READ_WRITE);
       fail("Expected metadata to be malformed.");
     } catch (AnalysisException e) {
-      Assert.assertTrue(e.getMessage().contains("invalid DECIMAL(1,0) value: 1.1"));
+      Assert.assertTrue(e.getMessage().contains("Invalid DECIMAL(1,0) value: 1.1"));
     }
   }
 

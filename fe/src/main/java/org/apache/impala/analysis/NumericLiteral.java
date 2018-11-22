@@ -24,7 +24,6 @@ import org.apache.impala.catalog.ScalarType;
 import org.apache.impala.catalog.Type;
 import org.apache.impala.common.AnalysisException;
 import org.apache.impala.common.InvalidValueException;
-import org.apache.impala.common.NotImplementedException;
 import org.apache.impala.common.SqlCastException;
 import org.apache.impala.thrift.TDecimalLiteral;
 import org.apache.impala.thrift.TExprNode;
@@ -57,17 +56,12 @@ public class NumericLiteral extends LiteralExpr {
   // be analyzed (which infers the type from value_).
   private boolean explicitlyCast_;
 
-  public NumericLiteral(BigDecimal value) {
+  public NumericLiteral(BigDecimal value) throws AnalysisException {
     value_ = value;
-    try {
-      inferType();
-    } catch (AnalysisException e) {
-      // Should never occur
-      throw new IllegalStateException(e);
-    }
+    inferType();
   }
 
-  public NumericLiteral(String value, Type t) throws InvalidValueException {
+  public NumericLiteral(String value, Type t) throws AnalysisException {
     BigDecimal val = null;
     try {
       val = new BigDecimal(value);
@@ -76,6 +70,7 @@ public class NumericLiteral extends LiteralExpr {
     }
     value_ = val;
     type_ = t;
+    inferType();
     if (type_.isDecimal() && t.isDecimal()) {
       // Verify that the input decimal value is consistent with the specified
       // column type.
@@ -117,7 +112,12 @@ public class NumericLiteral extends LiteralExpr {
   }
 
   public static NumericLiteral create(int value) {
-    return new NumericLiteral(new BigDecimal(value));
+    try {
+      return new NumericLiteral(new BigDecimal(value));
+    } catch (AnalysisException e) {
+      // Should never occur for int values
+      throw new IllegalStateException(e);
+    }
   }
 
   /**
@@ -212,12 +212,21 @@ public class NumericLiteral extends LiteralExpr {
   // double-analyze step
   @Override
   public Expr reset() {
+    safeInferType();
+    return this;
+  }
+
+  /**
+   * Re-infer the type when it is known that the value is valid.
+   */
+  private void safeInferType() {
     try {
       inferType();
     } catch (AnalysisException e) {
+      // Should not occur, we are just reinterpreting
+      // a valid value
       throw new IllegalStateException(e);
     }
-    return this;
   }
 
   public void inferType() throws AnalysisException {
@@ -225,20 +234,18 @@ public class NumericLiteral extends LiteralExpr {
     // Compute the precision and scale from the BigDecimal.
     type_ = TypesUtil.computeDecimalType(value_);
     if (type_ == null) {
-      Double d = new Double(value_.doubleValue());
-      if (d.isInfinite()) {
+      double d = value_.doubleValue();
+      if (Double.isInfinite(d)) {
         throw new InvalidValueException("Numeric literal '" + toSql() +
             "' exceeds maximum range of doubles.");
-      } else if (d.doubleValue() == 0 && value_ != BigDecimal.ZERO) {
+      } else if (d == 0 && value_ != BigDecimal.ZERO) {
         throw new InvalidValueException("Numeric literal '" + toSql() +
             "' underflows minimum resolution of doubles.");
       }
 
       // Literal could not be stored in any of the supported decimal precisions and
       // scale. Store it as a float/double instead.
-      float fvalue;
-      fvalue = value_.floatValue();
-      if (fvalue == value_.doubleValue()) {
+      if (value_.floatValue() == d) {
         type_ = Type.FLOAT;
       } else {
         type_ = Type.DOUBLE;
@@ -306,8 +313,11 @@ public class NumericLiteral extends LiteralExpr {
 
   @Override
   public void swapSign() {
-    // swapping sign does not change the type
     value_ = value_.negate();
+
+    // Swapping the sign may change the type:
+    // 128 is a SMALLINT, -128 is a TINYINT
+    safeInferType();
   }
 
   @Override

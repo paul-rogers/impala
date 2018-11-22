@@ -43,14 +43,19 @@ public class TreePrinter implements TreeVisualizer {
 
   @Override
   public void startObj(String name, Object obj) {
+    objHeader(name, obj);
+    out_.println( "{");
+    levels_.push(LevelType.OBJ);
+  }
+
+  private void objHeader(String name, Object obj) {
     indent();
     printName(name);
     out_.print(" (");
     out_.print(obj.getClass().getSimpleName());
     out_.print(", ");
     out_.print(System.identityHashCode(obj) % 1000);
-    out_.println( "): {");
-    levels_.push(LevelType.OBJ);
+    out_.print( "): ");
   }
 
   private void printName(String name) {
@@ -109,10 +114,21 @@ public class TreePrinter implements TreeVisualizer {
   }
 
   @Override
-  public void special(String name, String value) {
+  public void elide(String name, Object obj, String reason) {
+    objHeader(name, obj);
+    if (reason.equals("[]")) {
+      out_.println(reason);
+    } else {
+      out_.print("<");
+      out_.print(reason);
+      out_.println(">");
+    }
+  }
+
+  @Override
+  public void emptyArray(String name) {
     indent();
     printName(name);
-    out_.print(": ");
-    out_.println(value);
+    out_.println(": []");
   }
 }

@@ -66,6 +66,10 @@ public class LiteralExprTest {
     // Invalid decimal values
     testInvalidValue("123.1", ScalarType.createDecimalType(2, 1));
     testInvalidValue("123.1", ScalarType.createDecimalType(4, 2));
+
+    // Invalid float values
+    testInvalidValue("1.7976931348623157E3081", Type.DOUBLE);
+    testInvalidValue("1.7976931348623157E-3081", Type.DOUBLE);
   }
 
   @Test

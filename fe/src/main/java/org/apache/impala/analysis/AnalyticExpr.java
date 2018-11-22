@@ -17,7 +17,6 @@
 
 package org.apache.impala.analysis;
 
-import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
@@ -616,7 +615,7 @@ public class AnalyticExpr extends Expr {
         newExprParams = Lists.newArrayListWithExpectedSize(3);
         newExprParams.addAll(getFnCall().getChildren());
         // Default offset is 1.
-        newExprParams.add(new NumericLiteral(BigDecimal.valueOf(1)));
+        newExprParams.add(NumericLiteral.create(1));
         // Default default value is NULL.
         newExprParams.add(new NullLiteral());
       } else if (getFnCall().getChildren().size() == 2) {
@@ -770,7 +769,7 @@ public class AnalyticExpr extends Expr {
     Preconditions.checkState(isOffsetFn(getFnCall().getFn()));
     if (offsetFnCall.getChild(1) != null) return offsetFnCall.getChild(1);
     // The default offset is 1.
-    return new NumericLiteral(BigDecimal.valueOf(1));
+    return NumericLiteral.create(1);
   }
 
   /**

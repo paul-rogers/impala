@@ -173,7 +173,8 @@ public class AnalyzeExprsTest extends AnalyzerTest {
    */
   private void testNumericLiteral(String literal, Type expectedType) {
     SelectStmt selectStmt = (SelectStmt) AnalyzesOk("select " + literal);
-    Type actualType = selectStmt.resultExprs_.get(0).getType();
+    Expr expr = selectStmt.resultExprs_.get(0);
+    Type actualType = expr.getType();
     Assert.assertTrue("Expected Type: " + expectedType + " Actual type: " + actualType,
         expectedType.equals(actualType));
   }

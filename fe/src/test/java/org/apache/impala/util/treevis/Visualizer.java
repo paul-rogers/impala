@@ -58,7 +58,8 @@ public class Visualizer {
     void startObj(String name, Object obj);
     void startArray(String name);
     void field(String name, Object value);
-    void special(String name, String value);
+    void elide(String name, Object value, String reason);
+    void emptyArray(String name);
     void endArray();
     void endObj();
   }
@@ -84,6 +85,7 @@ public class Visualizer {
   // Infinite recursion preventer.
   // Since there is no IdentityHashMap. Values ignored.
   private Map<Object, Object> parents_ = new IdentityHashMap<>();
+  private int depthLimit_ = Integer.MAX_VALUE;
 
   public Visualizer(TreeVisualizer treeVis) {
     this.treeVis_ = treeVis;
@@ -114,6 +116,16 @@ public class Visualizer {
   }
 
   /**
+   * Specifies the maximum nesting depth to print.
+   *
+   * @param limit the maximum depth. Objects deeper than
+   * the limit are elided on output.
+   */
+  public void depthLimit(int limit) {
+    depthLimit_ = limit;
+  }
+
+  /**
    * Visualization entry point.
    *
    * @param root the object to visualize
@@ -126,9 +138,9 @@ public class Visualizer {
 
   public void visit(Object obj) {
     Class<?> objClass = obj.getClass();
-    Method visMethod;
+    Method customMethod;
     try {
-      visMethod = objClass.getMethod("visualize", getClass());
+      customMethod = objClass.getMethod("visualize", getClass());
     } catch (NoSuchMethodException e) {
       visualizeObj(obj);
       return;
@@ -136,16 +148,14 @@ public class Visualizer {
       throw new IllegalStateException(e);
     }
     try {
-      visMethod.invoke(obj, this);
-    } catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException e) {
+      customMethod.invoke(obj, this);
+    } catch (IllegalAccessException | IllegalArgumentException |
+             InvocationTargetException e) {
       throw new IllegalStateException(e);
     }
   }
 
   private void visualizeObj(Object obj) {
-    if (obj instanceof Expr) {
-      System.out.print("");
-    }
     Class<?> objClass = obj.getClass();
     visualizeMembers(obj, objClass);
   }
@@ -163,7 +173,7 @@ public class Visualizer {
         Object value = field.get(obj);
         visitValue(name, value);
       } catch (IllegalArgumentException | IllegalAccessException e) {
-        treeVis_.special(name, "<unavailable>");
+        treeVis_.elide(name, obj, "Unavailable");
       }
     }
   }
@@ -183,11 +193,15 @@ public class Visualizer {
       return;
     }
     if (ignoreTypes_.contains(valueClass)) {
-      treeVis_.special(name, "<Skip " + valueClass.getSimpleName() + ">");
+      treeVis_.elide(name, value, "Skip");
       return;
     }
     if (parents_.containsKey(value)) {
-      treeVis_.special(name, "<Back pointer to " + valueClass.getSimpleName() + ">");
+      treeVis_.elide(name, value, "Back pointer");
+      return;
+    }
+    if (parents_.size() >= depthLimit_) {
+      treeVis_.elide(name, value, "...");
       return;
     }
     parents_.put(value, value);
@@ -205,7 +219,7 @@ public class Visualizer {
     // TODO: Specially handle scalar arrays
     int len = Array.getLength(value);
     if (len == 0) {
-      treeVis_.special(name, "[]");
+      treeVis_.emptyArray(name);
       return;
     }
     treeVis_.startArray(name);
@@ -217,7 +231,7 @@ public class Visualizer {
 
   private void visitCollection(String name, Collection<?> col) {
     if (col.isEmpty()) {
-      treeVis_.special(name, "[]");
+      treeVis_.elide(name, col, "[]");
       return;
     }
     treeVis_.startArray(name);

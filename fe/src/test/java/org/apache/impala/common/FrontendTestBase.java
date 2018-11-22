@@ -281,7 +281,7 @@ public class FrontendTestBase {
       node = (ParseNode) parser.parse().value;
     } catch (Exception e) {
       e.printStackTrace();
-      fail("\nParser error:\n" + parser.getErrorMsg(stmt));
+      fail("Parser error: " + parser.getErrorMsg(stmt));
     }
     assertNotNull(node);
     return node;
