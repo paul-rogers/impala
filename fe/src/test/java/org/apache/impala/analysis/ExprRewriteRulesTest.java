@@ -58,6 +58,7 @@ public class ExprRewriteRulesTest extends FrontendTestBase {
       this.wrapped = wrapped;
     }
 
+    @Override
     public Expr apply(Expr expr, Analyzer analyzer) throws AnalysisException {
       Expr ret = wrapped.apply(expr, analyzer);
       if (expr != ret) rewrites++;
