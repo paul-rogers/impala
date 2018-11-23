@@ -33,7 +33,47 @@ import org.apache.impala.catalog.ScalarType;
  */
 public class AstPrinter {
 
+  public static final int DEFAULT_DEPTH = 3;
+
+  private static ParseNode lastNode;
+
+  /**
+   * Print a subtree to a depth of three. Use this form for easy
+   * debugging. In Eclipse, open the Expressions view and enter:
+   *
+   * org.apache.impala.util.treevis.AstPrinter.print(yourVar)
+   *
+   * A handy trick when debugging unit tests is to set a breakpoint
+   * in JUnit's fail() method (or an exception breakpoint on
+   * AssertionError), then walk the tree back up to a location that
+   * has visibility to the AST, and use the above to print it.
+   *
+   * Again, in Eclipse, you can enable and disable the expression,
+   * no need to add and remove it. Eclipse evaluates the expression
+   * each time you touch it. To avoid double-printing the same object,
+   * the method skips printing if called twice on the same object.
+   *
+   * @param node the root node of the subtree to print
+   */
+  public static void print(ParseNode node) {
+    // Don't print the same node twice. Works around the
+    // awkward double-eval when enabling and disabling expressions
+    // in Eclipse. Use printNode directly if you do want to display
+    // the same node multiple times.
+    if (node == lastNode) return;
+    printNode(node, 3);
+    lastNode = node;
+  }
+
+  /**
+   * Print an entire (sub-)tree to its entire depth.
+   * @param node
+   */
   public static void printTree(ParseNode node) {
+    printNode(node, DEFAULT_DEPTH);
+  }
+
+  public static void printNode(ParseNode node, int maxDepth) {
     Visualizer vis = new Visualizer(
         new TreePrinter(new PrintWriter(
             new OutputStreamWriter(System.out),
@@ -42,6 +82,7 @@ public class AstPrinter {
     vis.ignore(HdfsTable.class);
     vis.ignore(Analyzer.class);
     vis.scalar(ScalarType.class);
+    vis.depthLimit(maxDepth);
     vis.visualize(node);
   }
 }
