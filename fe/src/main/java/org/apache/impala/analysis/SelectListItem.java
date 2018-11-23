@@ -67,7 +67,6 @@ class SelectListItem {
   public List<String> getRawPath() { return rawPath_; }
 
   public void analyze(Analyzer analyzer) throws AnalysisException {
-    expr_.analyze(analyzer);
     originalExpr_ = expr_.toSql();
 
     // Do error checks before rewrite, include un-rewritten expression

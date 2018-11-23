@@ -20,6 +20,7 @@ package org.apache.impala.rewrite;
 import org.apache.impala.analysis.Analyzer;
 import org.apache.impala.analysis.Expr;
 import org.apache.impala.analysis.LiteralExpr;
+import org.apache.impala.analysis.NumericLiteral;
 import org.apache.impala.analysis.CastExpr;
 
 import org.apache.impala.common.AnalysisException;
@@ -54,8 +55,17 @@ public class FoldConstantsRule implements ExprRewriteRule {
     // cast-to-types and that can lead to query failures, e.g., CTAS
     if (expr instanceof CastExpr) {
       CastExpr castExpr = (CastExpr) expr;
-      if (Expr.IS_NULL_LITERAL.apply(castExpr.getChild(0))) {
+      Expr child = castExpr.getChild(0);
+      if (Expr.IS_NULL_LITERAL.apply(child)) {
         return expr;
+      }
+      // Convert a CAST(number AS TYPE) to a literal of that type
+      if (child instanceof NumericLiteral) {
+        Expr result = ((NumericLiteral) child).castTo(castExpr.getType());
+        // In some odd cases, the cast returns the expression
+        // wrapped in a cast. In this case, return the original expression
+        // to avoid infinite rewrites.
+        return (result == child) ? child : expr;
       }
     }
     // Analyze constant exprs, if necessary. Note that the 'expr' may become non-constant

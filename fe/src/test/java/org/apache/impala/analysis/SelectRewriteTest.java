@@ -5,9 +5,11 @@ import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
+import org.apache.impala.analysis.AnalysisContext.AnalysisResult;
 import org.apache.impala.catalog.ScalarType;
 import org.apache.impala.common.AnalysisException;
 import org.apache.impala.common.FrontendTestBase;
+import org.apache.impala.common.ImpalaException;
 import org.junit.Test;
 
 /**
@@ -22,20 +24,27 @@ public class SelectRewriteTest extends FrontendTestBase {
 
   public static final String SELECT_TABLE = "functional.alltypestiny";
 
-  public AnalysisFixture fixture = new AnalysisFixture(frontend_);
-
   private SelectStmt analyzeSelect(String stmtText) throws AnalysisException {
-    QueryFixture query = fixture.query(stmtText);
-    query.analyze();
-    return query.selectStmt();
+    // Temporary until the analysis test framework is available.
+    try {
+      AnalysisContext ctx = createAnalysisCtx();
+      ctx.getQueryOptions().setEnable_expr_rewrites(true);
+      AnalysisResult analysisResult = parseAndAnalyze(stmtText, ctx);
+      return (SelectStmt) analysisResult.getStmt();
+    } catch (AnalysisException e) {
+      throw e;
+    } catch (ImpalaException e) {
+      fail(e.getMessage());
+      // Will never happen
+      throw new IllegalStateException(e);
+    }
   }
 
   private void verifyErrorMsg(Exception e, String substr) {
-    if (e.getMessage().contains(substr)) {
-      return;
+    if (! e.getMessage().contains(substr)) {
+      fail("Incorrect error message.\nExpected: .*" +
+          substr + ".*\nActual: " + e.getMessage());
     }
-    fail("Incorrect error message.\nExpected: .*" +
-        substr + ".*\nActual: " + e.getMessage());
   }
 
   //-----------------------------------------------------------------
@@ -57,7 +66,7 @@ public class SelectRewriteTest extends FrontendTestBase {
     // Should have been re-analyzed after rewrite
     assertTrue(expr.isAnalyzed());
     assertEquals(ScalarType.BIGINT, expr.getType());
-    assertEquals(7.0, expr.getCost(), 0.1);
+    assertEquals(4.0, expr.getCost(), 0.1);
 
     // Rewritten form should be in the result expressions list
     assertSame(expr, stmt.getResultExprs().get(0));
@@ -73,12 +82,12 @@ public class SelectRewriteTest extends FrontendTestBase {
     // TODO: rhs is a copy of the SELECT expr. Should it be?
 
     // Statement's toSql should be before rewrites
-    String origSql = "SELECT 1 + 1 + id AS c FROM " + SELECT_TABLE;
+    String origSql = "SELECT 1 + 1 + id c FROM " + SELECT_TABLE;
     assertEquals(origSql, stmt.toSql());
     assertEquals(origSql, stmt.toSql(ToSqlOptions.DEFAULT));
 
     // Rewritten should be available when requested
-    assertEquals("SELECT 2 + id AS c FROM " + SELECT_TABLE,
+    assertEquals("SELECT 2 + id c FROM " + SELECT_TABLE,
         stmt.toSql(ToSqlOptions.REWRITTEN));
   }
 

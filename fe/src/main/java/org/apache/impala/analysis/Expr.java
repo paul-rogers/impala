@@ -391,16 +391,7 @@ abstract public class Expr extends TreeNode<Expr> implements ParseNode, Cloneabl
    */
   @Override
   public final void analyze(Analyzer analyzer) throws AnalysisException {
-    if (analyzer == null) {
-      // Analyzer is null when called for literals when loading metadata.
-      // TODO: Reconsider this pattern, handle literals specially.
-      if (isAnalyzed()) return;
-      computeNumDistinctValues();
-      analyzeImpl(analyzer);
-      evalCost_ = computeEvalCost();
-      analysisDone();
-      return;
-    }
+    Preconditions.checkNotNull(analyzer);
     Expr result = analyzer.getExprAnalyzer().analyzeExpr(this);
     // This legacy form cannot handle rewrites.
     Preconditions.checkState(result == this);
@@ -1614,5 +1605,9 @@ abstract public class Expr extends TreeNode<Expr> implements ParseNode, Cloneabl
           toSql() + " = " + value);
     }
     return value;
+  }
+
+  public List<Expr> getChildExprs() {
+    return getChildren();
   }
 }

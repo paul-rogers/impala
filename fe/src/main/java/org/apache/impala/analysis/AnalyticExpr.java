@@ -418,9 +418,16 @@ public class AnalyticExpr extends Expr {
   }
 
   @Override
+  public List<Expr> getChildExprs() {
+    List<Expr> childExprs = new ArrayList<>(getChildren());
+    childExprs.add(fnCall_);
+    return childExprs;
+  }
+
+  @Override
   protected void analyzeImpl(Analyzer analyzer) throws AnalysisException {
-    fnCall_.analyze(analyzer);
-    type_ = getFnCall().getType();
+    Preconditions.checkState(fnCall_.isAnalyzed());
+    type_ = fnCall_.getType();
 
     for (Expr e: partitionExprs_) {
       if (e.getType().isComplexType()) {

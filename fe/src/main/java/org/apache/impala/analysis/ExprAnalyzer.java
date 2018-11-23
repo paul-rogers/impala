@@ -55,16 +55,11 @@ public class ExprAnalyzer {
   }
 
   public Expr analyze(Expr expr, boolean withRewrite) throws AnalysisException {
-    // Should be zero; appears that depth is used only for
-    // expressions. TODO: revisit this.
-    int startDepth = analyzer_.getCallDepth();
     // Temporary hack to allow enabling rewrites per clause until
     // all clauses are converted.
     boolean oldRewriteFlag = enableRewrites_;
     enableRewrites_ = withRewrite;
-    depth_ = startDepth;
-    analyzeExpr(expr);
-    Preconditions.checkState(depth_ == startDepth);
+    expr = analyzeExpr(expr);
     enableRewrites_ = oldRewriteFlag;
     return expr;
   }
@@ -95,33 +90,37 @@ public class ExprAnalyzer {
           Expr.EXPR_CHILDREN_LIMIT, expr.getChildCount(), sqlSubstr));
     }
 
-    // Depth-first, bottom up analysis
-    for (Expr child: expr.getChildren()) {
-      analyzeExpr(child);
-    }
-    analyzeNode(expr);
-
-    // Rewrite just this level of expression
-    if (enableRewrites_) {
-      for (;;) {
-        Expr result = rewriter_.rewriteNode(expr, analyzer_);
-        if (result == expr) break;
-        rewriteCount_++;
-        analyzeNode(result);
+    for (;;) {
+      // Depth-first, bottom up analysis
+      for (Expr child: expr.getChildExprs()) {
+        analyzeExpr(child);
       }
+      // Why is this done before resolving slot refs?
+      expr.computeNumDistinctValues();
+
+      // Do all the analysis for the expr subclass before marking the Expr analyzed.
+      expr.analyzeImpl(analyzer_);
+      expr.evalCost_ = expr.computeEvalCost();
+      expr.analysisDone();
+
+      if (!enableRewrites_) break;
+
+      // Rewrite just this level of expression
+      Expr result = rewriter_.rewriteNode(expr, analyzer_);
+      if (result == expr) break;
+      rewriteCount_++;
+      expr = result;
+      // Less than ideal. Revisit. Only type and cost
+      // need be recomputed.
+      expr.reset();
+      // Literals don't become un-analyzed.
+      if (expr.isAnalyzed()) break;
+
+      // Loop to re-analyze and possibly rewrite children
+      // which may have been newly created.
     }
     depth_--;
     return expr;
-  }
-
-  private void analyzeNode(Expr expr) throws AnalysisException {
-    // Why is this done before resolving slot refs?
-    expr.computeNumDistinctValues();
-
-    // Do all the analysis for the expr subclass before marking the Expr analyzed.
-    expr.analyzeImpl(analyzer_);
-    expr.evalCost_ = expr.computeEvalCost();
-    expr.analysisDone();
   }
 
   /**

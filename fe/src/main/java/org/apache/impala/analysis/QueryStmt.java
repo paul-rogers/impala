@@ -407,6 +407,9 @@ public abstract class QueryStmt extends StatementBase {
   public SortInfo getSortInfo() { return sortInfo_; }
   public boolean evaluateOrderBy() { return evaluateOrderBy_; }
   public ArrayList<Expr> getBaseTblResultExprs() { return baseTblResultExprs_; }
+  public ExprSubstitutionMap getAliasSmap() { return aliasSmap_; }
+  public List<Expr> getAmbiguousAliases() { return ambiguousAliasList_; }
+
   public void setLimit(long limit) throws AnalysisException {
     Preconditions.checkState(limit >= 0);
     long newLimit = hasLimit() ? Math.min(limit, getLimit()) : limit;

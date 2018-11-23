@@ -77,7 +77,6 @@ public class SimplifyConditionalsRule implements ExprRewriteRule {
     // query, for example:
     // 'select if (true, 0, sum(id)) from alltypes' != 'select 0 from alltypes'
     if (expr != simplified) {
-      simplified.analyze(analyzer);
       if (expr.contains(Expr.isAggregatePredicate())
           && !simplified.contains(Expr.isAggregatePredicate())) {
         return expr;
@@ -236,8 +235,7 @@ public class SimplifyConditionalsRule implements ExprRewriteRule {
         if (Expr.IS_LITERAL.apply(child)) {
           BinaryPredicate pred = new BinaryPredicate(
               BinaryPredicate.Operator.EQ, caseExpr, expr.getChild(i));
-          pred.analyze(analyzer);
-          whenExpr = analyzer.getConstantFolder().rewrite(pred, analyzer);
+          whenExpr = analyzer.getExprAnalyzer().analyze(pred, true);
         } else {
           whenExpr = null;
         }
