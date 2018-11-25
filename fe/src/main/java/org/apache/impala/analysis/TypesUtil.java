@@ -22,6 +22,7 @@ import java.math.BigDecimal;
 import org.apache.impala.catalog.ScalarType;
 import org.apache.impala.catalog.Type;
 import org.apache.impala.common.AnalysisException;
+
 import com.google.common.base.Preconditions;
 
 // Utility class for handling types.
