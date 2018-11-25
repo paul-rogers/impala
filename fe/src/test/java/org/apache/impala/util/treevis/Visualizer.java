@@ -192,6 +192,10 @@ public class Visualizer {
       treeVis_.field(name, value);
       return;
     }
+    if (valueClass.isEnum()) {
+      treeVis_.field(name, value);
+      return;
+    }
     if (ignoreTypes_.contains(valueClass)) {
       treeVis_.elide(name, value, "Skip");
       return;

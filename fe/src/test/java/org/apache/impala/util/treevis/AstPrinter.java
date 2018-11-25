@@ -23,7 +23,9 @@ import java.io.PrintWriter;
 import org.apache.impala.analysis.Analyzer;
 import org.apache.impala.analysis.ParseNode;
 import org.apache.impala.analysis.TupleDescriptor;
+import org.apache.impala.catalog.Function;
 import org.apache.impala.catalog.HdfsTable;
+import org.apache.impala.catalog.ScalarFunction;
 import org.apache.impala.catalog.ScalarType;
 
 /**
@@ -33,7 +35,8 @@ import org.apache.impala.catalog.ScalarType;
  */
 public class AstPrinter {
 
-  public static final int DEFAULT_DEPTH = 3;
+  public static final int NODE_DEPTH = 3;
+  public static final int TREE_DEPTH = 20;
 
   private static ParseNode lastNode;
 
@@ -61,7 +64,7 @@ public class AstPrinter {
     // in Eclipse. Use printNode directly if you do want to display
     // the same node multiple times.
     if (node == lastNode) return;
-    printNode(node, 3);
+    printTree(node, 3);
     lastNode = node;
   }
 
@@ -69,11 +72,15 @@ public class AstPrinter {
    * Print an entire (sub-)tree to its entire depth.
    * @param node
    */
-  public static void printTree(ParseNode node) {
-    printNode(node, DEFAULT_DEPTH);
+  public static void printNode(ParseNode node) {
+    printTree(node, NODE_DEPTH);
   }
 
-  public static void printNode(ParseNode node, int maxDepth) {
+  public static void printTree(ParseNode node) {
+    printTree(node, TREE_DEPTH);
+  }
+
+  public static void printTree(ParseNode node, int maxDepth) {
     Visualizer vis = new Visualizer(
         new TreePrinter(new PrintWriter(
             new OutputStreamWriter(System.out),
@@ -82,6 +89,8 @@ public class AstPrinter {
     vis.ignore(HdfsTable.class);
     vis.ignore(Analyzer.class);
     vis.scalar(ScalarType.class);
+    vis.scalar(Function.class);
+    vis.scalar(ScalarFunction.class);
     vis.depthLimit(maxDepth);
     vis.visualize(node);
   }

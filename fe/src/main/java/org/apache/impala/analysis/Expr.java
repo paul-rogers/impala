@@ -1365,7 +1365,6 @@ abstract public class Expr extends TreeNode<Expr> implements ParseNode, Cloneabl
     setChild(childIndex, newChild);
   }
 
-
   /**
    * Convert child to to targetType, possibly by inserting an implicit cast, or by
    * returning an altogether new expression, or by returning 'this' with a modified

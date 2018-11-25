@@ -504,4 +504,20 @@ public class Function extends CatalogObjectImpl {
             && fn instanceof AggregateFunction
             && ((AggregateFunction)fn).isAnalyticFn());
   }
+
+  @Override
+  public String toString() {
+    StringBuilder sb = new StringBuilder();
+    sb.append(dbName())
+       .append(".")
+       .append(functionName())
+       .append("(")
+       .append(Joiner.on(", ").join(argTypes_));
+    if (hasVarArgs_) {
+      sb.append(", ...");
+    }
+    sb.append("):")
+       .append(retType_.toSql());
+    return sb.toString();
+  }
 }

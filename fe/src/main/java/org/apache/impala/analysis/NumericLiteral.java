@@ -30,6 +30,7 @@ import org.apache.impala.thrift.TExprNodeType;
 import org.apache.impala.thrift.TFloatLiteral;
 import org.apache.impala.thrift.TIntLiteral;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Objects;
 import com.google.common.base.Preconditions;
 
@@ -155,6 +156,9 @@ public class NumericLiteral extends LiteralExpr {
     }
     return getStringValue();
   }
+
+  @VisibleForTesting
+  public boolean isExplicitCast() { return explicitlyCast_; }
 
   @Override
   public String getStringValue() {
