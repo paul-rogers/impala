@@ -66,7 +66,7 @@ public class NumericLiteralTest {
   }
 
   @Test
-  public void testInferType() throws InvalidValueException {
+  public void testInferType() throws SqlCastException {
     assertEquals(Type.TINYINT, NumericLiteral.inferType(BigDecimal.ZERO));
     assertEquals(Type.TINYINT, NumericLiteral.inferType(NumericLiteral.MIN_TINYINT));
     assertEquals(Type.TINYINT, NumericLiteral.inferType(NumericLiteral.MAX_TINYINT));
@@ -176,7 +176,7 @@ public class NumericLiteralTest {
     try {
       NumericLiteral.inferType(new BigDecimal(genDecimal(309, 0)));
       fail();
-    } catch (InvalidValueException e) {
+    } catch (SqlCastException e) {
       // Expected
     }
 
@@ -193,14 +193,14 @@ public class NumericLiteralTest {
       NumericLiteral.inferType(
           NumericLiteral.MAX_DOUBLE.multiply(BigDecimal.TEN));
       fail();
-    } catch (InvalidValueException e) {
+    } catch (SqlCastException e) {
       // Expected
     }
     try {
       NumericLiteral.inferType(
           NumericLiteral.MAX_DOUBLE.multiply(BigDecimal.TEN).negate());
       fail();
-    } catch (InvalidValueException e) {
+    } catch (SqlCastException e) {
       // Expected
     }
 
@@ -210,7 +210,7 @@ public class NumericLiteralTest {
     try {
       NumericLiteral.inferType(new BigDecimal(value));
       fail();
-    } catch (InvalidValueException e) {
+    } catch (SqlCastException e) {
       // Expected
     }
   }
@@ -276,7 +276,7 @@ public class NumericLiteralTest {
   }
 
   @Test
-  public void testSimpleCtor() throws InvalidValueException {
+  public void testSimpleCtor() throws SqlCastException {
     // Spot check. Assumes uses inferType() tested above.
     NumericLiteral n = new NumericLiteral(BigDecimal.ZERO);
     assertEquals(0, n.getLongValue());
@@ -300,13 +300,13 @@ public class NumericLiteralTest {
     try {
       new NumericLiteral(NumericLiteral.MAX_DOUBLE.multiply(BigDecimal.TEN));
       fail();
-    } catch(InvalidValueException e) {
+    } catch(SqlCastException e) {
       // Expected
     }
   }
 
   @Test
-  public void testTypeCtor() throws InvalidValueException {
+  public void testTypeCtor() throws InvalidValueException, SqlCastException {
     NumericLiteral n = new NumericLiteral(BigDecimal.ZERO);
     assertEquals(0, n.getLongValue());
     assertEquals(Type.TINYINT, n.getType());
@@ -329,9 +329,13 @@ public class NumericLiteralTest {
     try {
       new NumericLiteral(NumericLiteral.MAX_DOUBLE.multiply(BigDecimal.TEN));
       fail();
-    } catch(InvalidValueException e) {
+    } catch(SqlCastException e) {
       // Expected
     }
+
+    n = new NumericLiteral(new BigDecimal("1.567"), ScalarType.createDecimalType(2, 1));
+    assertEquals(ScalarType.createDecimalType(2, 1), n.getType());
+    assertEquals("1.6", n.getValue().toString());
   }
 
   @Test
@@ -396,5 +400,70 @@ public class NumericLiteralTest {
       assertEquals("123.5", ((NumericLiteral) result).toSql());
     }
   }
+
+  @Test
+  public void testSwapSign() {
+    NumericLiteral n = NumericLiteral.create(Byte.MAX_VALUE + 1);
+    assertEquals(Type.SMALLINT, n.getType());
+    n.swapSign();
+    assertEquals(Type.TINYINT, n.getType());
+    n.swapSign();
+    assertEquals(Type.SMALLINT, n.getType());
+  }
+
+  /**
+   * Test of the major cases for convertValue(). Details of overflow
+   * detection are tested above.
+   */
+  @Test
+  public void testConvertValue() throws SqlCastException {
+    BigDecimal result = NumericLiteral.convertValue(BigDecimal.ZERO, Type.TINYINT);
+    assertSame(result, BigDecimal.ZERO);
+    result = NumericLiteral.convertValue(BigDecimal.ZERO, Type.DOUBLE);
+    assertSame(result, BigDecimal.ZERO);
+    result = NumericLiteral.convertValue(BigDecimal.ZERO, ScalarType.createDecimalType(2, 2));
+    assertSame(result, BigDecimal.ZERO);
+
+    // Overflow case
+    try {
+      NumericLiteral.convertValue(ABOVE_TINYINT, Type.TINYINT);
+      fail();
+    } catch(SqlCastException e) {
+      // Expected
+    }
+
+    // Round to integer
+    result = NumericLiteral.convertValue(
+        new BigDecimal("1234.56"), Type.INT);
+    assertEquals("1235", result.toString());
+
+    // Round to decimal precision
+    BigDecimal input = new BigDecimal("1234.56789");
+    result = NumericLiteral.convertValue(
+        input, ScalarType.createDecimalType(7, 3));
+    assertEquals("1234.568", result.toString());
+    result = NumericLiteral.convertValue(
+        input, ScalarType.createDecimalType(4, 0));
+    assertEquals("1235", result.toString());
+
+    // Decimal overflow
+    try {
+      NumericLiteral.convertValue(
+          new BigDecimal("1234.56789"), ScalarType.createDecimalType(3, 2));
+      fail();
+    } catch(SqlCastException e) {
+      // Expected
+    }
+
+    // Reuse value as decimal
+
+    input = new BigDecimal("1235.56");
+    result = NumericLiteral.convertValue(input,  ScalarType.createDecimalType(6, 2));
+    assertSame(input, result);
+    input = new BigDecimal("0.01");
+    result = NumericLiteral.convertValue(input, ScalarType.createDecimalType(2, 2));
+    assertSame(input, result);
+  }
+
 
 }

@@ -1028,9 +1028,10 @@ public class SelectStmt extends QueryStmt {
     // Group By clause
     if (groupingExprs_ != null) {
       strBuilder.append(" GROUP BY ");
-      for (int i = 0; i < groupingExprs_.size(); ++i) {
-        strBuilder.append(groupingExprs_.get(i).toSql(options));
-        strBuilder.append((i+1 != groupingExprs_.size()) ? ", " : "");
+      List<Expr> groupingExprs = getMultiAggInfo().getGroupingExprs();
+      for (int i = 0; i < groupingExprs.size(); ++i) {
+        strBuilder.append(groupingExprs.get(i).toSql(options));
+        strBuilder.append((i+1 != groupingExprs.size()) ? ", " : "");
       }
     }
     // Having clause

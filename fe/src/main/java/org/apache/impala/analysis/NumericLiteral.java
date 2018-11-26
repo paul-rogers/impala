@@ -23,7 +23,6 @@ import java.math.BigInteger;
 import org.apache.impala.catalog.ScalarType;
 import org.apache.impala.catalog.Type;
 import org.apache.impala.common.AnalysisException;
-import org.apache.impala.common.InvalidValueException;
 import org.apache.impala.common.SqlCastException;
 import org.apache.impala.thrift.TDecimalLiteral;
 import org.apache.impala.thrift.TExprNode;
@@ -40,6 +39,20 @@ import com.google.common.base.Preconditions;
  * Analysis of this expr determines the smallest type that can hold this value.
  */
 public class NumericLiteral extends LiteralExpr {
+
+  public static final BigDecimal MIN_TINYINT = BigDecimal.valueOf(Byte.MIN_VALUE);
+  public static final BigDecimal MAX_TINYINT = BigDecimal.valueOf(Byte.MAX_VALUE);
+  public static final BigDecimal MIN_SMALLINT = BigDecimal.valueOf(Short.MIN_VALUE);
+  public static final BigDecimal MAX_SMALLINT = BigDecimal.valueOf(Short.MAX_VALUE);
+  public static final BigDecimal MIN_INT = BigDecimal.valueOf(Integer.MIN_VALUE);
+  public static final BigDecimal MAX_INT = BigDecimal.valueOf(Integer.MAX_VALUE);
+  public static final BigDecimal MIN_BIGINT = BigDecimal.valueOf(Long.MIN_VALUE);
+  public static final BigDecimal MAX_BIGINT = BigDecimal.valueOf(Long.MAX_VALUE);
+  public static final BigDecimal MAX_FLOAT = BigDecimal.valueOf(Float.MAX_VALUE);
+  public static final BigDecimal MIN_FLOAT = MAX_FLOAT.negate();
+  public static final BigDecimal MAX_DOUBLE = BigDecimal.valueOf(Double.MAX_VALUE);
+  public static final BigDecimal MIN_DOUBLE = MAX_DOUBLE.negate();
+
   // Use the java BigDecimal (arbitrary scale/precision) to represent the value.
   // This object has notions of precision and scale but they do *not* match what
   // we need. BigDecimal's precision is similar to significant figures and scale
@@ -57,37 +70,14 @@ public class NumericLiteral extends LiteralExpr {
   // be analyzed (which infers the type from value_).
   private boolean explicitlyCast_;
 
-  public NumericLiteral(BigDecimal value) throws InvalidValueException {
+  public NumericLiteral(BigDecimal value) throws SqlCastException {
     value_ = value;
     type_ = inferType(value);
+    analysisDone();
   }
 
-  public NumericLiteral(String value, Type t) throws InvalidValueException {
-    Preconditions.checkArgument(t.isScalarType());
-    ScalarType scalarType = (ScalarType) t;
-    try {
-      value_ = new BigDecimal(value);
-    } catch (NumberFormatException e) {
-      throw new InvalidValueException("Invalid numeric literal: " + value, e);
-    }
-    type_ = NumericLiteral.inferType(value_);
-    if (type_.isDecimal() && t.isDecimal()) {
-      // Verify that the input decimal value is consistent with the specified
-      // column type.
-      if (!scalarType.isSupertypeOf((ScalarType) type_)) {
-        StringBuilder errMsg = new StringBuilder();
-        errMsg.append("Invalid ").append(t);
-        errMsg.append(" value: " + value);
-        throw new InvalidValueException(errMsg.toString());
-      }
-    }
-    else if (type_.isIntegerType() && scalarType.isIntegerType()) {
-      if (!ScalarType.isAssignable(scalarType, (ScalarType) type_)) {
-        throw new InvalidValueException("Value " + value +
-            " is too large for type " + t.toSql());
-      }
-    }
-    else if (t.isFloatingPointType()) explicitlyCastToFloat(t);
+  public NumericLiteral(String value, Type t) throws SqlCastException {
+    this(new BigDecimal(value), t);
   }
 
   /**
@@ -95,16 +85,15 @@ public class NumericLiteral extends LiteralExpr {
    * and the NumericLiteral is created as analyzed with that type. The specified
    * type is preserved across substitutions and re-analysis.
    */
-  public NumericLiteral(BigInteger value, Type type) {
-    value_ = new BigDecimal(value);
-    type_ = type;
-    explicitlyCast_ = true;
+  public NumericLiteral(BigInteger value, Type type) throws SqlCastException {
+    this(new BigDecimal(value), type);
   }
 
-  public NumericLiteral(BigDecimal value, Type type) {
-    value_ = value;
+  public NumericLiteral(BigDecimal value, Type type) throws SqlCastException {
+    value_ = convertValue(value, type);
     type_ = type;
     explicitlyCast_ = true;
+    analysisDone();
   }
 
   /**
@@ -116,13 +105,30 @@ public class NumericLiteral extends LiteralExpr {
     explicitlyCast_ = other.explicitlyCast_;
   }
 
-  public static NumericLiteral create(int value) {
+  public static NumericLiteral create(BigDecimal value) {
     try {
-    return new NumericLiteral(new BigDecimal(value));
+     return new NumericLiteral(value);
+    } catch (SqlCastException e) {
+      // Should never occur for int values
+      throw new IllegalStateException(e);
+    }
+  }
+
+  public static NumericLiteral create(BigDecimal value, Type type) {
+    try {
+      return new NumericLiteral(value, type);
     } catch (AnalysisException e) {
       // Should never occur for int values
       throw new IllegalStateException(e);
     }
+  }
+
+  public static NumericLiteral create(int value) {
+    return create(new BigDecimal(value));
+  }
+
+  public static NumericLiteral create(int value, Type type) {
+    return create(new BigDecimal(value), type);
   }
 
   /**
@@ -185,7 +191,7 @@ public class NumericLiteral extends LiteralExpr {
 
   public double getDoubleValue() { return value_.doubleValue(); }
   public long getLongValue() { return value_.longValue(); }
-  public long getIntValue() { return value_.intValue(); }
+  public int getIntValue() { return value_.intValue(); }
 
   @Override
   protected void toThrift(TExprNode msg) {
@@ -215,33 +221,40 @@ public class NumericLiteral extends LiteralExpr {
 
   public BigDecimal getValue() { return value_; }
 
-  public static void resetType(Expr expr) {
-    if (expr instanceof NumericLiteral) {
-      ((NumericLiteral) expr).inferType();
-    }
+  public static boolean isBetween(BigDecimal value, BigDecimal low, BigDecimal high) {
+    return value.compareTo(low) >= 0 &&
+           value.compareTo(high) <= 0;
   }
 
-  // Temporary implementation to work around the current
-  // double-analyze step
-  @Override
-  public Expr reset() {
-    inferType();
-    return this;
+  public static boolean isTinyInt(BigDecimal value) {
+    return isBetween(value, MIN_TINYINT, MAX_TINYINT);
   }
 
-  public void inferType() {
-    if (explicitlyCast_) return;
-    try {
-      type_ = inferType(value_);
-    } catch (AnalysisException e) {
-      // Should not occur, we are just reinterpreting
-      // a valid value
-      throw new IllegalStateException(e);
-    }
+  public static boolean isSmallInt(BigDecimal value) {
+    return isBetween(value, MIN_SMALLINT, MAX_SMALLINT);
   }
 
+  public static boolean isInt(BigDecimal value) {
+    return isBetween(value, MIN_INT, MAX_INT);
+  }
 
-  public static ScalarType inferType(BigDecimal value) throws InvalidValueException {
+  public static boolean isBigInt(BigDecimal value) {
+    return isBetween(value, MIN_BIGINT, MAX_BIGINT);
+  }
+
+  public static boolean isFloat(BigDecimal value) {
+    return isBetween(value, MIN_FLOAT, MAX_FLOAT);
+  }
+
+  public static boolean isDouble(BigDecimal value) {
+    return isBetween(value, MIN_DOUBLE, MAX_DOUBLE);
+  }
+
+  public static boolean isDecimal(BigDecimal value) {
+    return TypesUtil.computeDecimalType(value) != null;
+  }
+
+  public static ScalarType inferType(BigDecimal value) throws SqlCastException {
     // Compute the precision and scale from the BigDecimal.
     Type type = TypesUtil.computeDecimalType(value);
     if (type == null) {
@@ -249,16 +262,18 @@ public class NumericLiteral extends LiteralExpr {
       // scale. Store it as a float/double instead.
       double d = value.doubleValue();
       if (Double.isInfinite(d)) {
-        throw new InvalidValueException("Numeric literal '" + value.toString() +
-              "' exceeds maximum range of doubles.");
+        throw new SqlCastException("Numeric literal '" + value.toString() +
+              "' exceeds maximum range of DOUBLE.");
       } else if (d == 0 && value != BigDecimal.ZERO) {
         // Note: according to the SQL standard, section 4.4, this
         // should simply truncate the lower digits, returning 0.
-        throw new InvalidValueException("Numeric literal '" + value.toString() +
-              "' underflows minimum resolution of doubles.");
+        throw new SqlCastException("Numeric literal '" + value.toString() +
+              "' underflows minimum resolution of DOUBLE.");
       }
 
       if (value.floatValue() == d) {
+        // Note: this will seldom happen. Float can store up to
+        // e38, which is within the range of a BIGINT.
         return Type.FLOAT;
       } else {
         return Type.DOUBLE;
@@ -269,21 +284,18 @@ public class NumericLiteral extends LiteralExpr {
     Preconditions.checkState(type.isScalarType());
     ScalarType scalarType = (ScalarType) type;
     if (scalarType.decimalScale() != 0) return scalarType;
-    if (value.compareTo(BigDecimal.valueOf(Byte.MAX_VALUE)) <= 0 &&
-        value.compareTo(BigDecimal.valueOf(Byte.MIN_VALUE)) >= 0) {
-      return Type.TINYINT;
-    } else if (value.compareTo(BigDecimal.valueOf(Short.MAX_VALUE)) <= 0 &&
-               value.compareTo(BigDecimal.valueOf(Short.MIN_VALUE)) >= 0) {
-      return Type.SMALLINT;
-    } else if (value.compareTo(BigDecimal.valueOf(Integer.MAX_VALUE)) <= 0 &&
-               value.compareTo(BigDecimal.valueOf(Integer.MIN_VALUE)) >= 0) {
-      return Type.INT;
-    } else if (value.compareTo(BigDecimal.valueOf(Long.MAX_VALUE)) <= 0 &&
-               value.compareTo(BigDecimal.valueOf(Long.MIN_VALUE)) >= 0) {
-      return Type.BIGINT;
-    }
+    if (isTinyInt(value)) return Type.TINYINT;
+    if (isSmallInt(value)) return Type.SMALLINT;
+    if (isInt(value)) return Type.INT;
+    if (isBigInt(value)) return Type.BIGINT;
     // Value is too large for BIGINT, keep decimal.
     return scalarType;
+  }
+
+  @Override
+  protected void analyzeImpl(Analyzer analyzer) throws AnalysisException {
+    if (explicitlyCast_) return;
+    type_ = inferType(value_);
   }
 
   /**
@@ -296,42 +308,77 @@ public class NumericLiteral extends LiteralExpr {
     explicitlyCast_ = true;
   }
 
+  /**
+   * Convert to the given type, performing range checks.
+   * (The method name is a misnomer.) If the cast would result
+   * in a change of value (such as rounding for decimal), a new
+   * value is returned, else the cast is done in place.
+   *
+   * Truncates trailing fractional digits as needed to fit
+   * the target type (as allowed by the SQL standard, section 4.4)
+   */
+   public static BigDecimal convertValue(BigDecimal value,
+       Type targetType) throws SqlCastException {
+    Preconditions.checkState(targetType.isNumericType());
+    // Don't allow overflow. Checks only extreme range for DECIMAL.
+    if (isOverflow(value, targetType)) {
+      throw new SqlCastException( value, targetType);
+    }
+
+    // If cast to an integer type, round the fractional part.
+    if (targetType.isIntegerType() && value.scale() != 0) {
+      return
+          value.setScale(0, BigDecimal.ROUND_HALF_UP);
+    }
+
+    // If non-decimal, use the existing value.
+    if (!targetType.isDecimal()) return value;
+
+    // Check for Decimal overflow.
+    ScalarType decimalType = (ScalarType) targetType;
+    int valLeftDigits = value.precision() - value.scale();
+    int typeLeftDigits = decimalType.decimalPrecision() - decimalType.decimalScale();
+    // Special case 0, it is reported as having 1 left digit, while 0.1
+    // has zero left digits.
+    if (typeLeftDigits < valLeftDigits && value.compareTo(BigDecimal.ZERO) != 0) {
+      throw new SqlCastException( value, targetType);
+    }
+
+    // Truncate (round) extra digits if necessary.
+    if (value.scale() > decimalType.decimalScale()) {
+      return value.setScale(decimalType.decimalScale(), BigDecimal.ROUND_HALF_UP);
+    }
+
+    // Existing value fits, use it.
+    return value;
+  }
+
   @Override
   protected Expr uncheckedCastTo(Type targetType) throws AnalysisException {
     Preconditions.checkState(targetType.isNumericType());
-    // Implicit casting to decimals allows truncating digits from the left of the
-    // decimal point (see TypesUtil). A literal that is implicitly cast to a decimal
-    // with truncation is wrapped into a CastExpr so the BE can evaluate it and report
-    // a warning. This behavior is consistent with casting/overflow of non-constant
-    // exprs that return decimal.
-    // IMPALA-1837: Without the CastExpr wrapping, such literals can exceed the max
-    // expected byte size sent to the BE in toThrift().
-    if (targetType.isDecimal()) {
-      ScalarType decimalType = (ScalarType) targetType;
-      // analyze() ensures that value_ never exceeds the maximum scale and precision.
-      Preconditions.checkState(isAnalyzed());
-      // Sanity check that our implicit casting does not allow a reduced precision or
-      // truncating values from the right of the decimal point.
-     if (value_.precision() > decimalType.decimalPrecision() ||
-         value_.scale() > decimalType.decimalScale()) {
-       throw new SqlCastException("Value " + value_.toString() +
-             " cannot be cast to type " + decimalType.toSql());
-      }
-      int valLeftDigits = value_.precision() - value_.scale();
-      int typeLeftDigits = decimalType.decimalPrecision() - decimalType.decimalScale();
-      if (typeLeftDigits < valLeftDigits) return new CastExpr(targetType, this);
+    BigDecimal converted = convertValue(value_, targetType);
+    if (converted == value_) {
+      // Use existing value, cast in place.
+      // Revisit: better for literals to be immutable, even in type.
+      type_ = targetType;
+      return this;
+    } else {
+      // Value changed, create a new literal.
+      return new NumericLiteral(converted, targetType);
     }
-    type_ = targetType;
-    return this;
   }
 
   @Override
   public void swapSign() {
-    value_ = value_.negate();
-
     // Swapping the sign may change the type:
     // 128 is a SMALLINT, -128 is a TINYINT
-    inferType();
+    value_ = value_.negate();
+    try {
+      type_ = inferType(value_);
+    } catch (SqlCastException e) {
+      // Should never occur
+      throw new IllegalStateException(e);
+    }
   }
 
   @Override
@@ -361,31 +408,24 @@ public class NumericLiteral extends LiteralExpr {
   /**
    * Check overflow.
    */
-  public static boolean isOverflow(BigDecimal value, Type type)
-      throws AnalysisException {
+  public static boolean isOverflow(BigDecimal value, Type type) {
     switch (type.getPrimitiveType()) {
       case TINYINT:
-        return (value.compareTo(BigDecimal.valueOf(Byte.MAX_VALUE)) > 0 ||
-            value.compareTo(BigDecimal.valueOf(Byte.MIN_VALUE)) < 0);
+        return !isTinyInt(value);
       case SMALLINT:
-        return (value.compareTo(BigDecimal.valueOf(Short.MAX_VALUE)) > 0 ||
-            value.compareTo(BigDecimal.valueOf(Short.MIN_VALUE)) < 0);
+        return !isSmallInt(value);
       case INT:
-        return (value.compareTo(BigDecimal.valueOf(Integer.MAX_VALUE)) > 0 ||
-            value.compareTo(BigDecimal.valueOf(Integer.MIN_VALUE)) < 0);
+        return !isInt(value);
       case BIGINT:
-        return (value.compareTo(BigDecimal.valueOf(Long.MAX_VALUE)) > 0 ||
-            value.compareTo(BigDecimal.valueOf(Long.MIN_VALUE)) < 0);
+        return !isBigInt(value);
       case FLOAT:
-        return (value.compareTo(BigDecimal.valueOf(Float.MAX_VALUE)) > 0 ||
-            value.compareTo(BigDecimal.valueOf(Float.MIN_VALUE)) < 0);
+        return !isFloat(value);
       case DOUBLE:
-        return (value.compareTo(BigDecimal.valueOf(Double.MAX_VALUE)) > 0 ||
-            value.compareTo(BigDecimal.valueOf(Double.MIN_VALUE)) < 0);
+        return !isDouble(value);
       case DECIMAL:
-        return (TypesUtil.computeDecimalType(value) == null);
+        return !isDecimal(value);
       default:
-        throw new AnalysisException("Overflow check on " + type.toSql() +
+        throw new IllegalArgumentException("Overflow check on " + type.toSql() +
             " isn't supported.");
     }
   }

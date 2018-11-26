@@ -26,6 +26,7 @@ import org.apache.impala.catalog.Type;
 import org.apache.impala.common.AnalysisException;
 import org.apache.impala.common.InternalException;
 import org.apache.impala.common.NotImplementedException;
+import org.apache.impala.common.UnsupportedFeatureException;
 import org.apache.impala.service.FeSupport;
 import org.apache.impala.thrift.TColumnValue;
 import org.apache.impala.thrift.TExprNode;
@@ -43,8 +44,10 @@ public abstract class LiteralExpr extends Expr implements Comparable<LiteralExpr
   private final static Logger LOG = LoggerFactory.getLogger(LiteralExpr.class);
 
   public LiteralExpr() {
+    // Literals start analyzed: there is nothing more to check.
     evalCost_ = LITERAL_COST;
     numDistinctValues_ = 1;
+    // Subclass is responsible for setting the type
   }
 
   /**
@@ -59,7 +62,9 @@ public abstract class LiteralExpr extends Expr implements Comparable<LiteralExpr
    * LiteralExpr subclass, e.g. TIMESTAMP.
    */
   public static LiteralExpr create(String value, Type type) throws AnalysisException {
-    Preconditions.checkArgument(type.isValid());
+    if (! type.isValid()) {
+      throw new UnsupportedFeatureException("Invalid literal type: " + type.toSql());
+    }
     LiteralExpr e = null;
     switch (type.getPrimitiveType()) {
       case NULL_TYPE:
@@ -86,9 +91,9 @@ public abstract class LiteralExpr extends Expr implements Comparable<LiteralExpr
       case DATETIME:
       case TIMESTAMP:
         // TODO: we support TIMESTAMP but no way to specify it in SQL.
-        return null;
+        throw new UnsupportedFeatureException("Literal unsupported: " + type.toSql());
       default:
-        Preconditions.checkState(false,
+        throw new UnsupportedFeatureException(
             String.format("Literals of type '%s' not supported.", type.toSql()));
     }
     e.analyze(null);
@@ -269,7 +274,7 @@ public abstract class LiteralExpr extends Expr implements Comparable<LiteralExpr
     if (result == null) result = new NullLiteral();
 
     result.analyzeNoThrow(null);
-    return (LiteralExpr)result;
+    return result;
   }
 
   // Order NullLiterals based on the SQL ORDER BY default behavior: NULLS LAST.

@@ -17,6 +17,10 @@
 
 package org.apache.impala.common;
 
+import java.math.BigDecimal;
+
+import org.apache.impala.catalog.Type;
+
 /**
  * Indicates a plan-time cast exception which is caught
  * and handled by some parts of the planer.
@@ -26,6 +30,11 @@ public class SqlCastException extends AnalysisException {
 
   public SqlCastException(String msg) {
     super(msg);
+  }
+
+  public SqlCastException(BigDecimal value, Type type) {
+    this("Value " + value.toString() +
+         " cannot be cast to type " + type.toSql());
   }
 
 }
