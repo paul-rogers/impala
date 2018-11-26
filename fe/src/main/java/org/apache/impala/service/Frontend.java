@@ -1167,6 +1167,8 @@ public class Frontend {
     parser.setQueryOptions(options);
     try {
       return (StatementBase) parser.parse().value;
+    } catch (AnalysisException e) {
+      throw e;
     } catch (Exception e) {
       throw new AnalysisException(parser.getErrorMsg(stmt), e);
     }

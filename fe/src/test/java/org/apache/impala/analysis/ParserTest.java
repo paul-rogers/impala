@@ -1065,8 +1065,8 @@ public class ParserTest extends FrontendTestBase {
     ParsesOk(String.format("select -%s", Double.toString(Double.MAX_VALUE)));
 
     // Test overflow and underflow
-    ParsesOk(String.format("select %s1", Double.toString(Double.MIN_VALUE)));
-    ParsesOk(String.format("select %s1", Double.toString(Double.MAX_VALUE)));
+    ParserError(String.format("select %s1", Double.toString(Double.MIN_VALUE)));
+    ParserError(String.format("select %s1", Double.toString(Double.MAX_VALUE)));
   }
 
   @Test

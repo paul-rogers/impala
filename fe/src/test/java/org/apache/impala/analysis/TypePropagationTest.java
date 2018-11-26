@@ -284,7 +284,6 @@ public class TypePropagationTest extends FrontendTestBase {
     // Entire sum is cast to a specific type
     {
       Expr expr = analyzeToExpr("CAST(1 + 1 AS TINYINT)", rewritten);
-      AstPrinter.printTree(expr);
       assertEquals(ScalarType.TINYINT, expr.getType());
       if (rewritten) {
         assertFalse(isExplicitCast(expr));
