@@ -332,6 +332,20 @@ public class NumericLiteralTest {
     } catch(SqlCastException e) {
       // Expected
     }
+    try {
+      new NumericLiteral(new BigDecimal("123.45"),
+        ScalarType.createDecimalType(3, 1));
+      fail();
+    } catch(SqlCastException e) {
+      // Expected
+    }
+    try {
+      new NumericLiteral(new BigDecimal(Integer.MAX_VALUE),
+          Type.TINYINT);
+      fail();
+    } catch(SqlCastException e) {
+      // Expected
+    }
 
     n = new NumericLiteral(new BigDecimal("1.567"), ScalarType.createDecimalType(2, 1));
     assertEquals(ScalarType.createDecimalType(2, 1), n.getType());
