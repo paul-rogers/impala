@@ -17,14 +17,17 @@
 
 package org.apache.impala.analysis;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import org.apache.impala.catalog.ScalarType;
 import org.apache.impala.catalog.Type;
+import org.apache.impala.common.FrontendTestBase;
 import org.junit.Test;
 
 
-public class ExprTest {
+public class LiteralExprTest extends FrontendTestBase {
   // Test creation of LiteralExprs from Strings, e.g., for partitioning keys.
   @Test
   public void TestLiteralExpr() {
@@ -63,8 +66,8 @@ public class ExprTest {
     try {
       expr = LiteralExpr.create(value, type);
     } catch (Exception e) {
-      fail("\nFailed to create LiteralExpr of type: " + type.toString() + " from: " + value
-          + " due to " + e.getMessage() + "\n");
+      fail("\nFailed to create LiteralExpr of type: " + type.toString() +
+          " from: " + value + " due to " + e.getMessage() + "\n");
     }
     if (expr == null) {
       fail("\nFailed to create LiteralExpr\n");
@@ -85,6 +88,73 @@ public class ExprTest {
     if (!failure) {
       fail("\nUnexpectedly succeeded to create LiteralExpr of type: "
           + type.toString() + " from: " + value + "\n");
+    }
+  }
+
+  private Expr analyze(String query, boolean useDecimalV2, boolean enableRewrite) {
+    AnalysisContext ctx = createAnalysisCtx();
+    ctx.getQueryOptions().setDecimal_v2(useDecimalV2);
+    ctx.getQueryOptions().setEnable_expr_rewrites(enableRewrite);
+    return ((SelectStmt) AnalyzesOk(query, ctx)).getSelectList()
+        .getItems().get(0).getExpr();
+  }
+
+  /**
+   * Test extreme literal cases to ensure the value passes
+   * through the analyzer correctly.
+   */
+  @Test
+  public void testLiteralCast() {
+    for (int i = 0; i < 3; i++) {
+      boolean useDecimalV2 = i > 1;
+      boolean enableRewrite = (i % 2) == 1;
+      {
+        // Boundary case in which the positive value is a DECIMAL,
+        // becomes BIGINT when negated by the parser.
+        String query = "select getBit(" + Long.MIN_VALUE + ", 63)";
+        Expr expr = analyze(query, useDecimalV2, enableRewrite);
+        assertEquals(Type.TINYINT, expr.getType());
+      }
+      {
+        // Would eval to NaN, so keep original expr.
+        String query = "select cast(10 as double) / cast(0 as double)";
+        Expr expr = analyze(query, useDecimalV2, enableRewrite);
+        assertEquals(Type.DOUBLE, expr.getType());
+        assertTrue(expr instanceof ArithmeticExpr);
+      }
+      {
+        // Extreme double value. Ensure double-->BigDecimal noise
+        // does not cause overflows
+        String query = "select cast(" + Double.toString(Double.MAX_VALUE) +
+            " as double)";
+        Expr expr = analyze(query, useDecimalV2, enableRewrite);
+        assertEquals(Type.DOUBLE, expr.getType());
+        if (enableRewrite) {
+          assertTrue(expr instanceof NumericLiteral);
+        } else {
+          assertTrue(expr instanceof CastExpr);
+        }
+      }
+      {
+        // As above, but for extreme minimum (smallest) values
+        String query = "select cast(" + Double.toString(Double.MIN_VALUE) +
+            " as double)";
+        Expr expr = analyze(query, useDecimalV2, enableRewrite);
+        assertEquals(Type.DOUBLE, expr.getType());
+        if (enableRewrite) {
+          assertTrue(expr instanceof NumericLiteral);
+        } else {
+          assertTrue(expr instanceof CastExpr);
+        }
+      }
+      {
+        // Math would cause overflow, don't rewrite
+        String query = "select cast(1.7976931348623157e+308 as double)" +
+            " / cast(2.2250738585072014e-308 as double)";
+        Expr expr = analyze(query, useDecimalV2, enableRewrite);
+        assertEquals(Type.DOUBLE, expr.getType());
+        assertTrue(expr instanceof ArithmeticExpr);
+      }
     }
   }
 }
