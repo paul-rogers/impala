@@ -17,17 +17,18 @@
 
 package org.apache.impala.analysis;
 
-public interface ParseNode {
+import org.apache.impala.common.AnalysisException;
+
+/**
+ * Base interface for statements and statement-like nodes such as clauses
+ * Statement-like nodes are rewritten in place. They can generate before-
+ * of after- rewrite SQL. They are not subject to expression rewrites.
+ */
+public interface StmtNode extends ParseNode {
 
   /**
-   * Returns the SQL string corresponding to this node and its descendants.
+   * Perform semantic analysis of node and all of its children.
+   * Throws exception if any semantic errors were found.
    */
-  String toSql(ToSqlOptions options);
-
-  /**
-   * Returns the SQL string corresponding to this node and its descendants.
-   * This should return the same result as calling toSql(ToSqlOptions.DEFAULT).
-   * TODO use an interface default method to implement this when we fully move to Java8.
-   */
-  String toSql();
+  void analyze(Analyzer analyzer) throws AnalysisException;
 }

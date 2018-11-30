@@ -687,6 +687,10 @@ abstract public class Expr extends TreeNode<Expr> implements ParseNode, Cloneabl
     return toSql(DEFAULT);
   }
 
+  /**
+   * Some expression nodes are also statement-like and know about
+   * before/after rewrite expressions.
+   */
   @Override
   public String toSql(ToSqlOptions options) {
     return (printSqlInParens_) ? "(" + toSqlImpl(options) + ")" : toSqlImpl(options);
