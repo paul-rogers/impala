@@ -480,4 +480,9 @@ public class ToSqlUtils {
     sb.append("\n");
     return sb.toString();
   }
+
+  public static String formatAlias(String alias) {
+    if (alias == null) return "";
+    return " " + getIdentSql(alias);
+  }
 }

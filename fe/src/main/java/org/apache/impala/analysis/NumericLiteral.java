@@ -17,12 +17,15 @@
 
 package org.apache.impala.analysis;
 
+import java.io.IOException;
+import java.io.StringReader;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 
 import org.apache.impala.catalog.ScalarType;
 import org.apache.impala.catalog.Type;
 import org.apache.impala.common.AnalysisException;
+import org.apache.impala.common.InvalidValueException;
 import org.apache.impala.common.SqlCastException;
 import org.apache.impala.thrift.TDecimalLiteral;
 import org.apache.impala.thrift.TExprNode;
@@ -32,6 +35,8 @@ import org.apache.impala.thrift.TIntLiteral;
 
 import com.google.common.base.Objects;
 import com.google.common.base.Preconditions;
+
+import java_cup.runtime.Symbol;
 
 /**
  * Literal for all numeric values, including integer, floating-point and decimal
@@ -121,8 +126,6 @@ public class NumericLiteral extends LiteralExpr {
     value_ = value;
     type_ = inferType(value);
     explicitType_ = type_;
-    // No further analysis needed for a (numeric) literal.
-    analysisDone();
   }
 
   /**
@@ -149,10 +152,9 @@ public class NumericLiteral extends LiteralExpr {
   }
 
   public NumericLiteral(BigDecimal value, Type type) throws SqlCastException {
+    super(type);
     value_ = convertValue(value, type);
-    type_ = type;
     explicitType_ = type_;
-    analysisDone();
   }
 
   /**
@@ -162,6 +164,7 @@ public class NumericLiteral extends LiteralExpr {
    * @throws SqlCastException
    */
   public NumericLiteral(double value, Type type) throws SqlCastException {
+    super(type);
     Preconditions.checkArgument(type == Type.DOUBLE || type == Type.FLOAT);
     // Reject INF, NaN
     if (!isImpalaDouble(value)) {
@@ -173,9 +176,7 @@ public class NumericLiteral extends LiteralExpr {
     if (type == Type.FLOAT && !fitsInFloat(value_)) {
       throw new SqlCastException(value_, type);
     }
-    type_ = type;
     explicitType_ = type_;
-    analysisDone();
   }
 
   /**
@@ -213,17 +214,68 @@ public class NumericLiteral extends LiteralExpr {
     return create(new BigDecimal(value), type);
   }
 
+  /**
+   * Create a numeric literal from a SQL-like string.
+   * Valid formats:
+   *  "123" - simple number
+   *  "-123" - negative number
+   *  " - 123 " - with spaces
+   *  "- -123" - double equals, but only with a space between the
+   *             equal signs
+   *  "123.45" - decimal number (not float)
+   *  "123e45" - double number (too big for decimal)
+   *
+   * Note that "--10" cannot be supported because that is a SQL
+   * comment.
+   * @param value string value
+   * @return numeric literal
+   * @throws AnalysisException for format or range errors
+   */
+  public static NumericLiteral create(String value) throws AnalysisException {
+    StringReader reader = new StringReader(value);
+    SqlScanner scanner = new SqlScanner(reader);
+    // For distinguishing positive and negative numbers.
+    boolean negative = false;
+    Symbol sym;
+    try {
+      // We allow simple chaining of MINUS to recognize negative numbers.
+      // Currently we can't handle string literals containing full fledged expressions
+      // which are implicitly cast to a numeric literal.
+      // This would require invoking the parser.
+      // Note: syntax must be - -10, since --10 is a comment
+      sym = scanner.next_token();
+      while (sym.sym == SqlParserSymbols.SUBTRACT) {
+        negative = !negative;
+        sym = scanner.next_token();
+      }
+    } catch (IOException e) {
+      // Should never occur
+      throw new InvalidValueException("Failed to convert string literal to number: " + value, e);
+    }
+    if (sym.sym == SqlParserSymbols.NUMERIC_OVERFLOW) {
+      throw new SqlCastException("Number too large: " + value);
+    }
+    if (sym.sym != SqlParserSymbols.INTEGER_LITERAL &&
+        sym.sym != SqlParserSymbols.DECIMAL_LITERAL) {
+        throw new InvalidValueException("Invalid number: " + value);
+    }
+
+    try {
+      BigDecimal val = (BigDecimal) sym.value;
+      if (negative) val = val.negate();
+      return new NumericLiteral(val);
+    } catch (NumberFormatException e) {
+      // Should never occur
+      throw new InvalidValueException("Invalid number format: " + value, e);
+    }
+  }
+
   @Override
   public String debugString() {
     return Objects.toStringHelper(this)
         .add("value", value_)
         .add("type", type_)
         .toString();
-  }
-
-  @Override
-  public String toString() {
-    return value_.toString() + ":" + type_.toSql();
   }
 
   public Type getExplicitType() { return explicitType_; }

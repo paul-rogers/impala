@@ -26,6 +26,7 @@ import java.util.ListIterator;
 import java.util.Set;
 
 import org.apache.impala.analysis.BinaryPredicate.Operator;
+import org.apache.impala.analysis.ExprAnalyzer.ColumnResolver;
 import org.apache.impala.catalog.BuiltinsDb;
 import org.apache.impala.catalog.Function;
 import org.apache.impala.catalog.Function.CompareMode;
@@ -57,7 +58,6 @@ import static org.apache.impala.analysis.ToSqlOptions.DEFAULT;
 
 /**
  * Root of the expr node hierarchy.
- *
  */
 abstract public class Expr extends TreeNode<Expr> implements ParseNode, Cloneable {
   private final static Logger LOG = LoggerFactory.getLogger(Expr.class);
@@ -101,6 +101,7 @@ abstract public class Expr extends TreeNode<Expr> implements ParseNode, Cloneabl
   // returns true if an Expr is a non-analytic aggregate.
   private final static com.google.common.base.Predicate<Expr> isAggregatePredicate_ =
       new com.google.common.base.Predicate<Expr>() {
+        @Override
         public boolean apply(Expr arg) {
           return arg instanceof FunctionCallExpr &&
               ((FunctionCallExpr)arg).isAggregateFunction();
@@ -393,6 +394,11 @@ abstract public class Expr extends TreeNode<Expr> implements ParseNode, Cloneabl
 
   /**
    * Perform semantic analysis of node and all of its children.
+   *
+   * This is an interim version, called for top-level expressions. This node,
+   * and its children, are analyzed by the expression analyzer, not by calling
+   * this method for children.
+   *
    * Throws exception if any errors found.
    * @see ParseNode#analyze(Analyzer)
    */
@@ -400,36 +406,16 @@ abstract public class Expr extends TreeNode<Expr> implements ParseNode, Cloneabl
   // expression, leaving the StmtNode version to analyze statements
   // in-place.
   public final void analyze(Analyzer analyzer) throws AnalysisException {
-    if (isAnalyzed()) return;
+    ExprAnalyzer exprAnalyzer = new ExprAnalyzer(analyzer);
+    exprAnalyzer.analyze(this);
+  }
 
-    // Check the expr child limit.
-    if (children_.size() > EXPR_CHILDREN_LIMIT) {
-      String sql = toSql();
-      String sqlSubstr = sql.substring(0, Math.min(80, sql.length()));
-      throw new AnalysisException(String.format("Exceeded the maximum number of child " +
-          "expressions (%s).\nExpression has %s children:\n%s...",
-          EXPR_CHILDREN_LIMIT, children_.size(), sqlSubstr));
-    }
-
-    // analyzer may be null for certain literal constructions (e.g. IntLiteral).
-    if (analyzer != null) {
-      analyzer.incrementCallDepth();
-      // Check the expr depth limit. Do not print the toSql() to not overflow the stack.
-      if (analyzer.getCallDepth() > EXPR_DEPTH_LIMIT) {
-        throw new AnalysisException(String.format("Exceeded the maximum depth of an " +
-            "expression tree (%s).", EXPR_DEPTH_LIMIT));
-      }
-    }
-    for (Expr child: children_) {
-      child.analyze(analyzer);
-    }
-    if (analyzer != null) analyzer.decrementCallDepth();
-    computeNumDistinctValues();
-
-    // Do all the analysis for the expr subclass before marking the Expr analyzed.
-    analyzeImpl(analyzer);
-    evalCost_ = computeEvalCost();
-    analysisDone();
+  /**
+   * Does subclass-specific name resolution.
+   */
+  protected Expr resolve(ColumnResolver resolver) throws AnalysisException
+  {
+    return null;
   }
 
   /**
@@ -1421,7 +1407,7 @@ abstract public class Expr extends TreeNode<Expr> implements ParseNode, Cloneabl
     return Objects.toStringHelper(this.getClass())
         .add("id", id_)
         .add("type", type_)
-        .add("toSql", toSql())
+        .add("toSql", toSql(ToSqlOptions.SHOW_IMPLICIT_CASTS))
         .add("sel", selectivity_)
         .add("evalCost", evalCost_)
         .add("#distinct", numDistinctValues_)

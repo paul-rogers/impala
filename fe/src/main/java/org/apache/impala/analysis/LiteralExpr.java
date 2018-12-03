@@ -25,7 +25,6 @@ import org.apache.impala.catalog.ScalarType;
 import org.apache.impala.catalog.Type;
 import org.apache.impala.common.AnalysisException;
 import org.apache.impala.common.InternalException;
-import org.apache.impala.common.NotImplementedException;
 import org.apache.impala.common.SqlCastException;
 import org.apache.impala.common.UnsupportedFeatureException;
 import org.apache.impala.service.FeSupport;
@@ -49,6 +48,12 @@ public abstract class LiteralExpr extends Expr implements Comparable<LiteralExpr
     evalCost_ = LITERAL_COST;
     numDistinctValues_ = 1;
     // Subclass is responsible for setting the type
+    analysisDone();
+  }
+
+  public LiteralExpr(Type type) {
+    this();
+    type_ = type;
   }
 
   /**
@@ -97,7 +102,6 @@ public abstract class LiteralExpr extends Expr implements Comparable<LiteralExpr
         throw new UnsupportedFeatureException(
             String.format("Literals of type '%s' not supported.", type.toSql()));
     }
-    e.analyze(null);
     // Need to cast since we cannot infer the type from the value. e.g. value
     // can be parsed as tinyint but we need a bigint.
     return (LiteralExpr) e.uncheckedCastTo(type);
@@ -106,6 +110,12 @@ public abstract class LiteralExpr extends Expr implements Comparable<LiteralExpr
   @Override
   protected void analyzeImpl(Analyzer analyzer) throws AnalysisException {
     // Literals require no analysis.
+  }
+
+
+  @Override
+  public String toString() {
+    return getStringValue() + ":" + type_.toSql();
   }
 
   @Override
@@ -118,55 +128,45 @@ public abstract class LiteralExpr extends Expr implements Comparable<LiteralExpr
    */
   public static LiteralExpr fromThrift(TExprNode exprNode, Type colType) {
     try {
-      LiteralExpr result = null;
       switch (exprNode.node_type) {
         case FLOAT_LITERAL:
-          result = LiteralExpr.create(
-              Double.toString(exprNode.float_literal.value), colType);
-          break;
+          return new NumericLiteral(exprNode.float_literal.value, colType);
         case DECIMAL_LITERAL:
           byte[] bytes = exprNode.decimal_literal.getValue();
           BigDecimal val = new BigDecimal(new BigInteger(bytes));
           ScalarType decimalType = (ScalarType) colType;
           // We store the decimal as the unscaled bytes. Need to adjust for the scale.
           val = val.movePointLeft(decimalType.decimalScale());
-          result = new NumericLiteral(val, colType);
-          break;
-        case INT_LITERAL:
-          result = LiteralExpr.create(
-              Long.toString(exprNode.int_literal.value), colType);
-          break;
+          return new NumericLiteral(val, colType);
+         case INT_LITERAL:
+           return NumericLiteral.create(exprNode.int_literal.value, colType);
         case STRING_LITERAL:
-          result = LiteralExpr.create(exprNode.string_literal.value, colType);
-          break;
+          return StringLiteral.create(exprNode.string_literal.value, colType);
         case BOOL_LITERAL:
-          result =  LiteralExpr.create(
-              Boolean.toString(exprNode.bool_literal.value), colType);
-          break;
+          return new BoolLiteral(exprNode.bool_literal.value);
         case NULL_LITERAL:
           return NullLiteral.create(colType);
         default:
           throw new UnsupportedOperationException("Unsupported partition key type: " +
               exprNode.node_type);
       }
-      Preconditions.checkNotNull(result);
-      result.analyze(null);
-      return result;
-    } catch (Exception e) {
+    } catch (AnalysisException e) {
       throw new IllegalStateException("Error creating LiteralExpr: ", e);
     }
   }
 
-  // Returns the string representation of the literal's value. Used when passing
-  // literal values to the metastore rather than to Impala backends. This is similar to
-  // the toSql() method, but does not perform any formatting of the string values. Neither
-  // method unescapes string values.
+  /**
+   * Returns the string representation of the literal's value. Used when passing
+   * literal values to the metastore rather than to Impala backends. This is similar to
+   * the toSql() method, but does not perform any formatting of the string values.
+   * Neither method unescapes string values.
+   */
   public abstract String getStringValue();
 
   // Swaps the sign of numeric literals.
   // Throws for non-numeric literals.
-  public void swapSign() throws NotImplementedException {
-    throw new NotImplementedException("swapSign() only implemented for numeric" +
+  public void swapSign() throws UnsupportedOperationException {
+    throw new UnsupportedOperationException("swapSign() only implemented for numeric" +
         "literals");
   }
 
@@ -193,34 +193,28 @@ public abstract class LiteralExpr extends Expr implements Comparable<LiteralExpr
           constExpr.toSql(), e.getMessage()));
       return null;
     }
+    return create(val, constExpr.getType());
+  }
 
-    LiteralExpr result = null;
-    switch (constExpr.getType().getPrimitiveType()) {
+  public static LiteralExpr create(TColumnValue val, Type type)
+      throws AnalysisException {
+    switch (type.getPrimitiveType()) {
       case NULL_TYPE:
-        result = new NullLiteral();
-        break;
+        return new NullLiteral();
       case BOOLEAN:
-        if (val.isSetBool_val()) result = new BoolLiteral(val.bool_val);
+        if (val.isSetBool_val()) return new BoolLiteral(val.bool_val);
         break;
       case TINYINT:
-        if (val.isSetByte_val()) {
-          result = new NumericLiteral(BigDecimal.valueOf(val.byte_val));
-        }
+        if (val.isSetByte_val()) return NumericLiteral.create(val.byte_val);
         break;
       case SMALLINT:
-        if (val.isSetShort_val()) {
-          result = new NumericLiteral(BigDecimal.valueOf(val.short_val));
-        }
+        if (val.isSetShort_val()) return NumericLiteral.create(val.short_val);
         break;
       case INT:
-        if (val.isSetInt_val()) {
-          result = new NumericLiteral(BigDecimal.valueOf(val.int_val));
-        }
+        if (val.isSetInt_val()) return NumericLiteral.create(val.int_val);
         break;
       case BIGINT:
-        if (val.isSetLong_val()) {
-          result = new NumericLiteral(BigDecimal.valueOf(val.long_val));
-        }
+        if (val.isSetLong_val()) return NumericLiteral.create(val.long_val);
         break;
       case FLOAT:
       case DOUBLE:
@@ -230,7 +224,7 @@ public abstract class LiteralExpr extends Expr implements Comparable<LiteralExpr
           // A NumericLiteral cannot represent NaN, infinity or negative zero.
           // SqlCastException thrown for these cases.
           try {
-            result = new NumericLiteral(val.double_val, constExpr.getType());
+            return new NumericLiteral(val.double_val, type);
           } catch (SqlCastException e) {
             return null;
           }
@@ -238,8 +232,7 @@ public abstract class LiteralExpr extends Expr implements Comparable<LiteralExpr
         break;
       case DECIMAL:
         if (val.isSetString_val()) {
-          result =
-              new NumericLiteral(new BigDecimal(val.string_val), constExpr.getType());
+          return new NumericLiteral(val.string_val, type);
         }
         break;
       case STRING:
@@ -256,7 +249,7 @@ public abstract class LiteralExpr extends Expr implements Comparable<LiteralExpr
             // US-ASCII is 7-bit ASCII.
             String strVal = new String(bytes, "US-ASCII");
             // The evaluation result is a raw string that must not be unescaped.
-            result = new StringLiteral(strVal, constExpr.getType(), false);
+            return new StringLiteral(strVal, type, false);
           } catch (UnsupportedEncodingException e) {
             return null;
           }
@@ -266,31 +259,25 @@ public abstract class LiteralExpr extends Expr implements Comparable<LiteralExpr
         // Expects both the binary and string fields to be set, so we get the raw
         // representation as well as the string representation.
         if (val.isSetBinary_val() && val.isSetString_val()) {
-          result = new TimestampLiteral(val.getBinary_val(), val.getString_val());
+          return new TimestampLiteral(val.getBinary_val(), val.getString_val());
         }
         break;
-      case DATE:
-      case DATETIME:
-        return null;
+      //case DATE:
+      //case DATETIME:
+      //  return null;
       default:
-        Preconditions.checkState(false,
+        throw new UnsupportedFeatureException(
             String.format("Literals of type '%s' not supported.",
-                constExpr.getType().toSql()));
+                type.toSql()));
     }
     // None of the fields in the thrift struct were set indicating a NULL.
-    if (result == null) result = new NullLiteral();
-
-    result.analyzeNoThrow(null);
-    return result;
+    return new NullLiteral(type);
   }
 
   // Order NullLiterals based on the SQL ORDER BY default behavior: NULLS LAST.
   @Override
   public int compareTo(LiteralExpr other) {
-    if (Expr.IS_NULL_LITERAL.apply(this) && Expr.IS_NULL_LITERAL.apply(other)) return 0;
-    if (Expr.IS_NULL_LITERAL.apply(this)) return -1;
     if (Expr.IS_NULL_LITERAL.apply(other)) return 1;
-    if (getClass() != other.getClass()) return -1;
-    return 0;
+    return Integer.compare(getClass().hashCode(), other.getClass().hashCode());
   }
 }

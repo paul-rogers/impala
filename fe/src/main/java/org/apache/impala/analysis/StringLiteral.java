@@ -17,22 +17,17 @@
 
 package org.apache.impala.analysis;
 
-import java.io.IOException;
-import java.io.StringReader;
-import java.math.BigDecimal;
-
 import org.apache.hadoop.hive.ql.parse.BaseSemanticAnalyzer;
 import org.apache.impala.catalog.ScalarType;
 import org.apache.impala.catalog.Type;
 import org.apache.impala.common.AnalysisException;
+import org.apache.impala.common.SqlCastException;
 import org.apache.impala.thrift.TExprNode;
 import org.apache.impala.thrift.TExprNodeType;
 import org.apache.impala.thrift.TStringLiteral;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Objects;
-import com.google.common.base.Preconditions;
-
-import java_cup.runtime.Symbol;
 
 public class StringLiteral extends LiteralExpr {
   private final String value_;
@@ -45,8 +40,8 @@ public class StringLiteral extends LiteralExpr {
   }
 
   public StringLiteral(String value, Type type, boolean needsUnescaping) {
+    super(type);
     value_ = value;
-    type_ = type;
     needsUnescaping_ = needsUnescaping;
   }
 
@@ -74,6 +69,9 @@ public class StringLiteral extends LiteralExpr {
     return "'" + getNormalizedValue() + "'";
   }
 
+  @VisibleForTesting
+  public boolean needsUnescaping() { return needsUnescaping_; }
+
   @Override
   protected void toThrift(TExprNode msg) {
     msg.node_type = TExprNodeType.STRING_LITERAL;
@@ -94,15 +92,21 @@ public class StringLiteral extends LiteralExpr {
         + "'");
   }
 
+  @Override
+  public String toString() {
+    return "'" + value_ + "':" + type_.toSql();
+  }
+
   /**
    *  String literals can come directly from the SQL of a query or from rewrites like
-   *  constant folding. So this value normalization to a single-quoted string is necessary
-   *  because we do not know whether single or double quotes are appropriate.
+   * constant folding. So this value normalization to a single-quoted string is
+   * necessary because we do not know whether single or double quotes are appropriate.
    *
    *  @return a normalized representation of the string value suitable for embedding in
    *          SQL as a single-quoted string literal.
    */
-  private String getNormalizedValue() {
+  @VisibleForTesting
+  protected String getNormalizedValue() {
     final int len = value_.length();
     final StringBuilder sb = new StringBuilder(len);
     for (int i = 0; i < len; ++i) {
@@ -144,19 +148,19 @@ public class StringLiteral extends LiteralExpr {
 
   @Override
   protected Expr uncheckedCastTo(Type targetType) throws AnalysisException {
-    Preconditions.checkState(targetType.isNumericType() || targetType.isDateType()
-        || targetType.equals(this.type_) || targetType.isStringType());
-    if (targetType.equals(this.type_)) {
+    if (targetType.equals(type_)) {
       return this;
     } else if (targetType.isStringType()) {
       type_ = targetType;
+      return this;
     } else if (targetType.isNumericType()) {
-      return convertToNumber();
+      return convertToNumber().uncheckedCastTo(targetType);
     } else if (targetType.isDateType()) {
       // Let the BE do the cast so it is in Boost format
       return new CastExpr(targetType, this);
+    } else {
+      throw new SqlCastException(type_.toSql(), targetType);
     }
-    return this;
   }
 
   /**
@@ -168,42 +172,9 @@ public class StringLiteral extends LiteralExpr {
    *           if NumberFormatException occurs,
    *           or if floating point value is NaN or infinite
    */
-  public LiteralExpr convertToNumber()
+  public NumericLiteral convertToNumber()
       throws AnalysisException {
-    StringReader reader = new StringReader(value_);
-    SqlScanner scanner = new SqlScanner(reader);
-    // For distinguishing positive and negative numbers.
-    boolean negative = false;
-    Symbol sym;
-    try {
-      // We allow simple chaining of MINUS to recognize negative numbers.
-      // Currently we can't handle string literals containing full fledged expressions
-      // which are implicitly cast to a numeric literal.
-      // This would require invoking the parser.
-      sym = scanner.next_token();
-      while (sym.sym == SqlParserSymbols.SUBTRACT) {
-        negative = !negative;
-        sym = scanner.next_token();
-      }
-    } catch (IOException e) {
-      throw new AnalysisException("Failed to convert string literal to number.", e);
-    }
-    if (sym.sym == SqlParserSymbols.NUMERIC_OVERFLOW) {
-      throw new AnalysisException("Number too large: " + value_);
-    }
-    if (sym.sym == SqlParserSymbols.INTEGER_LITERAL) {
-      BigDecimal val = (BigDecimal) sym.value;
-      if (negative) val = val.negate();
-      return new NumericLiteral(val);
-    }
-    if (sym.sym == SqlParserSymbols.DECIMAL_LITERAL) {
-      BigDecimal val = (BigDecimal) sym.value;
-      if (negative) val = val.negate();
-      return new NumericLiteral(val);
-    }
-    // Symbol is not an integer or floating point literal.
-    throw new AnalysisException("Failed to convert string literal '"
-        + value_ + "' to number.");
+    return NumericLiteral.create(value_);
   }
 
   @Override

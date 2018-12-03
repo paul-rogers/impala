@@ -22,6 +22,7 @@ import java.util.Collections;
 import java.util.List;
 
 import org.apache.impala.analysis.AnalysisContext.AnalysisResult;
+import org.apache.impala.analysis.SelectListItem.SelectWildcard;
 import org.apache.impala.analysis.UnionStmt.UnionOperand;
 import org.apache.impala.common.AnalysisException;
 import org.slf4j.Logger;
@@ -257,7 +258,7 @@ public class StmtRewriter {
       List<TableRef> fromList = Lists.newArrayList();
       fromList.add(wrapperView);
       SelectStmt rewriteQuery = new SelectStmt(
-          new SelectList(Lists.newArrayList(new SelectListItem(wrapperResult, null))),
+          new SelectList(Lists.newArrayList(SelectListItem.createColumn(wrapperResult, null))),
           new FromClause(fromList), rewritePredicate, null, null, null, null);
       Subquery newSubquery = new Subquery(rewriteQuery);
       rhsQuery.reset();
@@ -358,7 +359,7 @@ public class StmtRewriter {
       if (joinConjunct != null) {
         SelectListItem firstItem =
             ((SelectStmt) inlineView.getViewStmt()).getSelectList().getItems().get(0);
-        if (!onClauseConjuncts.isEmpty() && firstItem.getExpr() != null &&
+        if (!onClauseConjuncts.isEmpty() && !firstItem.isStar() &&
             firstItem.getExpr().contains(Expr.NON_NULL_EMPTY_AGG)) {
           // Correlated subqueries with an aggregate function that returns non-null on
           // an empty input are rewritten using a LEFT OUTER JOIN because we
@@ -372,8 +373,8 @@ public class StmtRewriter {
           // on an empty set.
           // TODO Handle count aggregate functions in an expression in subqueries
           // select list.
-          stmt.whereClause_ =
-              CompoundPredicate.createConjunction(joinConjunct, stmt.whereClause_);
+          stmt.whereClause_.setExpr(
+              CompoundPredicate.createConjunction(joinConjunct, stmt.getWhereClause()));
           joinConjunct = null;
           joinOp = JoinOperator.LEFT_OUTER_JOIN;
           updateSelectList = true;
@@ -476,8 +477,8 @@ public class StmtRewriter {
 
         // We can rewrite the aggregate subquery using a cross join. All conjuncts
         // that were extracted from the subquery are added to stmt's WHERE clause.
-        stmt.whereClause_ =
-            CompoundPredicate.createConjunction(onClausePredicate, stmt.whereClause_);
+        stmt.whereClause_.setExpr(
+            CompoundPredicate.createConjunction(onClausePredicate, stmt.getWhereClause()));
         inlineView.setJoinOp(JoinOperator.CROSS_JOIN);
         // Indicate that the CROSS JOIN may add a new visible tuple to stmt's
         // select list (if the latter contains an unqualified star item '*')
@@ -529,9 +530,14 @@ public class StmtRewriter {
       ArrayList<SelectListItem> newItems = Lists.newArrayList();
       for (int i = 0; i < stmt.selectList_.getItems().size(); ++i) {
         SelectListItem item = stmt.selectList_.getItems().get(i);
-        if (!item.isStar() || item.getRawPath() != null) {
+        if (!item.isStar()) {
           newItems.add(item);
           continue;
+        }
+        SelectWildcard wildcard = (SelectWildcard) item;
+        if (wildcard.getRawPath() != null) {
+           newItems.add(item);
+           continue;
         }
         // '*' needs to be replaced by tbl1.*,...,tbln.*, where
         // tbl1,...,tbln are the visible tableRefs in stmt.
@@ -541,8 +547,8 @@ public class StmtRewriter {
               tableRef.getJoinOp() == JoinOperator.LEFT_ANTI_JOIN) {
             continue;
           }
-          newItems.add(SelectListItem
-              .createStarItem(Lists.newArrayList(tableRef.getUniqueAlias())));
+          newItems.add(SelectListItem.createWildcard(
+              Lists.newArrayList(tableRef.getUniqueAlias())));
         }
       }
       Preconditions.checkState(!newItems.isEmpty());
@@ -792,7 +798,7 @@ public class StmtRewriter {
       // added to an ExprSubstitutionMap.
       for (Expr boundExpr : exprsBoundBySubqueryTids) {
         String colAlias = stmt.getColumnAliasGenerator().getNextAlias();
-        items.add(new SelectListItem(boundExpr, null));
+        items.add(SelectListItem.createColumn(boundExpr, null));
         inlineView.getExplicitColLabels().add(colAlias);
         lhsExprs.add(boundExpr);
         rhsExprs
@@ -941,12 +947,12 @@ public class StmtRewriter {
       // Rewrite all the subqueries in the WHERE clause.
       if (stmt.hasWhereClause()) {
         // Push negation to leaf operands.
-        stmt.whereClause_ = Expr.pushNegationToOperands(stmt.whereClause_);
+        stmt.whereClause_.setExpr(Expr.pushNegationToOperands(stmt.getWhereClause()));
         // Check if we can rewrite the subqueries in the WHERE clause. OR predicates with
         // subqueries are not supported.
-        if (hasSubqueryInDisjunction(stmt.whereClause_)) {
+        if (hasSubqueryInDisjunction(stmt.getWhereClause())) {
           throw new AnalysisException("Subqueries in OR predicates are not supported: " +
-              stmt.whereClause_.toSql());
+              stmt.getWhereClause().toSql());
         }
         rewriteWhereClauseSubqueries(stmt, analyzer);
       }
@@ -1013,7 +1019,7 @@ public class StmtRewriter {
       ExprSubstitutionMap smap = new ExprSubstitutionMap();
       // Check if all the conjuncts in the WHERE clause that contain subqueries
       // can currently be rewritten as a join.
-      for (Expr conjunct : stmt.whereClause_.getConjuncts()) {
+      for (Expr conjunct : stmt.getWhereClause().getConjuncts()) {
         List<Subquery> subqueries = Lists.newArrayList();
         conjunct.collectAll(Predicates.instanceOf(Subquery.class), subqueries);
         if (subqueries.size() == 0) continue;
@@ -1060,7 +1066,7 @@ public class StmtRewriter {
         smap.put(conjunct, boolLiteral);
         exprsWithSubqueries.add(rewrittenConjunct);
       }
-      stmt.whereClause_ = stmt.whereClause_.substitute(smap, analyzer, false);
+      stmt.whereClause_.setExpr(stmt.getWhereClause().substitute(smap, analyzer, false));
 
       boolean hasNewVisibleTuple = false;
       // Recursively rewrite all the exprs that contain subqueries and merge them
@@ -1070,7 +1076,7 @@ public class StmtRewriter {
           hasNewVisibleTuple = true;
         }
       }
-      if (canEliminate(stmt.whereClause_)) stmt.whereClause_ = null;
+      if (canEliminate(stmt.getWhereClause())) stmt.whereClause_ = null;
       if (hasNewVisibleTuple) replaceUnqualifiedStarItems(stmt, numTableRefs);
     }
 

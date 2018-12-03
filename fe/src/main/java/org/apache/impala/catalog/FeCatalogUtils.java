@@ -242,7 +242,6 @@ public abstract class FeCatalogUtils {
         }
       }
     }
-    for (Expr v: keyValues) v.analyzeNoThrow(null);
     return keyValues;
   }
 

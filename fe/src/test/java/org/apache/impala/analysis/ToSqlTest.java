@@ -17,6 +17,7 @@
 
 package org.apache.impala.analysis;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 
 import org.apache.impala.common.AnalysisException;
@@ -95,12 +96,7 @@ public class ToSqlTest extends FrontendTestBase {
         // Transform whitespace to single space.
         actual = actual.replace('\n', ' ').replaceAll(" +", " ").trim();
       }
-      if (!actual.equals(expected)) {
-        String msg = "\n<<< Expected(length:" + expected.length() + "): [" + expected
-          + "]\n>>> Actual(length:" + actual.length() + "): [" + actual + "]\n";
-        System.err.println(msg);
-        fail(msg);
-      }
+      assertEquals(expected, actual);
     } catch (Exception e) {
       e.printStackTrace();
       fail("Failed to analyze query: " + query + "\n" + e.getMessage());
@@ -677,7 +673,7 @@ public class ToSqlTest extends FrontendTestBase {
   public void aggregationTest() {
     testToSql("select COUNT(*), count(id), COUNT(id), SUM(id), AVG(id) " +
         "from functional.alltypes group by tinyint_col",
-        "SELECT count(*), count(id), count(id), sum(id), avg(id) " +
+        "SELECT COUNT(*), count(id), COUNT(id), SUM(id), AVG(id) " +
         "FROM functional.alltypes GROUP BY tinyint_col");
     testToSql("select avg(float_col / id) from functional.alltypes group by tinyint_col",
         "SELECT avg(float_col / id) " +

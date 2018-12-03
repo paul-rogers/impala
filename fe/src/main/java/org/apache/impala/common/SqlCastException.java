@@ -37,4 +37,9 @@ public class SqlCastException extends AnalysisException {
          " cannot be cast to type " + type.toSql());
   }
 
+  public SqlCastException(String value, Type type) {
+    this("Value " + value +
+         " cannot be cast to type " + type.toSql());
+  }
+
 }

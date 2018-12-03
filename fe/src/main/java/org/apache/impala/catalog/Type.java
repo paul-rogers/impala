@@ -536,6 +536,10 @@ public abstract class Type {
     }
   }
 
+  public int compareTo(Type other) {
+    return getPrimitiveType().compareTo(other.getPrimitiveType());
+  }
+
   /**
    * JDBC data type description
    * For numeric data types, either 10 or 2. If it is 10, the values in COLUMN_SIZE

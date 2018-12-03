@@ -232,7 +232,6 @@ public class FunctionCallExpr extends Expr {
         .toString();
   }
 
-  public FunctionParams getParams() { return params_; }
   public boolean isScalarFunction() {
     Preconditions.checkNotNull(fn_);
     return fn_ instanceof ScalarFunction ;
@@ -271,6 +270,7 @@ public class FunctionCallExpr extends Expr {
     return ((AggregateFunction)fn_).ignoresDistinct();
   }
 
+  public FunctionParams getParams() { return params_; }
   public FunctionName getFnName() { return fnName_; }
   public void setIsAnalyticFnCall(boolean v) { isAnalyticFnCall_ = v; }
   public void setIsInternalFnCall(boolean v) { isInternalFnCall_ = v; }

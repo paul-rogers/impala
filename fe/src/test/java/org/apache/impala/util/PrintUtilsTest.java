@@ -101,9 +101,9 @@ public class PrintUtilsTest {
             + " * FROM tpch_parquet.orders INNER JOIN \n"
             + "-- +shuffle\n"
             + " tpch_parquet.customer ON o_custkey = c_custkey",
-        "SELECT \n"
+        "SELECT\n"
             + "-- +straight_join\n"
-            + "* FROM tpch_parquet.orders INNER JOIN \n"
+            + "* FROM tpch_parquet.orders INNER JOIN\n"
             + "-- +shuffle\n"
             + "tpch_parquet.customer ON o_custkey = c_custkey");
     // test that a long string of blanks prints OK, some may be lost for clarity

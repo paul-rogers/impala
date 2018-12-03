@@ -113,7 +113,7 @@ public class PrintUtils {
       String line = split[i];
       String wrappedLine = WordUtils.wrap(line, wrapLength, null, true);
       // we keep any existing newlines in text - these should be commented hints
-      ret.append(wrappedLine);
+      ret.append(wrappedLine.trim());
       if (i < split.length - 1) ret.append("\n");
     }
     return ret.toString();

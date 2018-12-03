@@ -54,6 +54,7 @@ public final class ExprSubstitutionMap {
    * across query blocks. It is not required that the lhsExpr is analyzed.
    */
   public void put(Expr lhsExpr, Expr rhsExpr) {
+//    System.out.println("put: " + lhsExpr.toSql(ToSqlOptions.SHOW_IMPLICIT_CASTS));
     Preconditions.checkState(rhsExpr.isAnalyzed(), "Rhs expr must be analyzed.");
     lhs_.add(lhsExpr);
     rhs_.add(rhsExpr);
@@ -63,8 +64,12 @@ public final class ExprSubstitutionMap {
    * Returns the expr mapped to lhsExpr or null if no mapping to lhsExpr exists.
    */
   public Expr get(Expr lhsExpr) {
-    for (int i = 0; i < lhs_.size(); ++i) {
-      if (lhsExpr.equals(lhs_.get(i))) return rhs_.get(i);
+//    System.out.println("get: " + lhsExpr.toSql(ToSqlOptions.SHOW_IMPLICIT_CASTS));
+    for (int i = 0; i < lhs_.size(); i++) {
+      if (lhsExpr.equals(lhs_.get(i))) {
+//        System.out.println("found: " + rhs_.get(i).toSql(ToSqlOptions.SHOW_IMPLICIT_CASTS));
+        return rhs_.get(i);
+      }
     }
     return null;
   }

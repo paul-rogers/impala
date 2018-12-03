@@ -18,6 +18,7 @@
 package org.apache.impala.analysis;
 
 import org.apache.impala.common.AnalysisException;
+import org.apache.impala.common.serialize.ObjectSerializer;
 
 /**
  * Base interface for statements and statement-like nodes such as clauses.
@@ -29,4 +30,6 @@ public abstract class StmtNode implements ParseNode {
    * @throws AnalysisException if any semantic errors were found
    */
   public abstract void analyze(Analyzer analyzer) throws AnalysisException;
+
+  public abstract void serialize(ObjectSerializer os);
 }

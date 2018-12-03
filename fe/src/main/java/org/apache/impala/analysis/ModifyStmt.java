@@ -242,7 +242,7 @@ public abstract class ModifyStmt extends StatementBase {
       ArrayList<String> path = Path.createRawPath(targetTableRef_.getUniqueAlias(), k);
       SlotRef ref = new SlotRef(path);
       ref.analyze(analyzer);
-      selectList.add(new SelectListItem(ref, null));
+      selectList.add(SelectListItem.createColumn(ref, null));
       uniqueSlots.add(ref.getSlotId());
       keySlots.add(ref.getSlotId());
       referencedColumns.add(colIndexMap.get(k));
@@ -291,7 +291,7 @@ public abstract class ModifyStmt extends StatementBase {
       rhsExpr = checkTypeCompatibility(targetTableRef_.getDesc().getTable().getFullName(),
           c, rhsExpr, analyzer.isDecimalV2());
       uniqueSlots.add(lhsSlotRef.getSlotId());
-      selectList.add(new SelectListItem(rhsExpr, null));
+      selectList.add(SelectListItem.createColumn(rhsExpr, null));
       referencedColumns.add(colIndexMap.get(c.getName()));
     }
   }

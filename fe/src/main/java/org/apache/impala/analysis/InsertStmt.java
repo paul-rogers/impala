@@ -795,7 +795,7 @@ public class InsertStmt extends StatementBase {
       // Build a query statement that returns NULL for every column
       List<SelectListItem> selectListItems = Lists.newArrayList();
       for(Expr e: resultExprs_) {
-        selectListItems.add(new SelectListItem(e, null));
+        selectListItems.add(SelectListItem.createColumn(e, null));
       }
       SelectList selectList = new SelectList(selectListItems);
       queryStmt_ = new SelectStmt(selectList, null, null, null, null, null, null);

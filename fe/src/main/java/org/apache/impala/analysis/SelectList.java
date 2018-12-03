@@ -17,8 +17,10 @@
 
 package org.apache.impala.analysis;
 
+import java.util.ArrayList;
 import java.util.List;
 
+import org.apache.impala.analysis.SelectListItem.SelectExpr;
 import org.apache.impala.common.AnalysisException;
 import org.apache.impala.rewrite.ExprRewriter;
 
@@ -36,6 +38,7 @@ public class SelectList {
   // BEGIN: Members that need to be reset()
 
   private final List<SelectListItem> items_;
+  private final List<SelectExpr> exprs_ = new ArrayList<>();
 
   // END: Members that need to be reset()
   /////////////////////////////////////////
@@ -70,6 +73,7 @@ public class SelectList {
   }
 
   public List<SelectListItem> getItems() { return items_; }
+  public List<SelectExpr> getExprs() { return exprs_; }
 
   public void setPlanHints(List<PlanHint> planHints) {
     Preconditions.checkNotNull(planHints);
@@ -95,7 +99,8 @@ public class SelectList {
       throws AnalysisException {
     for (SelectListItem item: items_) {
       if (item.isStar()) continue;
-      item.setExpr(rewriter.rewrite(item.getExpr(), analyzer));
+      SelectExpr selectExpr = SelectListItem.asExpr(item);
+      selectExpr.setExpr(rewriter.rewrite(selectExpr.getExpr(), analyzer));
     }
   }
 
@@ -104,7 +109,9 @@ public class SelectList {
 
   public void reset() {
     for (SelectListItem item: items_) {
-      if (!item.isStar()) item.setExpr(item.getExpr().reset());
+      if (item.isStar()) continue;
+      SelectExpr selectExpr = SelectListItem.asExpr(item);
+      selectExpr.setExpr(selectExpr.getExpr().reset());
     }
   }
 }

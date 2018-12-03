@@ -256,7 +256,7 @@ public class ColumnDef {
         throw new AnalysisException(String.format("Only constant values are allowed " +
             "for default values: %s", defaultValue_.toSql()));
       }
-      if (defaultValLiteral.getType().isNull() && ((isNullable_ != null && !isNullable_)
+      if (Expr.IS_NULL_VALUE.apply(defaultValLiteral) && ((isNullable_ != null && !isNullable_)
           || isPrimaryKey_)) {
         throw new AnalysisException(String.format("Default value of NULL not allowed " +
             "on non-nullable column: '%s'", getColName()));
@@ -305,7 +305,6 @@ public class ColumnDef {
 
     // Analyze the block size value, if any.
     if (blockSize_ != null) {
-      blockSize_.analyze(null);
       if (!blockSize_.getType().isIntegerType()) {
         throw new AnalysisException(String.format("Invalid value for BLOCK_SIZE: %s. " +
             "A positive INTEGER value is expected.", blockSize_.toSql()));
@@ -370,6 +369,7 @@ public class ColumnDef {
 
   public static List<FieldSchema> toFieldSchemas(List<ColumnDef> colDefs) {
     return Lists.transform(colDefs, new Function<ColumnDef, FieldSchema>() {
+      @Override
       public FieldSchema apply(ColumnDef colDef) {
         Preconditions.checkNotNull(colDef.getType());
         return new FieldSchema(colDef.getColName(), colDef.getType().toSql(),

@@ -510,6 +510,19 @@ public class PlannerTest extends PlannerTestBase {
   }
 
   @Test
+  public void adHoc() {
+    // Tests the resource requirement computation from the planner when it is allowed to
+    // vary the spillable buffer size.
+    TQueryOptions options = defaultQueryOptions();
+    options.setExplain_level(TExplainLevel.EXTENDED);
+    options.setNum_scanner_threads(1); // Required so that output doesn't vary by machine
+    runPlannerTestFile("ad-hoc", options,
+        ImmutableSet.of(PlannerTestOption.EXTENDED_EXPLAIN,
+            PlannerTestOption.INCLUDE_EXPLAIN_HEADER,
+            PlannerTestOption.VALIDATE_RESOURCES));
+  }
+
+  @Test
   public void testMaxRowSize() {
     // Tests that an increased value of 'max_row_size' is correctly factored into the
     // resource calculations by the planner.
