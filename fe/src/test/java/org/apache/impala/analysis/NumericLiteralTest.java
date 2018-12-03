@@ -28,12 +28,18 @@ import org.apache.impala.common.InvalidValueException;
 import org.apache.impala.common.SqlCastException;
 import org.junit.Test;
 
+/**
+ * Tests the numeric literal which is complex because of its ability to
+ * hold values across many types. The value and type must be compatible
+ * at all times.
+ */
 public class NumericLiteralTest {
 
   // Approximate maximum DECIMAL scale for a BIGINT
   // 9,223,372,036,854,775,807
   private static final int MAX_BIGINT_PRECISION = 19;
 
+  // "One above" and "one below" values for testing type ranges
   private static final BigDecimal ABOVE_TINYINT =
       NumericLiteral.MAX_TINYINT.add(BigDecimal.ONE);
   private static final BigDecimal BELOW_TINYINT =
@@ -67,6 +73,29 @@ public class NumericLiteralTest {
   }
 
   @Test
+  public void testBasics() throws AnalysisException {
+    NumericLiteral n = NumericLiteral.create(0);
+    // Starts with the smallest possible type
+    assertEquals(Type.TINYINT, n.getType());
+    // Literals start analyzed
+    assertTrue(n.isAnalyzed());
+    // With their costs set
+    assertEquals(LiteralExpr.LITERAL_COST, n.getCost(), 0.01);
+    assertEquals(-1, n.getSelectivity(), 0.01);
+    // Sanity check of the string representation
+    assertEquals("0", n.getStringValue());
+    assertEquals("0:TINYINT", n.toString());
+    // Sanity check of casting
+    n.castTo(Type.SMALLINT);
+    assertEquals(Type.SMALLINT, n.getType());
+    assertEquals("0:SMALLINT", n.toString());
+  }
+
+  /**
+   * Sanity test: we rely on the constants to be accurate the other tests.
+   * This will, hopefully, catch any accidental changes to them.
+   */
+  @Test
   public void testConstants() throws InvalidValueException {
     assertEquals(BigDecimal.valueOf(Byte.MIN_VALUE), NumericLiteral.MIN_TINYINT);
     assertEquals(BigDecimal.valueOf(Byte.MAX_VALUE), NumericLiteral.MAX_TINYINT);
@@ -82,6 +111,10 @@ public class NumericLiteralTest {
     assertEquals(BigDecimal.valueOf(Double.MAX_VALUE), NumericLiteral.MAX_DOUBLE);
   }
 
+  /**
+   * Detailed test of the mechanism to infer the "natural type" (smallest
+   * type) for a value.
+   */
   @Test
   public void testInferType() throws SqlCastException {
     assertEquals(Type.TINYINT, NumericLiteral.inferType(BigDecimal.ZERO));
@@ -143,15 +176,16 @@ public class NumericLiteralTest {
 
     // Too large for Decimal, small enough for FLOAT
     // DECIMAL range is e38 as is FLOAT. So, there is a small range
-    // in which we flip from DECIMAL to FLOAT.
-    assertEquals(Type.FLOAT,
+    // in which we could flip from DECIMAL to FLOAT, but we choose
+    // to use DOUBLE even in this range.
+    assertEquals(Type.DOUBLE,
         NumericLiteral.inferType(NumericLiteral.MIN_FLOAT));
-    assertEquals(Type.FLOAT,
+    assertEquals(Type.DOUBLE,
         NumericLiteral.inferType(NumericLiteral.MAX_FLOAT));
     // Float.MIN_VALUE means smallest positive value, confusingly
-    assertEquals(Type.FLOAT,
+    assertEquals(Type.DOUBLE,
         NumericLiteral.inferType(new BigDecimal(Float.MIN_VALUE)));
-    assertEquals(Type.FLOAT,
+    assertEquals(Type.DOUBLE,
         NumericLiteral.inferType(new BigDecimal(-Float.MIN_VALUE)));
 
     // Too large for Decimal, exponent too large for FLOAT
@@ -303,6 +337,11 @@ public class NumericLiteralTest {
         new BigDecimal(genDecimal(0, ScalarType.MAX_PRECISION + 1)), Type.DECIMAL));
   }
 
+  /**
+   * Test the constructor that takes a BigDecimal argument and sets the
+   * literal type to the "natural" type (the smallest type that can hold
+   * the value.)
+   */
   @Test
   public void testSimpleCtor() throws SqlCastException {
     // Spot check. Assumes uses inferType() tested above.
@@ -390,8 +429,8 @@ public class NumericLiteralTest {
 
   @Test
   public void testCastTo() throws AnalysisException {
-    // Integral types
     {
+      // Integral types
       NumericLiteral n = new NumericLiteral(BigDecimal.ZERO);
       Expr result = n.uncheckedCastTo(Type.BIGINT);
       assertSame(n, result);
@@ -403,8 +442,8 @@ public class NumericLiteralTest {
       assertSame(n, result);
       assertEquals(ScalarType.createDecimalType(5, 0), n.getType());
     }
-    // Integral types, with overflow
     {
+      // Integral types, with overflow
       NumericLiteral n = new NumericLiteral(ABOVE_SMALLINT);
       Expr result = n.uncheckedCastTo(Type.BIGINT);
       assertSame(n, result);
@@ -413,9 +452,9 @@ public class NumericLiteralTest {
       assertTrue(result2 instanceof CastExpr);
       assertEquals(Type.SMALLINT, result2.getType());
     }
-    // Decimal types, with overflow
-    // Note: not safe to reuse above value after exception
     {
+      // Decimal types, with overflow
+      // Note: not safe to reuse above value after exception
       NumericLiteral n = new NumericLiteral(ABOVE_SMALLINT);
       Expr result = n.uncheckedCastTo(Type.BIGINT);
       assertSame(n, result);
@@ -424,8 +463,8 @@ public class NumericLiteralTest {
       assertTrue(result2 instanceof CastExpr);
       assertEquals(ScalarType.createDecimalType(2, 0), result2.getType());
     }
-    // Decimal types
     {
+      // Decimal types
       NumericLiteral n = new NumericLiteral(new BigDecimal("123.45"));
       assertEquals(ScalarType.createDecimalType(5, 2), n.getType());
       Expr result = n.uncheckedCastTo(ScalarType.createDecimalType(6, 3));
@@ -441,10 +480,31 @@ public class NumericLiteralTest {
     }
   }
 
+  /**
+   * Test the swap() sign method used by the parser which recognizes
+   * numbers as:
+   *
+   * 12345 --> number
+   * - number --> swap sign
+   *
+   * Note that swap sign can be applied multiple times:
+   *
+   * - -1234 --> number, swap sign, swap sign
+   *
+   * Swapping sign is not as simple as it might seem. For integers,
+   * the positive range is smaller than the negative range, so:
+   *
+   * 256 --> SMALLINT
+   * -256 --> TINYINT
+   *
+   * This means that 256 starts as a SMALLINT, but drops one
+   * size to TINYINT when it becomes negative. And, if negated again, it jumps
+   * up one size to again become SMALLINT.
+   */
   @Test
   public void testSwapSign() {
     {
-      // Int size promotion
+      // TINYINT size promotion
       int absValue = -(int) Byte.MIN_VALUE;
       NumericLiteral n = NumericLiteral.create(absValue);
       assertEquals(Type.SMALLINT, n.getType());
@@ -460,7 +520,8 @@ public class NumericLiteralTest {
       assertEquals(absValue, n.getIntValue());
     }
     {
-      // Max bigint promotion
+      // Max BIGINT promotion: can't become another, larger
+      // integer, so must become a DECIMAL.
       BigDecimal absValue = NumericLiteral.MIN_BIGINT.negate();
       NumericLiteral n = NumericLiteral.create(absValue);
       Type posType = ScalarType.createDecimalType(19);
@@ -524,7 +585,6 @@ public class NumericLiteralTest {
     }
 
     // Reuse value as decimal
-
     input = new BigDecimal("1235.56");
     result = NumericLiteral.convertValue(input,
         ScalarType.createDecimalType(6, 2));
@@ -536,48 +596,35 @@ public class NumericLiteralTest {
   }
 
   @Test
-  public void testExplicitType() throws SqlCastException {
+  public void testCast() throws SqlCastException {
     NumericLiteral n = NumericLiteral.create(1000);
     assertEquals(Type.SMALLINT, n.getType());
-    assertEquals(Type.SMALLINT, n.getExplicitType());
-    assertSame(n, n.explicitCast(Type.INT));
-    assertEquals(Type.INT, n.getType());
-    assertEquals(Type.INT, n.getExplicitType());
-    assertNull(n.explicitCast(Type.TINYINT));
-    assertEquals(Type.INT, n.getType());
-    assertEquals(Type.INT, n.getExplicitType());
-    assertSame(n, n.explicitCast(Type.SMALLINT));
-    assertEquals(Type.SMALLINT, n.getType());
-    assertEquals(Type.SMALLINT, n.getExplicitType());
-    assertSame(n, n.uncheckedCastTo(Type.INT));
-    assertEquals(Type.INT, n.getType());
-    assertEquals(Type.SMALLINT, n.getExplicitType());
-    n.reset();
-    assertEquals(Type.SMALLINT, n.getType());
-    assertEquals(Type.SMALLINT, n.getExplicitType());
     Expr result = n.uncheckedCastTo(Type.TINYINT);
     assertTrue(result instanceof CastExpr);
     assertEquals(Type.TINYINT, result.getType());
 
+    result = n.uncheckedCastTo(Type.INT);
+    assertSame(n, result);
+    assertEquals(Type.INT, n.getType());
+
     n = new NumericLiteral(new BigDecimal("123.45"));
     assertEquals(ScalarType.createDecimalType(5, 2), n.getType());
-    assertSame(n, n.explicitCast(ScalarType.createDecimalType(6, 3)));
+    assertSame(n, n.uncheckedCastTo(ScalarType.createDecimalType(6, 3)));
     assertEquals(ScalarType.createDecimalType(6, 3), n.getType());
-    Type newType = ScalarType.createDecimalType(4, 1);
 
-    result = n.explicitCast(newType);
+    n = new NumericLiteral(new BigDecimal("123.45"));
+    Type newType = ScalarType.createDecimalType(4, 1);
+    result = n.uncheckedCastTo(newType);
     assertNotSame(result, n);
     assertTrue(result instanceof NumericLiteral);
     assertEquals(newType, result.getType());
-    assertEquals(newType, result.getExplicitType());
     NumericLiteral n2 = (NumericLiteral) result;
     assertEquals("123.5", n2.getValue().toString());
 
-    NumericLiteral result2 = n2.explicitCast(Type.SMALLINT);
+    Expr result2 = n2.uncheckedCastTo(Type.SMALLINT);
     assertNotSame(result2, result);
     assertEquals(Type.SMALLINT, result2.getType());
-    assertEquals(Type.SMALLINT, result2.getExplicitType());
-    assertEquals("124", result2.getValue().toString());
+    assertEquals("124", ((NumericLiteral)result2).getValue().toString());
   }
 
   @Test

@@ -24,10 +24,17 @@ import org.apache.impala.thrift.TExprNodeType;
 import com.google.common.base.Objects;
 import com.google.common.base.Preconditions;
 
+/**
+ * A typed NULL literal
+ */
 public class NullLiteral extends LiteralExpr {
 
   public NullLiteral() {
-    type_ = Type.NULL;
+    this(Type.NULL);
+  }
+
+  public NullLiteral(Type type) {
+    super(type);
   }
 
   /**
@@ -41,14 +48,11 @@ public class NullLiteral extends LiteralExpr {
    * Returns an analyzed NullLiteral of the specified type.
    */
   public static NullLiteral create(Type type) {
-    NullLiteral l = new NullLiteral();
-    l.analyzeNoThrow(null);
-    l.uncheckedCastTo(type);
-    return l;
+    return new NullLiteral(type);
   }
 
   @Override
-  public int hashCode() { return 0; }
+  public int hashCode() { return type_.hashCode(); }
 
   @Override
   public String toSqlImpl(ToSqlOptions options) {
@@ -82,5 +86,12 @@ public class NullLiteral extends LiteralExpr {
   protected void resetAnalysisState() {
     super.resetAnalysisState();
     type_ = Type.NULL;
+  }
+
+  // Order NullLiterals based on the SQL ORDER BY default behavior: NULLS LAST.
+  @Override
+  public int compareTo(LiteralExpr other) {
+    if (!Expr.IS_NULL_LITERAL.apply(other)) return -1;
+    return type_.compareTo(((NullLiteral) other).type_);
   }
 }

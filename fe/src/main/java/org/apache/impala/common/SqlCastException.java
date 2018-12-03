@@ -23,7 +23,7 @@ import org.apache.impala.catalog.Type;
 
 /**
  * Indicates a plan-time cast exception which is caught
- * and handled by some parts of the planer.
+ * and handled by some parts of the planner.
  */
 @SuppressWarnings("serial")
 public class SqlCastException extends AnalysisException {
@@ -34,6 +34,11 @@ public class SqlCastException extends AnalysisException {
 
   public SqlCastException(BigDecimal value, Type type) {
     this("Value " + value.toString() +
+         " cannot be cast to type " + type.toSql());
+  }
+
+  public SqlCastException(String value, Type type) {
+    this("Value " + value +
          " cannot be cast to type " + type.toSql());
   }
 

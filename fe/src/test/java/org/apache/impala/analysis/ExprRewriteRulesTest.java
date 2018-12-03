@@ -40,7 +40,6 @@ import org.apache.impala.rewrite.NormalizeExprsRule;
 import org.apache.impala.rewrite.RemoveRedundantStringCast;
 import org.apache.impala.rewrite.SimplifyConditionalsRule;
 import org.apache.impala.rewrite.SimplifyDistinctFromRule;
-import org.apache.impala.util.treevis.AstPrinter;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -61,6 +60,7 @@ public class ExprRewriteRulesTest extends FrontendTestBase {
       this.wrapped = wrapped;
     }
 
+    @Override
     public Expr apply(Expr expr, Analyzer analyzer) throws AnalysisException {
       Expr ret = wrapped.apply(expr, analyzer);
       if (expr != ret) rewrites++;
@@ -489,7 +489,6 @@ public class ExprRewriteRulesTest extends FrontendTestBase {
     }
 
     // In V2, the query fails with a cast exception
-
     try {
       AnalysisContext ctx = createAnalysisCtx();
       ctx.getQueryOptions().setEnable_expr_rewrites(true);

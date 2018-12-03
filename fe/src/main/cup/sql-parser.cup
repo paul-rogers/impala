@@ -2554,9 +2554,9 @@ select_list ::=
 
 select_list_item ::=
   expr:expr alias_clause:alias
-  {: RESULT = new SelectListItem(expr, alias); :}
+  {: RESULT = SelectListItem.createColumn(expr, alias); :}
   | expr:expr
-  {: RESULT = new SelectListItem(expr, null); :}
+  {: RESULT = SelectListItem.createColumn(expr, null); :}
   | star_expr:expr
   {: RESULT = expr; :}
   ;
@@ -2574,9 +2574,9 @@ alias_clause ::=
 
 star_expr ::=
   STAR
-  {: RESULT = SelectListItem.createStarItem(null); :}
+  {: RESULT = SelectListItem.createWildcard(null); :}
   | dotted_path:path DOT STAR
-  {: RESULT = SelectListItem.createStarItem(path); :}
+  {: RESULT = SelectListItem.createWildcard(path); :}
   ;
 
 table_name ::=

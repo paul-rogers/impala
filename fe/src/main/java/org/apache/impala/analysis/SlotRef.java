@@ -20,11 +20,13 @@ package org.apache.impala.analysis;
 import java.util.List;
 import java.util.Set;
 
+import org.apache.impala.analysis.ExprAnalyzer.ColumnResolver;
 import org.apache.impala.analysis.Path.PathType;
 import org.apache.impala.catalog.FeTable;
 import org.apache.impala.catalog.TableLoadingException;
 import org.apache.impala.catalog.Type;
 import org.apache.impala.common.AnalysisException;
+import org.apache.impala.common.UnsupportedFeatureException;
 import org.apache.impala.thrift.TExprNode;
 import org.apache.impala.thrift.TExprNodeType;
 import org.apache.impala.thrift.TSlotRef;
@@ -97,29 +99,40 @@ public class SlotRef extends Expr {
   }
 
   @Override
-  protected void analyzeImpl(Analyzer analyzer) throws AnalysisException {
-    // TODO: derived slot refs (e.g., star-expanded) will not have rawPath set.
-    // Change construction to properly handle such cases.
-    Preconditions.checkState(rawPath_ != null);
-    Path resolvedPath = null;
-    try {
-      resolvedPath = analyzer.resolvePath(rawPath_, PathType.SLOT_REF);
-    } catch (TableLoadingException e) {
-      // Should never happen because we only check registered table aliases.
-      Preconditions.checkState(false);
-    }
-    Preconditions.checkNotNull(resolvedPath);
-    desc_ = analyzer.registerSlotRef(resolvedPath);
+  protected void analyzeImpl(Analyzer analyzer) throws AnalysisException { }
+
+  /**
+   * Resolves this slot reference against the given column resolver, which
+   * represents a name space.
+   *
+   * For now, resolution is in place: returns this object with the path
+   * resolved.
+   */
+  @Override
+  protected Expr resolve(ColumnResolver resolver) throws AnalysisException {
+    return resolver.resolve(this);
+  }
+
+  /**
+   * Resolve this slot ref in place.
+   *
+   * @param resolvedPath
+   * @param desc
+   * @throws UnsupportedFeatureException
+   */
+  protected void resolvedTo(Path resolvedPath, SlotDescriptor desc)
+      throws UnsupportedFeatureException {
+    desc_ = desc;
     type_ = desc_.getType();
     if (!type_.isSupported()) {
-      throw new AnalysisException("Unsupported type '"
+      throw new UnsupportedFeatureException("Unsupported type '"
           + type_.toSql() + "' in '" + toSql() + "'.");
     }
     if (type_.isInvalid()) {
       // In this case, the metastore contained a string we can't parse at all
       // e.g. map. We could report a better error if we stored the original
       // HMS string.
-      throw new AnalysisException("Unsupported type in '" + toSql() + "'.");
+      throw new UnsupportedFeatureException("Unsupported type in '" + toSql() + "'.");
     }
 
     numDistinctValues_ = desc_.getStats().getNumDistinctValues();
@@ -139,6 +152,7 @@ public class SlotRef extends Expr {
 
   @Override
   protected boolean isConstantImpl() { return false; }
+  public List<String> getRawPath() { return rawPath_; }
 
   public SlotDescriptor getDesc() {
     Preconditions.checkState(isAnalyzed());

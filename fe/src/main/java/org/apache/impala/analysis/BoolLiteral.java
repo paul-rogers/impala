@@ -19,6 +19,7 @@ package org.apache.impala.analysis;
 
 import org.apache.impala.catalog.Type;
 import org.apache.impala.common.AnalysisException;
+import org.apache.impala.common.InvalidValueException;
 import org.apache.impala.thrift.TBoolLiteral;
 import org.apache.impala.thrift.TExprNode;
 import org.apache.impala.thrift.TExprNodeType;
@@ -29,18 +30,22 @@ public class BoolLiteral extends LiteralExpr {
   private final boolean value_;
 
   public BoolLiteral(boolean value) {
+    super(Type.BOOLEAN);
     this.value_ = value;
-    type_ = Type.BOOLEAN;
   }
 
   public BoolLiteral(String value) throws AnalysisException {
-    type_ = Type.BOOLEAN;
-    if (value.toLowerCase().equals("true")) {
-      this.value_ = true;
-    } else if (value.toLowerCase().equals("false")) {
-      this.value_ = false;
+    this(parseBoolean(value));
+  }
+
+  public static boolean parseBoolean(String value) throws InvalidValueException {
+    if (value.equalsIgnoreCase("true")) {
+      return true;
+    } else if (value.equalsIgnoreCase("false")) {
+      return false;
     } else {
-      throw new AnalysisException("invalid BOOLEAN literal: " + value);
+      // Unlike Java, SQL requires an exact match
+      throw new InvalidValueException("invalid BOOLEAN literal: " + value);
     }
   }
 
@@ -50,6 +55,14 @@ public class BoolLiteral extends LiteralExpr {
   protected BoolLiteral(BoolLiteral other) {
     super(other);
     value_ = other.value_;
+  }
+
+  public static BoolLiteral create(boolean value) {
+    return new BoolLiteral(value);
+  }
+
+  public static BoolLiteral create(String value) throws AnalysisException {
+    return new BoolLiteral(value);
   }
 
   @Override
@@ -79,6 +92,10 @@ public class BoolLiteral extends LiteralExpr {
     return value_ ? "TRUE" : "FALSE";
   }
 
+  // No need for type for a BOOLEAN
+  @Override
+  public String toString() { return getStringValue(); }
+
   @Override
   protected void toThrift(TExprNode msg) {
     msg.node_type = TExprNodeType.BOOL_LITERAL;
@@ -99,9 +116,8 @@ public class BoolLiteral extends LiteralExpr {
     int ret = super.compareTo(o);
     if (ret != 0) return ret;
     BoolLiteral other = (BoolLiteral) o;
-    if (value_ && !other.getValue()) return 1;
-    if (!value_ && other.getValue()) return -1;
-    return 0;
+    if (value_ == other.getValue()) return 0;
+    return value_ ? 1 : -1;
   }
 
   @Override

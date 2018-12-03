@@ -22,7 +22,11 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
+import org.apache.impala.analysis.AbstractExpression.Expression;
+import org.apache.impala.analysis.AbstractExpression.HavingExpression;
 import org.apache.impala.analysis.Path.PathType;
+import org.apache.impala.analysis.SelectListItem.SelectExpr;
+import org.apache.impala.analysis.SelectListItem.SelectWildcard;
 import org.apache.impala.catalog.Column;
 import org.apache.impala.catalog.FeTable;
 import org.apache.impala.catalog.FeView;
@@ -55,12 +59,9 @@ public class SelectStmt extends QueryStmt {
   protected SelectList selectList_;
   protected final List<String> colLabels_; // lower case column labels
   protected final FromClause fromClause_;
-  protected Expr whereClause_;
+  protected Expression whereClause_;
   protected List<Expr> groupingExprs_;
-  protected Expr havingClause_;  // original having clause
-
-  // havingClause with aliases and agg output resolved
-  private Expr havingPred_;
+  protected HavingExpression havingClause_;
 
   // set if we have any kind of aggregation operation, include SELECT DISTINCT
   private MultiAggregateInfo multiAggInfo_;
@@ -86,18 +87,11 @@ public class SelectStmt extends QueryStmt {
              LimitElement limitElement) {
     super(orderByElements, limitElement);
     selectList_ = selectList;
-    if (fromClause == null) {
-      fromClause_ = new FromClause();
-    } else {
-      fromClause_ = fromClause;
-    }
-    whereClause_ = wherePredicate;
+    fromClause_ = fromClause == null ? new FromClause() : fromClause;
+    whereClause_ = Expression.wrap(wherePredicate);
     groupingExprs_ = groupingExprs;
-    havingClause_ = havingPredicate;
+    havingClause_ = HavingExpression.wrap(havingPredicate);
     colLabels_ = Lists.newArrayList();
-    havingPred_ = null;
-    multiAggInfo_ = null;
-    sortInfo_ = null;
   }
 
   /**
@@ -108,7 +102,7 @@ public class SelectStmt extends QueryStmt {
   /**
    * @return the HAVING clause post-analysis and with aliases resolved
    */
-  public Expr getHavingPred() { return havingPred_; }
+  public Expr getHavingPred() { return AbstractExpression.unwrap(havingClause_); }
 
   @Override
   public List<String> getColLabels() { return colLabels_; }
@@ -116,8 +110,8 @@ public class SelectStmt extends QueryStmt {
   public List<TableRef> getTableRefs() { return fromClause_.getTableRefs(); }
   public boolean hasWhereClause() { return whereClause_ != null; }
   public boolean hasGroupByClause() { return groupingExprs_ != null; }
-  public Expr getWhereClause() { return whereClause_; }
-  public void setWhereClause(Expr whereClause) { whereClause_ = whereClause; }
+  public Expr getWhereClause() { return AbstractExpression.unwrap(whereClause_); }
+  public void setWhereClause(Expr whereClause) { whereClause_ = Expression.wrap(whereClause); }
   public MultiAggregateInfo getMultiAggInfo() { return multiAggInfo_; }
   public boolean hasMultiAggInfo() { return multiAggInfo_ != null; }
   public AnalyticInfo getAnalyticInfo() { return analyticInfo_; }
@@ -149,7 +143,7 @@ public class SelectStmt extends QueryStmt {
   private QueryStmt getWhereSubQueryStmt() {
     QueryStmt whereQueryStmt = null;
     if (whereClause_ != null) {
-      Subquery whereSubquery = whereClause_.getSubquery();
+      Subquery whereSubquery = whereClause_.getExpr().getSubquery();
       if (whereSubquery != null) {
         whereQueryStmt = whereSubquery.getStatement();
       }
@@ -236,30 +230,32 @@ public class SelectStmt extends QueryStmt {
       for (int i = 0; i < selectList_.getItems().size(); ++i) {
         SelectListItem item = selectList_.getItems().get(i);
         if (item.isStar()) {
-          if (item.getRawPath() != null) {
-            Path resolvedPath = analyzeStarPath(item.getRawPath(), analyzer_);
+          SelectWildcard wildcard = SelectListItem.asWildcard(item);
+          if (wildcard.getRawPath() != null) {
+            Path resolvedPath = analyzeStarPath(wildcard.getRawPath(), analyzer_);
             expandStar(resolvedPath);
           } else {
             expandStar();
           }
         } else {
+          SelectExpr selectExpr = SelectListItem.asExpr(item);
           // Analyze the resultExpr before generating a label to ensure enforcement
           // of expr child and depth limits (toColumn() label may call toSql()).
-          item.getExpr().analyze(analyzer_);
-          if (item.getExpr().contains(Predicates.instanceOf(Subquery.class))) {
+          selectExpr.analyze(analyzer_);
+          if (selectExpr.getExpr().contains(Predicates.instanceOf(Subquery.class))) {
             throw new AnalysisException(
                 "Subqueries are not supported in the select list.");
           }
-          resultExprs_.add(item.getExpr());
-          String label = item.toColumnLabel(i, analyzer_.useHiveColLabels());
+          resultExprs_.add(selectExpr.getExpr());
+          String label = selectExpr.toColumnLabel(i, analyzer_.useHiveColLabels());
           SlotRef aliasRef = new SlotRef(label, "$sl$" + i);
           Expr existingAliasExpr = aliasSmap_.get(aliasRef);
-          if (existingAliasExpr != null && !existingAliasExpr.equals(item.getExpr())) {
+          if (existingAliasExpr != null && !existingAliasExpr.equals(selectExpr.getExpr())) {
             // If we have already seen this alias, it refers to more than one column and
             // therefore is ambiguous.
             ambiguousAliasList_.add(aliasRef);
           }
-          aliasSmap_.put(aliasRef, item.getExpr().clone());
+          aliasSmap_.put(aliasRef, selectExpr.getExpr().clone());
           colLabels_.add(label);
         }
       }
@@ -307,20 +303,20 @@ public class SelectStmt extends QueryStmt {
     }
 
     private void analyzeWhereClause() throws AnalysisException {
-      if (whereClause_ != null) {
-        whereClause_.analyze(analyzer_);
-        if (whereClause_.contains(Expr.isAggregatePredicate())) {
-          throw new AnalysisException(
-              "aggregate function not allowed in WHERE clause");
-        }
-        whereClause_.checkReturnsBool("WHERE clause", false);
-        Expr e = whereClause_.findFirstOf(AnalyticExpr.class);
-        if (e != null) {
-          throw new AnalysisException(
-              "WHERE clause must not contain analytic expressions: " + e.toSql());
-        }
-        analyzer_.registerConjuncts(whereClause_, false);
+      if (whereClause_ == null) return;
+      whereClause_.analyze(analyzer_);
+      Expr whereExpr = whereClause_.getExpr();
+      if (whereExpr.contains(Expr.isAggregatePredicate())) {
+        throw new AnalysisException(
+            "aggregate function not allowed in WHERE clause");
       }
+      whereExpr.checkReturnsBool("WHERE clause", false);
+      Expr e = whereExpr.findFirstOf(AnalyticExpr.class);
+      if (e != null) {
+        throw new AnalysisException(
+            "WHERE clause must not contain analytic expressions: " + e.toSql());
+      }
+      analyzer_.registerConjuncts(whereExpr, false);
     }
 
     /**
@@ -553,37 +549,35 @@ public class SelectStmt extends QueryStmt {
       // We need to analyze/register it even if we are not computing aggregates.
       if (havingClause_ == null) return;
       // can't contain subqueries
-      // Check this before analysis, so can't use toSql() to show expression.
-      if (havingClause_.contains(Predicates.instanceOf(Subquery.class))) {
+      if (havingClause_.getPreExpansion().contains(Predicates.instanceOf(Subquery.class))) {
         throw new AnalysisException(
             "Subqueries are not supported in the HAVING clause.");
       }
-      // TODO: the two copies are not doing what we thing: neither is
-      // the "before rewrites" version. Clean up in later patch.
-      havingPred_ =
-          resolveReferenceExpr(havingClause_, "HAVING", analyzer_, false).resolvedExpr_;
-      havingPred_.analyze(analyzer_);
+      havingClause_.setExpr(
+          resolveReferenceExpr(havingClause_.getPreExpansion(), "HAVING", analyzer_, false).resolvedExpr_);
+      havingClause_.getExpr().analyze(analyzer_);
       // can't contain analytic exprs
-      Expr analyticExpr = havingPred_.findFirstOf(AnalyticExpr.class);
+      Expr analyticExpr = havingClause_.getExpr().findFirstOf(AnalyticExpr.class);
       if (analyticExpr != null) {
         throw new AnalysisException(
             "HAVING clause must not contain analytic expressions: "
                + analyticExpr.toSql());
       }
-      havingPred_.checkReturnsBool("HAVING clause", true);
+      havingClause_.getExpr().checkReturnsBool("HAVING clause", true);
     }
 
     private boolean checkForAggregates() throws AnalysisException {
       if (groupingExprs_ == null && !selectList_.isDistinct()
           && !TreeNode.contains(resultExprs_, Expr.isAggregatePredicate())
-          && (havingPred_ == null
-              || !havingPred_.contains(Expr.isAggregatePredicate()))
+          && (havingClause_ == null
+              || !havingClause_.getExpr().contains(Expr.isAggregatePredicate()))
           && (sortInfo_ == null
               || !TreeNode.contains(sortInfo_.getSortExprs(),
                                     Expr.isAggregatePredicate()))) {
         // We're not computing aggregates but we still need to register the HAVING
         // clause which could, e.g., contain a constant expression evaluating to false.
-        if (havingPred_ != null) analyzer_.registerConjuncts(havingPred_, true);
+        if (havingClause_ != null)
+          analyzer_.registerConjuncts(havingClause_.getExpr(), true);
         return false;
       }
       return true;
@@ -599,8 +593,8 @@ public class SelectStmt extends QueryStmt {
       if (selectList_.isDistinct()
           && (groupingExprs_ != null
               || TreeNode.contains(resultExprs_, Expr.isAggregatePredicate())
-              || (havingPred_ != null
-                  && havingPred_.contains(Expr.isAggregatePredicate())))) {
+              || (havingClause_ != null
+                  && havingClause_.getExpr().contains(Expr.isAggregatePredicate())))) {
         throw new AnalysisException(
           "cannot combine SELECT DISTINCT with aggregate functions or GROUP BY");
       }
@@ -661,8 +655,8 @@ public class SelectStmt extends QueryStmt {
       // of this statement.
       aggExprs_ = Lists.newArrayList();
       TreeNode.collect(resultExprs_, Expr.isAggregatePredicate(), aggExprs_);
-      if (havingPred_ != null) {
-        havingPred_.collect(Expr.isAggregatePredicate(), aggExprs_);
+      if (havingClause_ != null) {
+        havingClause_.getExpr().collect(Expr.isAggregatePredicate(), aggExprs_);
       }
       if (sortInfo_ != null) {
         // TODO: Avoid evaluating aggs in ignored order-bys
@@ -748,15 +742,15 @@ public class SelectStmt extends QueryStmt {
       if (LOG.isTraceEnabled()) {
         LOG.trace("post-agg selectListExprs: " + Expr.debugString(resultExprs_));
       }
-      if (havingPred_ != null) {
+      if (havingClause_ != null) {
         // Make sure the predicate in the HAVING clause does not contain a
         // subquery.
-        Preconditions.checkState(!havingPred_.contains(
+        Preconditions.checkState(!havingClause_.getExpr().contains(
             Predicates.instanceOf(Subquery.class)));
-        havingPred_ = havingPred_.substitute(combinedSmap, analyzer_, false);
-        analyzer_.registerConjuncts(havingPred_, true);
+        havingClause_.setExpr(havingClause_.getExpr().substitute(combinedSmap, analyzer_, false));
+        analyzer_.registerConjuncts(havingClause_.getExpr(), true);
         if (LOG.isTraceEnabled()) {
-          LOG.trace("post-agg havingPred: " + havingPred_.debugString());
+          LOG.trace("post-agg havingPred: " + havingClause_.getExpr().debugString());
         }
       }
       if (sortInfo_ != null) {
@@ -790,12 +784,12 @@ public class SelectStmt extends QueryStmt {
           }
         }
       }
-      if (havingPred_ != null) {
-        if (!havingPred_.isBound(multiAggInfo_.getResultTupleId())) {
+      if (havingClause_ != null) {
+        if (!havingClause_.getExpr().isBound(multiAggInfo_.getResultTupleId())) {
           throw new AnalysisException(
               "HAVING clause not produced by aggregation output "
               + "(missing from GROUP BY clause?): "
-              + havingClause_.toSql());
+              + havingClause_.toSql(ToSqlOptions.DEFAULT));
         }
       }
     }
@@ -818,6 +812,7 @@ public class SelectStmt extends QueryStmt {
 
       com.google.common.base.Predicate<FunctionCallExpr> isNotDistinctPred =
           new com.google.common.base.Predicate<FunctionCallExpr>() {
+            @Override
             public boolean apply(FunctionCallExpr expr) {
               return !expr.isDistinct();
             }
@@ -829,6 +824,7 @@ public class SelectStmt extends QueryStmt {
 
       com.google.common.base.Predicate<FunctionCallExpr> isCountPred =
           new com.google.common.base.Predicate<FunctionCallExpr>() {
+            @Override
             public boolean apply(FunctionCallExpr expr) {
               return expr.getFnName().getFunction().equals("count");
             }
@@ -970,9 +966,9 @@ public class SelectStmt extends QueryStmt {
    * Used for GROUP BY, ORDER BY, and HAVING where we don't want to create an ordinal
    * from a constant arithmetic expr, e.g. 1 * 2 =/=> 2
    */
-  private Expr rewriteCheckOrdinalResult(ExprRewriter rewriter, Expr expr)
+  protected static  Expr rewriteCheckOrdinalResult(ExprRewriter rewriter, Analyzer analyzer, Expr expr)
       throws AnalysisException {
-    Expr rewrittenExpr = rewriter.rewrite(expr, analyzer_);
+    Expr rewrittenExpr = rewriter.rewrite(expr, analyzer);
     if (Expr.IS_LITERAL.apply(rewrittenExpr) && rewrittenExpr.getType().isIntegerType()) {
       return expr;
     } else {
@@ -986,24 +982,25 @@ public class SelectStmt extends QueryStmt {
     selectList_.rewriteExprs(rewriter, analyzer_);
     for (TableRef ref: fromClause_.getTableRefs()) ref.rewriteExprs(rewriter, analyzer_);
     if (whereClause_ != null) {
-      whereClause_ = rewriter.rewrite(whereClause_, analyzer_);
+      whereClause_.rewrite(rewriter, analyzer_);
       // Also rewrite exprs in the statements of subqueries.
       List<Subquery> subqueryExprs = Lists.newArrayList();
-      whereClause_.collect(Subquery.class, subqueryExprs);
+      whereClause_.getExpr().collect(Subquery.class, subqueryExprs);
       for (Subquery s: subqueryExprs) s.getStatement().rewriteExprs(rewriter);
     }
     if (havingClause_ != null) {
-      havingClause_ = rewriteCheckOrdinalResult(rewriter, havingClause_);
+      havingClause_.rewrite(rewriter, analyzer_);
     }
     if (groupingExprs_ != null) {
       for (int i = 0; i < groupingExprs_.size(); ++i) {
         groupingExprs_.set(i, rewriteCheckOrdinalResult(
-            rewriter, groupingExprs_.get(i)));
+            rewriter, analyzer_, groupingExprs_.get(i)));
       }
     }
     if (orderByElements_ != null) {
       for (OrderByElement orderByElem: orderByElements_) {
-        orderByElem.setExpr(rewriteCheckOrdinalResult(rewriter, orderByElem.getExpr()));
+        orderByElem.setExpr(
+            rewriteCheckOrdinalResult(rewriter, analyzer_, orderByElem.getExpr()));
       }
     }
   }
@@ -1058,7 +1055,8 @@ public class SelectStmt extends QueryStmt {
       strBuilder.append(" HAVING ");
       // Choose pre-substitution or post-substitution version depending
       // on type of SQL desired.
-      Expr having = options == ToSqlOptions.DEFAULT ? havingClause_ : havingPred_;
+      Expr having = options == ToSqlOptions.DEFAULT
+          ? havingClause_.getPreExpansion() : havingClause_.getExpr();
       strBuilder.append(having.toSql(options));
     }
     // Order By clause
@@ -1134,7 +1132,7 @@ public class SelectStmt extends QueryStmt {
     if (!fromClauseOnly && whereClause_ != null) {
       // Collect TableRefs in WHERE-clause subqueries.
       List<Subquery> subqueries = Lists.newArrayList();
-      whereClause_.collect(Subquery.class, subqueries);
+      whereClause_.getExpr().collect(Subquery.class, subqueries);
       for (Subquery sq: subqueries) {
         sq.getStatement().collectTableRefs(tblRefs, fromClauseOnly);
       }
@@ -1170,7 +1168,6 @@ public class SelectStmt extends QueryStmt {
     if (whereClause_ != null) whereClause_.reset();
     if (groupingExprs_ != null) Expr.resetList(groupingExprs_);
     if (havingClause_ != null) havingClause_.reset();
-    havingPred_ = null;
     multiAggInfo_ = null;
     analyticInfo_ = null;
     baseTblSmap_.clear();

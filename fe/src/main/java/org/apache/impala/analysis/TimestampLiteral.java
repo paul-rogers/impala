@@ -41,10 +41,10 @@ public class TimestampLiteral extends LiteralExpr {
   private final String strValue_;
 
   public TimestampLiteral(byte[] value, String strValue) {
+    super(Type.TIMESTAMP);
     Preconditions.checkState(value.length == Type.TIMESTAMP.getSlotSize());
     value_ = value;
     strValue_ = strValue;
-    type_ = Type.TIMESTAMP;
   }
 
   /**

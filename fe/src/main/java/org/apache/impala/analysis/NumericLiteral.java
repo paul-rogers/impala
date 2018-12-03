@@ -17,12 +17,15 @@
 
 package org.apache.impala.analysis;
 
+import java.io.IOException;
+import java.io.StringReader;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 
 import org.apache.impala.catalog.ScalarType;
 import org.apache.impala.catalog.Type;
 import org.apache.impala.common.AnalysisException;
+import org.apache.impala.common.InvalidValueException;
 import org.apache.impala.common.SqlCastException;
 import org.apache.impala.thrift.TDecimalLiteral;
 import org.apache.impala.thrift.TExprNode;
@@ -33,32 +36,57 @@ import org.apache.impala.thrift.TIntLiteral;
 import com.google.common.base.Objects;
 import com.google.common.base.Preconditions;
 
+import java_cup.runtime.Symbol;
+
 /**
- * Literal for all numeric values, including integer, floating-point and decimal types.
- * The constructor determines the "natural type" of this literal: smallest type that
- * can hold this value.
+ * Literal for all numeric values, including integer, floating-point and decimal
+ * types. The constructor determines the "natural type" of this literal:
+ * smallest type that can hold this value.
  *
- * Code or an explicit cast can set the "explicit type" of the literal. The explicit
- * type starts as the natural type, but can be changed later. The explicit type is the
- * type that the literal should have in the query plan. An attempt to set the
- * explicit type will fail if the type is not compatible with the value. If the
- * type is set programmatically, then this mismatch represents a programming
- * error, and the code throws an exception.
+ * A numeric literal has an "explicit" type which starts as the natural type.
+ * The explicit type can be widened via a user-supplied cast: CAST(1 AS INT).
+ * Constant folding uses the BE to convert such an expression into a new numeric
+ * literal with the explicit type set to the requested type.
  *
- * However, if the explicit type is set as part of CAST operation, then the
- * request is rejected and the literal retains its existing type. The CAST
- * is marked as invalid so that no further attempts are made to rewrite the
- * cast. The BE will handle the invalid cast.
+ * The user can request an invalid cast: CAST(1000 AS TINYINT). In this case the
+ * natural type is SMALLINT. When constant folding asks the BE to rewrite the
+ * expression, the BE fails. In this case, the CAST is left in the expression
+ * tree so that the literal itself never carries a type which is invalid for its
+ * value. The BE will handle the invalid cast at runtime. TODO: if the query
+ * will fail at runtime, should the FE simply go ahead and fail the query at
+ * analysis time>
  *
- * The literal also has an "implicit type" which starts the same as the
- * explicit type. The implicit type can change as a result of casts the
- * analyzer uses to adjust input types for functions and arithmetic
- * operations. The implicit type is ephemeral: it is discarded if type
- * propagation is repeated. Doing so ensures that an expression such as
- * 1 + 2 always evaluates to the type SMALLINT, even after the literals
- * have been implicitly cast to SMALLINT. Without this rule, the next
- * analysis would promote the operation to INT and recast the inputs to
- * INT.
+ * The literal also has an "implicit type" which starts the same as the explicit
+ * type. The implicit type changes as a result of casts the analyzer uses to
+ * adjust input types for functions and arithmetic operations. Here, the code
+ * attempts to "fold" the cast into the literal directly. TODO: Revisit this
+ * implicit folding route; now that constant folding is available, perhaps
+ * both cases should work the same: by using the constant folding rule and
+ * allowing the BE to do the work. This saves trying to keep the FE and BE
+ * conversion code in sync.
+ *
+ * The analyzer makes two analysis passes over the code: analyze, rewrite,
+ * analyze again. Implicit types can lead to repeated type widening of
+ * expressions. In the first analysis round:
+ *
+ * 1:TINYINT + 2:TINYINT --> SMALLINT result
+ *
+ * Cast inputs to the output type:
+ *
+ * CAST(1:TINYINT AS SMALLINT) + CAST(1:TINYINT AS SMALLINT)
+ *
+ * In the second round, we must reset the implicit type back to the explicit
+ * type, else the type propagation works with the previous implicit type
+ * producing:
+ *
+ * 1:SMALLINT + 1:SMALLINT -> INT result
+ *
+ * With new implicit casts added:
+ *
+ * CAST(1:SMALLINT AS INT) + CAST(1:SMALLINT AS INT)
+ *
+ * TODO: The above problem would disappear if the analyzer is modified to
+ * make only one analysis/type propagation pass over each expression.
  */
 public class NumericLiteral extends LiteralExpr {
   public static final BigDecimal MIN_TINYINT = BigDecimal.valueOf(Byte.MIN_VALUE);
@@ -98,8 +126,6 @@ public class NumericLiteral extends LiteralExpr {
     value_ = value;
     type_ = inferType(value);
     explicitType_ = type_;
-    // No further analysis needed for a (numeric) literal.
-    analysisDone();
   }
 
   public NumericLiteral(String value, Type t) throws SqlCastException {
@@ -116,10 +142,9 @@ public class NumericLiteral extends LiteralExpr {
   }
 
   public NumericLiteral(BigDecimal value, Type type) throws SqlCastException {
+    super(type);
     value_ = convertValue(value, type);
-    type_ = type;
     explicitType_ = type_;
-    analysisDone();
   }
 
   /**
@@ -128,7 +153,8 @@ public class NumericLiteral extends LiteralExpr {
    * That is, conversion to a BigDecimal and back is not stable.
    * @throws SqlCastException
    */
-  public NumericLiteral(Double value, Type type) throws SqlCastException {
+  public NumericLiteral(double value, Type type) throws SqlCastException {
+    super(type);
     Preconditions.checkArgument(type == Type.DOUBLE || type == Type.FLOAT);
     // Reject INF, NaN
     if (!isDouble(value)) {
@@ -137,12 +163,10 @@ public class NumericLiteral extends LiteralExpr {
     }
     value_ = new BigDecimal(value);
     // Ensure value is in range of a FLOAT
-    if (type == Type.FLOAT && !isFloat(value_)) {
+    if (type == Type.FLOAT && !fitsInFloat(value_)) {
       throw new SqlCastException(value_, type);
     }
-    type_ = type;
     explicitType_ = type_;
-    analysisDone();
   }
 
   /**
@@ -172,12 +196,68 @@ public class NumericLiteral extends LiteralExpr {
     }
   }
 
-  public static NumericLiteral create(int value) {
+  public static NumericLiteral create(long value) {
     return create(new BigDecimal(value));
   }
 
-  public static NumericLiteral create(int value, Type type) {
+  public static NumericLiteral create(long value, Type type) {
     return create(new BigDecimal(value), type);
+  }
+
+  /**
+   * Create a numeric literal from a SQL-like string.
+   * Valid formats:
+   *  "123" - simple number
+   *  "-123" - negative number
+   *  " - 123 " - with spaces
+   *  "- -123" - double equals, but only with a space between the
+   *             equal signs
+   *  "123.45" - decimal number (not float)
+   *  "123e45" - double number (too big for decimal)
+   *
+   * Note that "--10" cannot be supported because that is a SQL
+   * comment.
+   * @param value string value
+   * @return numeric literal
+   * @throws AnalysisException for format or range errors
+   */
+  public static NumericLiteral create(String value) throws AnalysisException {
+    StringReader reader = new StringReader(value);
+    SqlScanner scanner = new SqlScanner(reader);
+    // For distinguishing positive and negative numbers.
+    boolean negative = false;
+    Symbol sym;
+    try {
+      // We allow simple chaining of MINUS to recognize negative numbers.
+      // Currently we can't handle string literals containing full fledged expressions
+      // which are implicitly cast to a numeric literal.
+      // This would require invoking the parser.
+      // Note: syntax must be - -10, since --10 is a comment
+      sym = scanner.next_token();
+      while (sym.sym == SqlParserSymbols.SUBTRACT) {
+        negative = !negative;
+        sym = scanner.next_token();
+      }
+    } catch (IOException e) {
+      // Should never occur
+      throw new InvalidValueException("Failed to convert string literal to number: " + value, e);
+    }
+    if (sym.sym == SqlParserSymbols.NUMERIC_OVERFLOW) {
+      throw new SqlCastException("Number too large: " + value);
+    }
+    if (sym.sym != SqlParserSymbols.INTEGER_LITERAL &&
+        sym.sym != SqlParserSymbols.DECIMAL_LITERAL) {
+        throw new InvalidValueException("Invalid number: " + value);
+    }
+
+    try {
+      BigDecimal val = (BigDecimal) sym.value;
+      if (negative) val = val.negate();
+      return new NumericLiteral(val);
+    } catch (NumberFormatException e) {
+      // Should never occur
+      throw new InvalidValueException("Invalid number format: " + value, e);
+    }
   }
 
   @Override
@@ -188,12 +268,6 @@ public class NumericLiteral extends LiteralExpr {
         .toString();
   }
 
-  @Override
-  public String toString() {
-    return value_.toString() + ":" + type_.toSql();
-  }
-
-  @Override
   public Type getExplicitType() { return explicitType_; }
 
   @Override
@@ -264,27 +338,29 @@ public class NumericLiteral extends LiteralExpr {
            value.compareTo(high) <= 0;
   }
 
-  public static boolean isTinyInt(BigDecimal value) {
+  // Predicates to determine if the given value fits within the range of
+  // the given data type.
+  public static boolean fitsInTinyInt(BigDecimal value) {
     return isBetween(value, MIN_TINYINT, MAX_TINYINT);
   }
 
-  public static boolean isSmallInt(BigDecimal value) {
+  public static boolean fitsInSmallInt(BigDecimal value) {
     return isBetween(value, MIN_SMALLINT, MAX_SMALLINT);
   }
 
-  public static boolean isInt(BigDecimal value) {
+  public static boolean fitsInInt(BigDecimal value) {
     return isBetween(value, MIN_INT, MAX_INT);
   }
 
-  public static boolean isBigInt(BigDecimal value) {
+  public static boolean fitsInBigInt(BigDecimal value) {
     return isBetween(value, MIN_BIGINT, MAX_BIGINT);
   }
 
-  public static boolean isFloat(BigDecimal value) {
+  public static boolean fitsInFloat(BigDecimal value) {
     return isBetween(value, MIN_FLOAT, MAX_FLOAT);
   }
 
-  public static boolean isDouble(BigDecimal value) {
+  public static boolean fitsInDouble(BigDecimal value) {
     return !Double.isInfinite(value.doubleValue());
   }
 
@@ -306,11 +382,9 @@ public class NumericLiteral extends LiteralExpr {
   }
 
   /**
-   * Infer the natural (smallest) type required to hold the given
-   * numeric value.
+   * Infer the natural (smallest) type required to hold the given numeric value.
    *
-   * @throws SqlCastException if the value is not valid for any
-   * type
+   * @throws SqlCastException if the value is not valid for any type
    */
   public static ScalarType inferType(BigDecimal value) throws SqlCastException {
     // Compute the precision and scale from the BigDecimal.
@@ -319,7 +393,7 @@ public class NumericLiteral extends LiteralExpr {
       // Literal could not be stored in any of the supported decimal precisions and
       // scale. Store it as a float/double instead.
       double d = value.doubleValue();
-      if (!isDouble(value)) {
+      if (!fitsInDouble(value)) {
         throw new SqlCastException("Numeric literal '" + value.toString() +
               "' exceeds maximum range of DOUBLE.");
       } else if (d == 0 && value != BigDecimal.ZERO) {
@@ -329,23 +403,19 @@ public class NumericLiteral extends LiteralExpr {
               "' underflows minimum resolution of DOUBLE.");
       }
 
-      if (value.floatValue() == d) {
-        // Note: this will seldom happen. Float can store up to
-        // e38, which is within the range of a BIGINT.
-        return Type.FLOAT;
-      } else {
-        return Type.DOUBLE;
-      }
+      // Always return a double. FLOAT does not add much value.
+      // FLOAT can store up to 1e38, which is within the range of a DECIMAL.
+      return Type.DOUBLE;
     }
 
     // The value is a valid Decimal. Prefer an integer type.
     Preconditions.checkState(type.isScalarType());
     ScalarType scalarType = (ScalarType) type;
     if (scalarType.decimalScale() != 0) return scalarType;
-    if (isTinyInt(value)) return Type.TINYINT;
-    if (isSmallInt(value)) return Type.SMALLINT;
-    if (isInt(value)) return Type.INT;
-    if (isBigInt(value)) return Type.BIGINT;
+    if (fitsInTinyInt(value)) return Type.TINYINT;
+    if (fitsInSmallInt(value)) return Type.SMALLINT;
+    if (fitsInInt(value)) return Type.INT;
+    if (fitsInBigInt(value)) return Type.BIGINT;
     // Value is too large for BIGINT, keep decimal.
     return scalarType;
   }
@@ -360,9 +430,8 @@ public class NumericLiteral extends LiteralExpr {
 
   @Override
   public Expr reset() {
-    // Literals are always analyzed, don't call super
-    // method as it will clear the analysis flag.
-    // Clear any implicit type.
+    // Literals are always analyzed, don't call super method as it will clear
+    // the analysis flag. Clear any implicit type.
     type_ = explicitType_;
     return this;
   }
@@ -373,27 +442,12 @@ public class NumericLiteral extends LiteralExpr {
    */
   protected void explicitlyCastToFloat(Type targetType) {
     Preconditions.checkState(targetType.isFloatingPointType());
-    explicitCast(targetType);
-  }
-
-  /**
-   * Explicitly cast this literal to the given type.
-   */
-  public NumericLiteral explicitCast(Type targetType) {
     try {
-      NumericLiteral newLiteral = this;
-      BigDecimal newValue = convertValue(value_, targetType);
-      if (value_ != newValue) {
-        // Value changed, create a new literal
-        newLiteral = new NumericLiteral(this);
-        newLiteral.value_ = newValue;
-      }
-      newLiteral.type_ = targetType;
-      newLiteral.explicitType_ = targetType;
-      return newLiteral;
+      Expr expr = uncheckedCastTo(targetType);
+      Preconditions.checkState(expr == this);
     } catch (SqlCastException e) {
-      // Value is invalid, refuse the cast.
-      return null;
+      // Should never occur
+      throw new IllegalStateException(e);
     }
   }
 
@@ -455,7 +509,6 @@ public class NumericLiteral extends LiteralExpr {
       BigDecimal converted = convertValue(value_, targetType);
       if (converted == value_) {
         // Use existing value, cast in place.
-        // Revisit: better for literals to be immutable, even in type.
         type_ = targetType;
         return this;
       } else {
@@ -513,17 +566,17 @@ public class NumericLiteral extends LiteralExpr {
   public static boolean isOverflow(BigDecimal value, Type type) {
     switch (type.getPrimitiveType()) {
       case TINYINT:
-        return !isTinyInt(value);
+        return !fitsInTinyInt(value);
       case SMALLINT:
-        return !isSmallInt(value);
+        return !fitsInSmallInt(value);
       case INT:
-        return !isInt(value);
+        return !fitsInInt(value);
       case BIGINT:
-        return !isBigInt(value);
+        return !fitsInBigInt(value);
       case FLOAT:
-        return !isFloat(value);
+        return !fitsInFloat(value);
       case DOUBLE:
-        return !isDouble(value);
+        return !fitsInDouble(value);
       case DECIMAL:
         return !isDecimal(value);
       default:
