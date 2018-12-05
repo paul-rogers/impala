@@ -998,7 +998,9 @@ abstract public class Expr extends TreeNode<Expr> implements ParseNode, Cloneabl
     if (isImplicitCast()) return getChild(0).substituteImpl(smap, analyzer);
     if (smap != null) {
       Expr substExpr = smap.get(this);
-      if (substExpr != null) return substExpr.clone();
+      if (substExpr != null) {
+        return substExpr.clone();
+      }
     }
     for (int i = 0; i < children_.size(); ++i) {
       children_.set(i, children_.get(i).substituteImpl(smap, analyzer));
