@@ -39,28 +39,36 @@ public class SlotRef extends Expr {
 
   // Results of analysis.
   private SlotDescriptor desc_;
+  private final String colLabel_;
 
   public SlotRef(List<String> rawPath) {
-    super();
     rawPath_ = rawPath;
     label_ = ToSqlUtils.getPathSql(rawPath_);
+    colLabel_ = null;
   }
 
   /**
    * C'tor for a "dummy" SlotRef used in substitution maps.
    */
-  public SlotRef(String alias) {
-    super();
+  public SlotRef(String alias, String colLabel) {
     rawPath_ = null;
     // Relies on the label_ being compared in equals().
     label_ = ToSqlUtils.getIdentSql(alias.toLowerCase());
+    colLabel_ = colLabel;
+  }
+
+  public SlotRef(String alias) {
+    this(alias, null);
   }
 
   /**
    * C'tor for a "pre-analyzed" ref to a slot.
    */
   public SlotRef(SlotDescriptor desc) {
-    super();
+    this(desc, null);
+  }
+
+  public SlotRef(SlotDescriptor desc, String colLabel) {
     if (desc.isScanSlot()) {
       rawPath_ = desc.getPath().getRawPath();
     } else {
@@ -73,6 +81,7 @@ public class SlotRef extends Expr {
     label_ = (alias != null ? alias + "." : "") + desc.getLabel();
     numDistinctValues_ = desc.getStats().getNumDistinctValues();
     analysisDone();
+    colLabel_ = colLabel;
   }
 
   /**
@@ -84,6 +93,7 @@ public class SlotRef extends Expr {
     label_ = other.label_;
     desc_ = other.desc_;
     type_ = other.type_;
+    colLabel_ = other.colLabel_;
   }
 
   @Override
@@ -125,6 +135,8 @@ public class SlotRef extends Expr {
     return SLOT_REF_COST;
   }
 
+  public String getLabel() { return label_; }
+
   @Override
   protected boolean isConstantImpl() { return false; }
 
@@ -147,6 +159,11 @@ public class SlotRef extends Expr {
 
   @Override
   public String toSqlImpl(ToSqlOptions options) {
+    if (options != ToSqlOptions.DEFAULT && colLabel_ != null) {
+      String result = colLabel_;
+      if (label_ != null) result +=  " /* " + label_ + " */";
+      return result;
+    }
     if (label_ != null) return label_;
     if (rawPath_ != null) return ToSqlUtils.getPathSql(rawPath_);
     return "<slot " + Integer.toString(desc_.getId().asInt()) + ">";

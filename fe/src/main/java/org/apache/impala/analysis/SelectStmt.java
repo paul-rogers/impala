@@ -252,7 +252,7 @@ public class SelectStmt extends QueryStmt {
           }
           resultExprs_.add(item.getExpr());
           String label = item.toColumnLabel(i, analyzer_.useHiveColLabels());
-          SlotRef aliasRef = new SlotRef(label);
+          SlotRef aliasRef = new SlotRef(label, "$sl$" + i);
           Expr existingAliasExpr = aliasSmap_.get(aliasRef);
           if (existingAliasExpr != null && !existingAliasExpr.equals(item.getExpr())) {
             // If we have already seen this alias, it refers to more than one column and
@@ -1041,7 +1041,10 @@ public class SelectStmt extends QueryStmt {
     // Having clause
     if (havingClause_ != null) {
       strBuilder.append(" HAVING ");
-      strBuilder.append(havingClause_.toSql(options));
+      // Choose pre-substitution or post-substitution version depending
+      // on type of SQL desired.
+      Expr having = options == ToSqlOptions.DEFAULT ? havingClause_ : havingPred_;
+      strBuilder.append(having.toSql(options));
     }
     // Order By clause
     if (orderByElements_ != null) {

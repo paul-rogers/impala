@@ -188,7 +188,7 @@ Analyzed query: SELECT
 -- +straight_join
 l_orderkey, o_orderstatus, count(*) FROM tpch_parquet.lineitem INNER JOIN
 tpch_parquet.orders ON o_orderkey = l_orderkey GROUP BY l_orderkey,
-o_orderstatus HAVING count(*) = CAST(1 AS BIGINT)
+o_orderstatus HAVING $ao$2 /* count(*) */ = CAST(1 AS BIGINT)
 
 F04:PLAN FRAGMENT [UNPARTITIONED] hosts=1 instances=1
 |  Per-Host Resources: mem-estimate=10.10MB mem-reservation=0B thread-reservation=1
@@ -205,7 +205,7 @@ Per-Host Resources: mem-estimate=41.10MB mem-reservation=31.00MB thread-reservat
 07:AGGREGATE [FINALIZE]
 |  output: count:merge(*)
 |  group by: l_orderkey, o_orderstatus
-|  having: count(*) = CAST(1 AS BIGINT)
+|  having: $ao$2 /* count(*) */ = CAST(1 AS BIGINT)
 |  mem-estimate=31.00MB mem-reservation=31.00MB spill-buffer=1.00MB thread-reservation=0
 |  tuple-ids=2 row-size=29B cardinality=4690314
 |  in pipelines: 07(GETNEXT), 00(OPEN)

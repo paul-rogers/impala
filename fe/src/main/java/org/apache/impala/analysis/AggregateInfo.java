@@ -541,10 +541,10 @@ public class AggregateInfo extends AggregateInfoBase {
     exprs.addAll(aggregateExprs_);
     for (int i = 0; i < exprs.size(); ++i) {
       outputTupleSmap_.put(exprs.get(i).clone(),
-          new SlotRef(outputTupleDesc_.getSlots().get(i)));
+          new SlotRef(outputTupleDesc_.getSlots().get(i), "$ao$" + i));
       if (!requiresIntermediateTuple()) continue;
       intermediateTupleSmap_.put(exprs.get(i).clone(),
-          new SlotRef(intermediateTupleDesc_.getSlots().get(i)));
+          new SlotRef(intermediateTupleDesc_.getSlots().get(i), "$ai$" + i));
       if (i < groupingExprs_.size()) {
         analyzer.createAuxEqPredicate(
             new SlotRef(outputTupleDesc_.getSlots().get(i)),

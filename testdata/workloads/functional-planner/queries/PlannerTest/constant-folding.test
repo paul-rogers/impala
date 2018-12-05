@@ -128,10 +128,10 @@ having 1024 * 1024 * count(*) % 2 = 0
 ---- PLAN
 Analyzed query: SELECT sum(CAST(2 AS BIGINT) + CAST(id AS BIGINT)) FROM
 functional.alltypes GROUP BY timestamp_col = TIMESTAMP '2016-11-15 00:00:00'
-HAVING CAST(1048576 AS BIGINT) * count(*) % CAST(2 AS BIGINT) = CAST(0 AS
-BIGINT) AND sum(CAST(2 AS BIGINT) + CAST(id AS BIGINT)) > CAST(1 AS BIGINT) AND
-sum(CAST(2 AS BIGINT) + CAST(id AS BIGINT)) >= CAST(5 AS BIGINT) AND sum(CAST(2
-AS BIGINT) + CAST(id AS BIGINT)) <= CAST(10 AS BIGINT)
+HAVING CAST(1048576 AS BIGINT) * $ao$2 /* count(*) */ % CAST(2 AS BIGINT) =
+CAST(0 AS BIGINT) AND $ao$1 /* sum(2 + id) */ > CAST(1 AS BIGINT) AND $ao$1 /*
+sum(2 + id) */ >= CAST(5 AS BIGINT) AND $ao$1 /* sum(2 + id) */ <= CAST(10 AS
+BIGINT)
 F00:PLAN FRAGMENT [UNPARTITIONED] hosts=1 instances=1
 |  Per-Host Resources: mem-estimate=138.00MB mem-reservation=1.97MB thread-reservation=2
 PLAN-ROOT SINK
@@ -140,7 +140,7 @@ PLAN-ROOT SINK
 01:AGGREGATE [FINALIZE]
 |  output: sum(CAST(2 AS BIGINT) + CAST(id AS BIGINT)), count(*)
 |  group by: timestamp_col = TIMESTAMP '2016-11-15 00:00:00'
-|  having: sum(2 + id) <= CAST(10 AS BIGINT), sum(2 + id) > CAST(1 AS BIGINT), sum(2 + id) >= CAST(5 AS BIGINT), CAST(1048576 AS BIGINT) * count(*) % CAST(2 AS BIGINT) = CAST(0 AS BIGINT)
+|  having: $ao$1 /* sum(2 + id) */ <= CAST(10 AS BIGINT), $ao$1 /* sum(2 + id) */ > CAST(1 AS BIGINT), $ao$1 /* sum(2 + id) */ >= CAST(5 AS BIGINT), CAST(1048576 AS BIGINT) * $ao$2 /* count(*) */ % CAST(2 AS BIGINT) = CAST(0 AS BIGINT)
 |  mem-estimate=10.00MB mem-reservation=1.94MB spill-buffer=64.00KB thread-reservation=0
 |  tuple-ids=1 row-size=17B cardinality=0
 |  in pipelines: 01(GETNEXT), 00(OPEN)
@@ -272,7 +272,7 @@ PLAN-ROOT SINK
 |
 02:AGGREGATE [FINALIZE]
 |  output: sum(2 + id), count:merge(*)
-|  group by: timestamp_col = TIMESTAMP '2016-11-15 00:00:00'
+|  group by: $ao$0 /* timestamp_col = TIMESTAMP '2016-11-15 00:00:00' */
 |  having: CAST(1048576 AS BIGINT) * count(*) % CAST(2 AS BIGINT) = CAST(0 AS BIGINT)
 |  mem-estimate=10.00MB mem-reservation=1.94MB spill-buffer=64.00KB thread-reservation=0
 |  tuple-ids=2 row-size=17B cardinality=0
@@ -302,8 +302,8 @@ from functional.alltypes
 having 1024 * 1024 * count(*) % 2 = 0
 ---- PLAN
 Analyzed query: SELECT sum(DISTINCT CAST(2 AS BIGINT) + CAST(id AS BIGINT)) FROM
-functional.alltypes HAVING CAST(1048576 AS BIGINT) * count(*) % CAST(2 AS
-BIGINT) = CAST(0 AS BIGINT)
+functional.alltypes HAVING CAST(1048576 AS BIGINT) * zeroifnull(count(*)) %
+CAST(2 AS BIGINT) = CAST(0 AS BIGINT)
 F00:PLAN FRAGMENT [UNPARTITIONED] hosts=1 instances=1
 |  Per-Host Resources: mem-estimate=138.00MB mem-reservation=1.97MB thread-reservation=2
 PLAN-ROOT SINK
