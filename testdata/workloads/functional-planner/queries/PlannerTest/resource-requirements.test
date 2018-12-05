@@ -3673,11 +3673,11 @@ Max Per-Host Resource Reservation: Memory=111.50MB Threads=5
 Per-Host Resource Estimates: Memory=419MB
 Analyzed query: SELECT c_name, c_custkey, o_orderkey, o_orderdate, o_totalprice,
 sum(l_quantity) FROM tpch.customer, tpch.orders, tpch.lineitem LEFT SEMI JOIN
-(SELECT l_orderkey FROM tpch.lineitem GROUP BY l_orderkey HAVING sum(l_quantity)
-> CAST(300 AS DECIMAL(5,0))) `$a$1` (`$c$1`) ON o_orderkey = `$a$1`.`$c$1` WHERE
-TRUE AND c_custkey = o_custkey AND o_orderkey = l_orderkey GROUP BY c_name,
-c_custkey, o_orderkey, o_orderdate, o_totalprice ORDER BY o_totalprice DESC,
-o_orderdate ASC LIMIT CAST(100 AS TINYINT)
+(SELECT l_orderkey FROM tpch.lineitem GROUP BY l_orderkey HAVING $ao$1 /*
+sum(l_quantity) */ > CAST(300 AS DECIMAL(5,0))) `$a$1` (`$c$1`) ON o_orderkey =
+`$a$1`.`$c$1` WHERE TRUE AND c_custkey = o_custkey AND o_orderkey = l_orderkey
+GROUP BY c_name, c_custkey, o_orderkey, o_orderdate, o_totalprice ORDER BY
+o_totalprice DESC, o_orderdate ASC LIMIT CAST(100 AS TINYINT)
 
 F00:PLAN FRAGMENT [UNPARTITIONED] hosts=1 instances=1
 |  Per-Host Resources: mem-estimate=419.25MB mem-reservation=111.50MB thread-reservation=5 runtime-filters-memory=3.00MB
@@ -3707,7 +3707,7 @@ PLAN-ROOT SINK
 |--04:AGGREGATE [FINALIZE]
 |  |  output: sum(l_quantity)
 |  |  group by: l_orderkey
-|  |  having: sum(l_quantity) > CAST(300 AS DECIMAL(5,0))
+|  |  having: $ao$1 /* sum(l_quantity) */ > CAST(300 AS DECIMAL(5,0))
 |  |  mem-estimate=39.36MB mem-reservation=34.00MB spill-buffer=2.00MB thread-reservation=0
 |  |  tuple-ids=4 row-size=24B cardinality=156344
 |  |  in pipelines: 04(GETNEXT), 03(OPEN)
@@ -3774,11 +3774,11 @@ Max Per-Host Resource Reservation: Memory=220.38MB Threads=11
 Per-Host Resource Estimates: Memory=533MB
 Analyzed query: SELECT c_name, c_custkey, o_orderkey, o_orderdate, o_totalprice,
 sum(l_quantity) FROM tpch.customer, tpch.orders, tpch.lineitem LEFT SEMI JOIN
-(SELECT l_orderkey FROM tpch.lineitem GROUP BY l_orderkey HAVING sum(l_quantity)
-> CAST(300 AS DECIMAL(5,0))) `$a$1` (`$c$1`) ON o_orderkey = `$a$1`.`$c$1` WHERE
-TRUE AND c_custkey = o_custkey AND o_orderkey = l_orderkey GROUP BY c_name,
-c_custkey, o_orderkey, o_orderdate, o_totalprice ORDER BY o_totalprice DESC,
-o_orderdate ASC LIMIT CAST(100 AS TINYINT)
+(SELECT l_orderkey FROM tpch.lineitem GROUP BY l_orderkey HAVING $ao$1 /*
+sum(l_quantity) */ > CAST(300 AS DECIMAL(5,0))) `$a$1` (`$c$1`) ON o_orderkey =
+`$a$1`.`$c$1` WHERE TRUE AND c_custkey = o_custkey AND o_orderkey = l_orderkey
+GROUP BY c_name, c_custkey, o_orderkey, o_orderdate, o_totalprice ORDER BY
+o_totalprice DESC, o_orderdate ASC LIMIT CAST(100 AS TINYINT)
 
 F07:PLAN FRAGMENT [UNPARTITIONED] hosts=1 instances=1
 |  Per-Host Resources: mem-estimate=31.12KB mem-reservation=0B thread-reservation=1
@@ -3831,7 +3831,7 @@ Per-Host Resources: mem-estimate=149.22MB mem-reservation=116.38MB thread-reserv
 |--14:AGGREGATE [FINALIZE]
 |  |  output: sum:merge(l_quantity)
 |  |  group by: l_orderkey
-|  |  having: sum(l_quantity) > CAST(300 AS DECIMAL(5,0))
+|  |  having: $ao$1 /* sum(l_quantity) */ > CAST(300 AS DECIMAL(5,0))
 |  |  mem-estimate=34.00MB mem-reservation=34.00MB spill-buffer=2.00MB thread-reservation=0
 |  |  tuple-ids=4 row-size=24B cardinality=156344
 |  |  in pipelines: 14(GETNEXT), 03(OPEN)
@@ -3933,11 +3933,11 @@ Max Per-Host Resource Reservation: Memory=268.88MB Threads=13
 Per-Host Resource Estimates: Memory=846MB
 Analyzed query: SELECT c_name, c_custkey, o_orderkey, o_orderdate, o_totalprice,
 sum(l_quantity) FROM tpch.customer, tpch.orders, tpch.lineitem LEFT SEMI JOIN
-(SELECT l_orderkey FROM tpch.lineitem GROUP BY l_orderkey HAVING sum(l_quantity)
-> CAST(300 AS DECIMAL(5,0))) `$a$1` (`$c$1`) ON o_orderkey = `$a$1`.`$c$1` WHERE
-TRUE AND c_custkey = o_custkey AND o_orderkey = l_orderkey GROUP BY c_name,
-c_custkey, o_orderkey, o_orderdate, o_totalprice ORDER BY o_totalprice DESC,
-o_orderdate ASC LIMIT CAST(100 AS TINYINT)
+(SELECT l_orderkey FROM tpch.lineitem GROUP BY l_orderkey HAVING $ao$1 /*
+sum(l_quantity) */ > CAST(300 AS DECIMAL(5,0))) `$a$1` (`$c$1`) ON o_orderkey =
+`$a$1`.`$c$1` WHERE TRUE AND c_custkey = o_custkey AND o_orderkey = l_orderkey
+GROUP BY c_name, c_custkey, o_orderkey, o_orderdate, o_totalprice ORDER BY
+o_totalprice DESC, o_orderdate ASC LIMIT CAST(100 AS TINYINT)
 
 F07:PLAN FRAGMENT [UNPARTITIONED] hosts=1 instances=1
 |  Per-Host Resources: mem-estimate=59.24KB mem-reservation=0B thread-reservation=1
@@ -3998,7 +3998,7 @@ Per-Host Resources: mem-estimate=115.27MB mem-reservation=94.88MB thread-reserva
 |  14:AGGREGATE [FINALIZE]
 |  |  output: sum:merge(l_quantity)
 |  |  group by: l_orderkey
-|  |  having: sum(l_quantity) > CAST(300 AS DECIMAL(5,0))
+|  |  having: $ao$1 /* sum(l_quantity) */ > CAST(300 AS DECIMAL(5,0))
 |  |  mem-estimate=17.00MB mem-reservation=17.00MB spill-buffer=1.00MB thread-reservation=0
 |  |  tuple-ids=4 row-size=24B cardinality=156344
 |  |  in pipelines: 14(GETNEXT), 03(OPEN)
