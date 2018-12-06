@@ -332,7 +332,7 @@ public class BinaryPredicate extends Predicate {
 
   @Override
   public void serializeFields(ObjectSerializer os) {
-    os.scalar("op", op_.toString());
+    os.field("op", op_.toString());
     super.serializeFields(os);
     os.elidable("inferred", isInferred_);
   }

@@ -273,7 +273,7 @@ public class ArithmeticExpr extends Expr {
 
   @Override
   public void serializeFields(ObjectSerializer os) {
-    os.scalar("op", op_.toString());
+    os.field("op", op_.toString());
     super.serializeFields(os);
   }
 }

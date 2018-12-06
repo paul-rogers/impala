@@ -642,7 +642,8 @@ public class TableRef extends StmtNode {
     else if (rawPath_ != null)
       path = ToSqlUtils.getPathSql(rawPath_);
     os.field("path", path);
-    os.strList("aliaes", aliases_);
+    if (aliases_.length == 1) os.field("alias", aliases_[0]);
+    else os.strList("aliaes", aliases_);
     os.elidable("has-alias", hasExplicitAlias_);
     // TODO: priv_
     os.elidable("grant-required", requireGrantOption_);

@@ -25,11 +25,13 @@ public abstract class JsonSerializer extends AbstractTreeSerializer {
       obj_ = new JSONObject();
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     public void field(String name, String value) {
       obj_.put(name, value);
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     public ObjectSerializer object(String name) {
       JsonObjectSerializer child = new JsonObjectSerializer(serializer_);
@@ -48,6 +50,7 @@ public abstract class JsonSerializer extends AbstractTreeSerializer {
 
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     public ArraySerializer array(String name) {
       JsonArraySerializer array = new JsonArraySerializer(serializer_);
@@ -64,6 +67,7 @@ public abstract class JsonSerializer extends AbstractTreeSerializer {
       }
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     public void scalar(String name, Object value) {
       obj_.put(name, value);
@@ -79,26 +83,44 @@ public abstract class JsonSerializer extends AbstractTreeSerializer {
       array_ = new JSONArray();
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     public void value(String value) {
       array_.add(value);
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     public void value(long value) {
       array_.add(value);
     }
 
+    @SuppressWarnings("unchecked")
     @Override
-    public void value(Object value) {
+    public void scalar(Object value) {
       array_.add(value);
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     public ObjectSerializer object() {
       JsonObjectSerializer child = new JsonObjectSerializer(serializer_);
       array_.add(child.obj_);
       return child;
+    }
+
+    @Override
+    public ToJsonOptions options() {
+      return serializer_.options();
+    }
+
+    @Override
+    public void object(JsonSerializable obj) {
+      if (obj == null) {
+        if (!options().elide()) scalar(null);
+      } else {
+        obj.serialize(object());
+      }
     }
   }
 

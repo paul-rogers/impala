@@ -164,6 +164,17 @@ public class TreeFormatterTest {
     }
   }
 
+  public static class DummyObject implements JsonSerializable {
+    int value_;
+
+    public DummyObject(int value) { value_ = value; }
+
+    @Override
+    public void serialize(ObjectSerializer os) {
+      os.field("d", value_);
+    }
+  }
+
   @Test
   public void testSerialize() {
     {
@@ -190,6 +201,66 @@ public class TreeFormatterTest {
       os.field("null", null);
       assertEquals("{\n  null: null\n}\n", s.toString());
     }
+    {
+      // Duplicate entries
+      JsonTreeFormatter s = new JsonTreeFormatter(ToJsonOptions.fullCompact());
+      ObjectSerializer os = s.root();
+      DummyObject obj = new DummyObject(10);
+      os.object("first", obj);
+      os.object("second", new DummyObject(20));
+      os.object("third", null);
+      os.object("fourth", obj);
+      assertEquals(
+          "{\n  first: {\n    object_id: 1,\n    d: 10\n  },\n  second: {\n" +
+          "    object_id: 2,\n    d: 20\n  },\n  fourth: \"<1>\"\n}\n",
+          s.toString());
+    }
+    {
+      // Duplicate entries
+      JsonTreeFormatter s = new JsonTreeFormatter(
+          ToJsonOptions.fullCompact().elide(false));
+      ObjectSerializer os = s.root();
+      DummyObject obj = new DummyObject(10);
+      os.object("first", obj);
+      os.object("second", new DummyObject(20));
+      os.object("third", null);
+      os.object("fourth", obj);
+      assertEquals(
+          "{\n  first: {\n    object_id: 1,\n    d: 10\n  },\n  second: {\n" +
+          "    object_id: 2,\n    d: 20\n  },\n  third: null,\n" +
+          "  fourth: \"<1>\"\n}\n",
+          s.toString());
+    }
+    {
+      // Elision
+      JsonTreeFormatter s = new JsonTreeFormatter(
+          ToJsonOptions.fullCompact().elide(true));
+      ObjectSerializer os = s.root();
+      os.field("f1", true);
+      os.field("f2", false);
+      os.elidable("f3", true);
+      os.elidable("f4", false);
+      os.field("f5", "foo");
+      os.field("f6", null);
+      assertEquals(
+          "{\n  f1: true,\n  f2: false,\n  f3: true,\n  f5: \"foo\"\n}\n",
+          s.toString());
+    }
+    {
+      // No elision
+      JsonTreeFormatter s = new JsonTreeFormatter(
+          ToJsonOptions.fullCompact().elide(false));
+      ObjectSerializer os = s.root();
+      os.field("f1", true);
+      os.field("f2", false);
+      os.elidable("f3", true);
+      os.elidable("f4", false);
+      os.field("f5", "foo");
+      os.field("f6", null);
+      assertEquals(
+          "{\n  f1: true,\n  f2: false,\n  f3: true,\n  f4: false,\n" +
+          "  f5: \"foo\",\n  f6: null\n}\n",
+          s.toString());
+    }
   }
-
 }

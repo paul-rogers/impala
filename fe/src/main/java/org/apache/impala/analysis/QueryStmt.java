@@ -527,8 +527,7 @@ public abstract class QueryStmt extends StatementBase {
       os.objList("order-elements", orderByElements_);
       os.objList("base_table_result_exprs", baseTblResultExprs_);
       os.objList("ambiguous_aliases", ambiguousAliasList_);
-      if (aliasSmap_.size() > 0 || !os.options().elide())
-        aliasSmap_.serialize(os.array("alias_map"));
+      aliasSmap_.serializeTo(os, "alias_map");
     }
     // resultExprs_ serialized in subclasses
   }

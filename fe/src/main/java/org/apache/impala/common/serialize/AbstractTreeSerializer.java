@@ -36,10 +36,14 @@ public abstract class AbstractTreeSerializer implements TreeSerializer {
 
     @Override
     public void objList(String name, List<? extends JsonSerializable> objs) {
-      if (objs == null || objs.isEmpty()) return;
+      if (objs == null) {
+        if (!options().elide()) scalar(name, null);
+        return;
+      }
+      if (options().elide() && objs.isEmpty()) return;
       ArraySerializer as = array(name);
       for (JsonSerializable obj : objs) {
-        obj.serialize(as.object());
+        as.object(obj);
       }
     }
 
@@ -69,7 +73,7 @@ public abstract class AbstractTreeSerializer implements TreeSerializer {
       }
       ArraySerializer as = array(name);
       for (Object value : values) {
-        as.value(value);
+        as.scalar(value);
       }
     }
   }

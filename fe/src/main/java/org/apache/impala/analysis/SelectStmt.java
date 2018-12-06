@@ -1213,18 +1213,18 @@ public class SelectStmt extends QueryStmt {
     os.field("distinct", selectList_.isDistinct());
     os.objList("from", fromClause_.getTableRefs());
     if (hasWhereClause()) {
-      whereClause_.getExpr().serialize(os.object("where"));
+      os.object("where", whereClause_.getExpr());
     }
     os.objList("group_by", groupingExprs_);
     if (hasHavingClause()) {
-      havingClause_.getExpr().serialize(os.object("having"));
+      os.object("having", havingClause_.getExpr());
     }
     if (os.options().showOutput()) {
       ArraySerializer as = os.array("result_tuple");
       for (int i = 0; i < resultExprs_.size(); i++) {
         ObjectSerializer si = as.object();
         si.field("label", colLabels_.get(i));
-        resultExprs_.get(i).serialize(si.object(ToJsonConsts.EXPR_FIELD));
+        si.object("expr", resultExprs_.get(i));
       }
     }
     if (os.options().showInternals()) {

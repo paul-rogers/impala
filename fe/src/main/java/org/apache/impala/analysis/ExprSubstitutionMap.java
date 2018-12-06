@@ -186,8 +186,8 @@ public final class ExprSubstitutionMap {
   public void serialize(ArraySerializer as) {
     for (int i = 0; i < lhs_.size(); i++) {
       ObjectSerializer os = as.object();
-      lhs_.get(i).serialize(os.object("from"));
-      rhs_.get(i).serialize(os.object("to"));
+      os.object("from", lhs_.get(i));
+      os.object("to", rhs_.get(i));
     }
   }
 

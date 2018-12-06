@@ -2,6 +2,8 @@ package org.apache.impala.common.serialize;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.util.IdentityHashMap;
+import java.util.Map;
 
 import org.apache.impala.analysis.Expr;
 import org.apache.impala.common.PrintUtils;
@@ -66,6 +68,26 @@ public class JsonTreeFormatter extends AbstractTreeSerializer {
 			return new ArrayFormatter(formatter_,
 					formatter_.builder_.arrayField(level_, name));
 		}
+
+    @Override
+    public void object(String name, JsonSerializable obj) {
+      if (obj == null) {
+        if (!options().elide()) scalar(name, null);
+        return;
+      }
+      if (!options().dedup()) {
+        obj.serialize(object(name));
+        return;
+      }
+      int id = formatter_.visit(obj);
+      if (id >= 0) {
+        field(name, "<" + id + ">");
+        return;
+      }
+      ObjectSerializer os = object(name);
+      os.field(ToJsonConsts.OBJECT_ID_FIELD, -id);
+      obj.serialize(os);
+     }
 	}
 
 	public static class ArrayFormatter implements ArraySerializer {
@@ -88,7 +110,7 @@ public class JsonTreeFormatter extends AbstractTreeSerializer {
 		}
 
     @Override
-    public void value(Object value) {
+    public void scalar(Object value) {
       formatter_.builder_.unquotedElement(level_, value);
     }
 
@@ -97,6 +119,31 @@ public class JsonTreeFormatter extends AbstractTreeSerializer {
 			return new ObjectFormatter(formatter_,
 					formatter_.builder_.objectElement(level_));
 		}
+
+    @Override
+    public void object(JsonSerializable obj) {
+      if (obj == null) {
+        if (!options().elide()) scalar(null);
+        return;
+      }
+      if (!options().dedup()) {
+        obj.serialize(object());
+        return;
+      }
+      int id = formatter_.visit(obj);
+      if (id >= 0) {
+        value("<" + id + ">");
+        return;
+      }
+      ObjectSerializer os = object();
+      os.field(ToJsonConsts.OBJECT_ID_FIELD, -id);
+      obj.serialize(os);
+    }
+
+    @Override
+    public ToJsonOptions options() {
+      return formatter_.options();
+    }
 	}
 
 	/**
@@ -263,6 +310,7 @@ public class JsonTreeFormatter extends AbstractTreeSerializer {
 		}
 	}
 
+  private final Map<Object,Integer> refsMap_ = new IdentityHashMap<>();
   protected final ObjectFormatter root_;
 	protected final StringWriter strWriter_;
 	protected final TreeBuilder builder_;
@@ -291,4 +339,12 @@ public class JsonTreeFormatter extends AbstractTreeSerializer {
 		close();
 		return strWriter_.toString();
 	}
+
+  private int visit(Object obj) {
+    Integer id = refsMap_.get(obj);
+    if (id != null) return id;
+    id = refsMap_.size() + 1;
+    refsMap_.put(obj, id);
+    return -id;
+  }
 }

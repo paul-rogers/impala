@@ -78,4 +78,9 @@ public class FunctionParams implements Cloneable, JsonSerializable {
     // Skip serializing the exprs_ list; it is redundant with the
     // function call expr children.
   }
+
+  public void serializeTo(ObjectSerializer os) {
+    if (isDistinct_ || isIgnoreNulls_ || isStar_)
+      serialize(os.object("params"));
+  }
 }

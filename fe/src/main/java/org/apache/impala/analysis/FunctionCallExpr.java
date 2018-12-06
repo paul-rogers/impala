@@ -693,7 +693,7 @@ public class FunctionCallExpr extends Expr {
     os.scalar("name", ToSqlUtils.getPathSql(fnName_.getFnNamePath()));
     os.elidable("analytic", isAnalyticFnCall_);
     os.elidable("internal", isInternalFnCall_);
-    os.object("params", params_);
+    params_.serializeTo(os);
     super.serializeFields(os);
   }
 }

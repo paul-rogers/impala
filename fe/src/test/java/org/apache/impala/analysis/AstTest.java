@@ -76,7 +76,8 @@ public class AstTest extends FrontendTestBase {
       if (!sectionExists) return;
 
       StatementBase stmt = (StatementBase) test_.AnalyzesOk(query);
-      JsonTreeFormatter formatter = new JsonTreeFormatter(ToJsonOptions.full());
+      JsonTreeFormatter formatter = new JsonTreeFormatter(
+          ToJsonOptions.fullCompact().showSource(false));
       stmt.serialize(formatter.root());
 
       String astJson = formatter.toString();

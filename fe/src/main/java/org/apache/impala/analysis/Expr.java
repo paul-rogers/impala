@@ -1649,10 +1649,6 @@ abstract public class Expr extends TreeNode<Expr> implements ParseNode, Cloneabl
   }
 
   private void serializeChildren(ObjectSerializer os) {
-    if (getChildCount() == 0) return;
-    ArraySerializer as = os.array("children");
-    for (int i = 0; i < getChildCount(); i++) {
-      getChild(i).serialize(as.object());
-    }
+    os.objList("children", children_);
   }
 }
