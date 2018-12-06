@@ -37,6 +37,9 @@ import org.apache.impala.common.AnalysisException;
 import org.apache.impala.common.InternalException;
 import org.apache.impala.common.SqlCastException;
 import org.apache.impala.common.TreeNode;
+import org.apache.impala.common.serialize.ArraySerializer;
+import org.apache.impala.common.serialize.ObjectSerializer;
+import org.apache.impala.common.serialize.ToJsonConsts;
 import org.apache.impala.rewrite.ExprRewriter;
 import org.apache.impala.service.FeSupport;
 import org.apache.impala.thrift.TColumnValue;
@@ -1622,5 +1625,34 @@ abstract public class Expr extends TreeNode<Expr> implements ParseNode, Cloneabl
           toSql() + " = " + value);
     }
     return value;
+  }
+
+  @Override
+  public void serialize(ObjectSerializer os) {
+    // Skeletal version, subclasses should replace
+    os.field(ToJsonConsts.TYPE_FIELD, getClass().getSimpleName());
+    serializeFields(os);
+    serializeChildren(os);
+  }
+
+  protected void serializeFields(ObjectSerializer os) {
+    if (id_ != null) os.field("id", id_.asInt());
+    if (type_ != null && type_ != ScalarType.INVALID) os.field("type", type_.toSql());
+    if (numDistinctValues_ != -1) os.field("ndv", numDistinctValues_);
+    if (selectivity_ != -1) os.field("selectivity", selectivity_);
+    if (evalCost_ != -1) os.field("cost", evalCost_);
+    os.elidable("constant", isConstant_);
+    if (fn_ != null) os.field("fn", fn_.getName());
+    os.elidable("on-clause", isOnClauseConjunct_);
+    os.elidable("auth", isAuxExpr_);
+    os.elidable("parens", printSqlInParens_);
+  }
+
+  private void serializeChildren(ObjectSerializer os) {
+    if (getChildCount() == 0) return;
+    ArraySerializer as = os.array("children");
+    for (int i = 0; i < getChildCount(); i++) {
+      getChild(i).serialize(as.object());
+    }
   }
 }

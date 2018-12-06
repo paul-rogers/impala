@@ -19,11 +19,14 @@ package org.apache.impala.analysis;
 
 import java.util.List;
 
+import org.apache.impala.common.serialize.JsonSerializable;
+import org.apache.impala.common.serialize.ObjectSerializer;
+
 /**
  * Return value of the grammar production that parses function
  * parameters. These parameters can be for scalar or aggregate functions.
  */
-public class FunctionParams implements Cloneable {
+public class FunctionParams implements Cloneable, JsonSerializable {
   private final boolean isStar_;
   private boolean isDistinct_;
   private boolean isIgnoreNulls_;
@@ -65,5 +68,14 @@ public class FunctionParams implements Cloneable {
     isStar_ = true;
     isDistinct_ = false;
     isIgnoreNulls_ = false;
+  }
+
+  @Override
+  public void serialize(ObjectSerializer os) {
+    os.elidable("distinct", isDistinct_);
+    os.elidable("ignore_nulls", isIgnoreNulls_);
+    if (isStar_) os.field("arg", "*");
+    // Skip serializing the exprs_ list; it is redundant with the
+    // function call expr children.
   }
 }

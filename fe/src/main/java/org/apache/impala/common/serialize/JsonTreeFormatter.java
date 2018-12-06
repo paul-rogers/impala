@@ -2,15 +2,27 @@ package org.apache.impala.common.serialize;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
-import java.util.List;
 
 import org.apache.impala.analysis.Expr;
 import org.apache.impala.common.PrintUtils;
-import org.apache.impala.common.serialize.AbstractTreeSerializer.AbstractObjectSerializer;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Preconditions;
 
+/**
+ * JSON serializer which produces a streaming, formatted JSON output. This form
+ * is optimized for use in the test framework: it uses a format optimized for
+ * tests: omitting values that are null or at defaults, emitting empty lists,
+ * using human-readable formatting.
+ *
+ * This format produces JSON, but the goal is not to be entirely JSON-compatible
+ * (the output is not intended to be deserialized as JSON.) Rather, it is
+ * intended to produce a human-readable serialization that tests can verify
+ * using textual comparisons.
+ *
+ * Writes JSON to a Java PrintWriter. The specific implementation used here is
+ * StringWriter so that the resulting JSON can be read to a string for use in
+ * tests. A trivial change is to write directly to a file.
+ */
 public class JsonTreeFormatter extends AbstractTreeSerializer {
 
 	private static class ObjectFormatter extends AbstractObjectSerializer {
@@ -24,11 +36,12 @@ public class JsonTreeFormatter extends AbstractTreeSerializer {
 
 		@Override
 		public void field(String name, String value) {
-			formatter_.builder_.quotedField(level_, name, value);
+      if (value != null || !options().elide())
+        formatter_.builder_.quotedField(level_, name, value);
 		}
 
 		@Override
-    protected void unquoted(String name, Object value) {
+    public void scalar(String name, Object value) {
 			formatter_.builder_.unquotedField(level_, name, value);
 		}
 
@@ -74,6 +87,11 @@ public class JsonTreeFormatter extends AbstractTreeSerializer {
 			formatter_.builder_.unquotedElement(level_, value);
 		}
 
+    @Override
+    public void value(Object value) {
+      formatter_.builder_.unquotedElement(level_, value);
+    }
+
 		@Override
 		public ObjectSerializer object() {
 			return new ObjectFormatter(formatter_,
@@ -82,15 +100,16 @@ public class JsonTreeFormatter extends AbstractTreeSerializer {
 	}
 
 	/**
-	 * Builds a JSON-like tree
-	 * - Fields are not quoted if they are normal literals.
-	 * - Block text is shown wrapped on multiple lines
-	 *
-	 * Emits material line-by-line, with each bit of content
-	 * written without a newline; the separator and newline
-	 * is added once we see the next item at the same or a
-	 * lower level.
-	 */
+   * Builds a JSON-like tree
+   * - Fields are not quoted if they are normal literals.
+   * - Block text is shown wrapped on multiple lines
+   *
+   * Emits material line-by-line, with each bit of content written without a
+   * newline; the separator and newline is added once we see the next item at the
+   * same or a lower level.
+   *
+   * Not meant to be used directly as the interface is not JSON-like.
+   */
 	@VisibleForTesting
 	protected static class TreeBuilder {
 		private final int MAX_DEPTH = Expr.EXPR_DEPTH_LIMIT + 20;
@@ -261,7 +280,8 @@ public class JsonTreeFormatter extends AbstractTreeSerializer {
     return root_;
   }
 
-	public void close() {
+	@Override
+  public void close() {
 		if (!closed_) builder_.close();
 		closed_ = true;
 	}

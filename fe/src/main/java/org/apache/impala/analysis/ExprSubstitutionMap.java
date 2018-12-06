@@ -19,6 +19,8 @@ package org.apache.impala.analysis;
 
 import java.util.List;
 
+import org.apache.impala.common.serialize.ArraySerializer;
+import org.apache.impala.common.serialize.ObjectSerializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -179,5 +181,18 @@ public final class ExprSubstitutionMap {
   @Override
   public ExprSubstitutionMap clone() {
     return new ExprSubstitutionMap(Expr.cloneList(lhs_), Expr.cloneList(rhs_));
+  }
+
+  public void serialize(ArraySerializer as) {
+    for (int i = 0; i < lhs_.size(); i++) {
+      ObjectSerializer os = as.object();
+      lhs_.get(i).serialize(os.object("from"));
+      rhs_.get(i).serialize(os.object("to"));
+    }
+  }
+
+  public void serializeTo(ObjectSerializer os, String name) {
+    if (size() == 0 && os.options().elide()) return;
+    serialize(os.array(name));
   }
 }

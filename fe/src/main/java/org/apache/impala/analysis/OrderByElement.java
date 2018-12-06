@@ -19,6 +19,9 @@ package org.apache.impala.analysis;
 
 import java.util.List;
 
+import org.apache.impala.common.serialize.JsonSerializable;
+import org.apache.impala.common.serialize.ObjectSerializer;
+
 import com.google.common.collect.Lists;
 
 import static org.apache.impala.analysis.ToSqlOptions.DEFAULT;
@@ -26,7 +29,7 @@ import static org.apache.impala.analysis.ToSqlOptions.DEFAULT;
 /**
  * Combination of expr, ASC/DESC, and nulls ordering.
  */
-public class OrderByElement {
+public class OrderByElement implements JsonSerializable {
   private Expr expr_;
   private final boolean isAsc_;
   // Represents the NULLs ordering specified: true when "NULLS FIRST", false when
@@ -155,5 +158,12 @@ public class OrderByElement {
       result.add(reverseElement);
     }
     return result;
+  }
+
+  @Override
+  public void serialize(ObjectSerializer os) {
+    expr_.serialize(os.object("expr"));
+    os.field("direction", isAsc_ ? "ASC" : "DESC");
+    os.field("nulls-first", nullsFirst());
   }
 }

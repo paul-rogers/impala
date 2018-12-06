@@ -17,6 +17,8 @@
 
 package org.apache.impala.analysis;
 
+import org.apache.impala.common.serialize.JsonSerializable;
+
 /**
  * Parse nodes divide into two broad categories: statement-like nodes (derived
  * from {@link StmtNode}) and expression nodes (which derive from @{link Expr}.)
@@ -34,7 +36,7 @@ package org.apache.impala.analysis;
  * Operations that affect all statement-like nodes are defined here; those that
  * affect all expressions are defined in Expr.
  */
-public interface ParseNode {
+public interface ParseNode extends JsonSerializable {
 
   /**
    * Returns the SQL string corresponding to this node and its descendants.

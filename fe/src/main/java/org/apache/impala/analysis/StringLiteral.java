@@ -22,6 +22,7 @@ import org.apache.impala.catalog.ScalarType;
 import org.apache.impala.catalog.Type;
 import org.apache.impala.common.AnalysisException;
 import org.apache.impala.common.SqlCastException;
+import org.apache.impala.common.serialize.ObjectSerializer;
 import org.apache.impala.thrift.TExprNode;
 import org.apache.impala.thrift.TExprNodeType;
 import org.apache.impala.thrift.TStringLiteral;
@@ -187,4 +188,10 @@ public class StringLiteral extends LiteralExpr {
 
   @Override
   public Expr clone() { return new StringLiteral(this); }
+
+  @Override
+  public void serializeFields(ObjectSerializer os) {
+    os.field("value", getUnescapedValue());
+    super.serializeFields(os);
+  }
 }

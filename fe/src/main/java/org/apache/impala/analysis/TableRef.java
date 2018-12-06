@@ -25,6 +25,7 @@ import org.apache.impala.authorization.Privilege;
 import org.apache.impala.catalog.FeFsTable;
 import org.apache.impala.catalog.FeTable;
 import org.apache.impala.common.AnalysisException;
+import org.apache.impala.common.serialize.ObjectSerializer;
 import org.apache.impala.planner.JoinNode.DistributionMode;
 import org.apache.impala.rewrite.ExprRewriter;
 import org.apache.impala.thrift.TReplicaPreference;
@@ -631,5 +632,25 @@ public class TableRef extends StmtNode {
     allMaterializedTupleIds_.clear();
     correlatedTupleIds_.clear();
     desc_ = null;
+  }
+
+  @Override
+  public void serialize(ObjectSerializer os) {
+    String path = null;
+    if (resolvedPath_ != null)
+      path = ToSqlUtils.getPathSql(resolvedPath_.getCanonicalPath());
+    else if (rawPath_ != null)
+      path = ToSqlUtils.getPathSql(rawPath_);
+    os.field("path", path);
+    os.strList("aliaes", aliases_);
+    os.elidable("has-alias", hasExplicitAlias_);
+    // TODO: priv_
+    os.elidable("grant-required", requireGrantOption_);
+    os.objList("join-hints", joinHints_);
+    os.objList("table-hints", tableHints_);
+    // TODO: distrMode_
+    // TODO: replicas
+    os.object("join", leftTblRef_);
+    os.object("on", onClause_);
   }
 }

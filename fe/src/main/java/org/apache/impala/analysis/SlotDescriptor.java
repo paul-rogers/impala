@@ -25,6 +25,8 @@ import org.apache.impala.catalog.ColumnStats;
 import org.apache.impala.catalog.FeKuduTable;
 import org.apache.impala.catalog.KuduColumn;
 import org.apache.impala.catalog.Type;
+import org.apache.impala.common.serialize.JsonSerializable;
+import org.apache.impala.common.serialize.ObjectSerializer;
 import org.apache.impala.thrift.TSlotDescriptor;
 
 import com.google.common.base.Joiner;
@@ -32,7 +34,7 @@ import com.google.common.base.Objects;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 
-public class SlotDescriptor {
+public class SlotDescriptor implements JsonSerializable {
   private final SlotId id_;
   private final TupleDescriptor parent_;
 
@@ -305,5 +307,34 @@ public class SlotDescriptor {
         .add("slotIdx", slotIdx_)
         .add("stats", stats_)
         .toString();
+  }
+
+  @Override
+  public void serialize(ObjectSerializer os) {
+    if (parent_ != null) os.field("table_id", parent_.getId().asInt());
+    os.field("id", id_.asInt());
+    if (path_ != null)
+      os.field("path", ToSqlUtils.getPathSql(path_.getCanonicalPath()));
+    os.field("type", type_.toSql());
+    if (label_ != null) os.field("label", label_);
+    os.objList("source_exprs", sourceExprs_);
+    os.field("materialized", isMaterialized_);
+    os.field("nullable", isNullable_);
+    if (stats_ != null) {
+      ObjectSerializer stats = os.object("stats");
+      stats.field("ndv", stats_.getNumDistinctValues());
+      if (stats_.getNumNulls() != -1) stats.field("nulls", stats_.getNumNulls());
+      stats.field("max_size", stats_.getMaxSize());
+    }
+  }
+
+  public void serializeRef(ObjectSerializer os) {
+    // Provide an abbreviated form; full info serialized elsewhere
+    // This is a "reference", not a "definition"
+    if (parent_ != null)
+      os.field("table_id", parent_.getId().asInt());
+    os.field("slot_id", id_.asInt());
+    if (path_ != null) os.field("path", ToSqlUtils.getPathSql(path_.getCanonicalPath()));
+    else os.field("label", label_);
   }
 }

@@ -29,6 +29,7 @@ import org.apache.impala.catalog.ScalarType;
 import org.apache.impala.catalog.Type;
 import org.apache.impala.common.AnalysisException;
 import org.apache.impala.common.TreeNode;
+import org.apache.impala.common.serialize.ObjectSerializer;
 import org.apache.impala.thrift.TAggregateExpr;
 import org.apache.impala.thrift.TColumnType;
 import org.apache.impala.thrift.TExprNode;
@@ -687,4 +688,12 @@ public class FunctionCallExpr extends Expr {
     return e;
   }
 
+  @Override
+  public void serializeFields(ObjectSerializer os) {
+    os.scalar("name", ToSqlUtils.getPathSql(fnName_.getFnNamePath()));
+    os.elidable("analytic", isAnalyticFnCall_);
+    os.elidable("internal", isInternalFnCall_);
+    os.object("params", params_);
+    super.serializeFields(os);
+  }
 }

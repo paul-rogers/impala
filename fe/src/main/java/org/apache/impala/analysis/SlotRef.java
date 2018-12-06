@@ -27,6 +27,7 @@ import org.apache.impala.catalog.TableLoadingException;
 import org.apache.impala.catalog.Type;
 import org.apache.impala.common.AnalysisException;
 import org.apache.impala.common.UnsupportedFeatureException;
+import org.apache.impala.common.serialize.ObjectSerializer;
 import org.apache.impala.thrift.TExprNode;
 import org.apache.impala.thrift.TExprNodeType;
 import org.apache.impala.thrift.TSlotRef;
@@ -293,5 +294,14 @@ public class SlotRef extends Expr {
     } else {
       return super.uncheckedCastTo(targetType);
     }
+  }
+
+  @Override
+  public void serialize(ObjectSerializer os) {
+    super.serialize(os);
+    if (rawPath_ != null) os.field("path", ToSqlUtils.getPathSql(rawPath_));
+    if (label_ != null) os.field("label", label_);
+    if (colLabel_ != null) os.field("marker", colLabel_);
+    if (desc_ != null) desc_.serializeRef(os.object("descriptor"));
   }
 }

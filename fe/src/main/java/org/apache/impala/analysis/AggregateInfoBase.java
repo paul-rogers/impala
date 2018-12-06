@@ -22,6 +22,8 @@ import java.util.List;
 
 import org.apache.impala.catalog.AggregateFunction;
 import org.apache.impala.catalog.Type;
+import org.apache.impala.common.serialize.JsonSerializable;
+import org.apache.impala.common.serialize.ObjectSerializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -33,7 +35,7 @@ import com.google.common.collect.Lists;
  * Base class for AggregateInfo and AnalyticInfo containing the intermediate and output
  * tuple descriptors as well as their smaps for evaluating aggregate functions.
  */
-public abstract class AggregateInfoBase {
+public abstract class AggregateInfoBase implements JsonSerializable {
   private final static Logger LOG =
       LoggerFactory.getLogger(AggregateInfoBase.class);
 
@@ -223,4 +225,12 @@ public abstract class AggregateInfoBase {
   }
 
   protected abstract String tupleDebugName();
+
+  @Override
+  public void serialize(ObjectSerializer os) {
+    os.objList("group_by", groupingExprs_);
+    os.objList("exprs", aggregateExprs_);
+    os.object("tuple", intermediateTupleDesc_);
+    os.scalarList("materialized_slots", materializedSlots_);
+  }
 }

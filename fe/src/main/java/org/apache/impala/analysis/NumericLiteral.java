@@ -27,6 +27,7 @@ import org.apache.impala.catalog.Type;
 import org.apache.impala.common.AnalysisException;
 import org.apache.impala.common.InvalidValueException;
 import org.apache.impala.common.SqlCastException;
+import org.apache.impala.common.serialize.ObjectSerializer;
 import org.apache.impala.thrift.TDecimalLiteral;
 import org.apache.impala.thrift.TExprNode;
 import org.apache.impala.thrift.TExprNodeType;
@@ -595,5 +596,11 @@ public class NumericLiteral extends LiteralExpr {
         throw new IllegalArgumentException("Overflow check on " + type.toSql() +
             " isn't supported.");
     }
+  }
+
+  @Override
+  public void serializeFields(ObjectSerializer os) {
+    os.scalar("value", getStringValue());
+    super.serializeFields(os);
   }
 }

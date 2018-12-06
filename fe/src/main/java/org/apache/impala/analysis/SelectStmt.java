@@ -37,7 +37,9 @@ import org.apache.impala.common.AnalysisException;
 import org.apache.impala.common.ColumnAliasGenerator;
 import org.apache.impala.common.TableAliasGenerator;
 import org.apache.impala.common.TreeNode;
+import org.apache.impala.common.serialize.ArraySerializer;
 import org.apache.impala.common.serialize.ObjectSerializer;
+import org.apache.impala.common.serialize.ToJsonConsts;
 import org.apache.impala.rewrite.ExprRewriter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -1203,6 +1205,33 @@ public class SelectStmt extends QueryStmt {
 
   @Override
   public void serialize(ObjectSerializer os) {
-
+    os.field(ToJsonConsts.TYPE_FIELD, "SELECT");
+    if (hasWithClause()) withClause_.serialize(os);
+    if (os.options().showSource()) {
+      os.text(ToJsonConsts.SOURCE_FIELD, toSql(ToSqlOptions.DEFAULT));
+    }
+    os.field("distinct", selectList_.isDistinct());
+    os.objList("from", fromClause_.getTableRefs());
+    if (hasWhereClause()) {
+      whereClause_.getExpr().serialize(os.object("where"));
+    }
+    os.objList("group_by", groupingExprs_);
+    if (hasHavingClause()) {
+      havingClause_.getExpr().serialize(os.object("having"));
+    }
+    if (os.options().showOutput()) {
+      ArraySerializer as = os.array("result_tuple");
+      for (int i = 0; i < resultExprs_.size(); i++) {
+        ObjectSerializer si = as.object();
+        si.field("label", colLabels_.get(i));
+        resultExprs_.get(i).serialize(si.object(ToJsonConsts.EXPR_FIELD));
+      }
+    }
+    if (os.options().showInternals()) {
+      os.object("aggregation", multiAggInfo_);
+      os.object("analytics", analyticInfo_);
+      baseTblSmap_.serializeTo(os, "base_table_map");
+    }
+    super.serializeFields(os);
   }
 }

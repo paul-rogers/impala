@@ -118,6 +118,7 @@ public class FromClause extends StmtNode implements Iterable<TableRef> {
     return toSql(DEFAULT);
   }
 
+  @Override
   public String toSql(ToSqlOptions options) {
     StringBuilder builder = new StringBuilder();
     if (!tableRefs_.isEmpty()) {

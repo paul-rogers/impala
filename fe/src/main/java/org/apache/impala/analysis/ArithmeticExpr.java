@@ -23,6 +23,7 @@ import org.apache.impala.catalog.ScalarFunction;
 import org.apache.impala.catalog.ScalarType;
 import org.apache.impala.catalog.Type;
 import org.apache.impala.common.AnalysisException;
+import org.apache.impala.common.serialize.ObjectSerializer;
 import org.apache.impala.thrift.TExprNode;
 import org.apache.impala.thrift.TExprNodeType;
 import com.google.common.base.Objects;
@@ -269,4 +270,10 @@ public class ArithmeticExpr extends Expr {
 
   @Override
   public Expr clone() { return new ArithmeticExpr(this); }
+
+  @Override
+  public void serializeFields(ObjectSerializer os) {
+    os.scalar("op", op_.toString());
+    super.serializeFields(os);
+  }
 }

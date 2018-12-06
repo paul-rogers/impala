@@ -83,6 +83,7 @@ public class TestFileParser {
    */
   public enum Section {
     QUERY,
+    AST,
     TYPES,
     COLLABELS,
     RESULTS,
@@ -212,6 +213,7 @@ public class TestFileParser {
     public boolean isValid() {
       return !getQuery().isEmpty()
           && (!getSectionContents(Section.PLAN).isEmpty()
+            || !getSectionContents(Section.AST).isEmpty()
             || !getSectionContents(Section.DISTRIBUTEDPLAN).isEmpty()
             || !getSectionContents(Section.PARALLELPLANS).isEmpty()
             || !getSectionContents(Section.LINEAGE).isEmpty());

@@ -20,6 +20,9 @@ package org.apache.impala.analysis;
 
 import java.util.List;
 
+import org.apache.impala.common.serialize.JsonSerializable;
+import org.apache.impala.common.serialize.ObjectSerializer;
+
 import com.google.common.base.Joiner;
 import com.google.common.collect.Lists;
 
@@ -27,7 +30,7 @@ import com.google.common.collect.Lists;
  * Class to parse and store query plan hints, which can occur in various places inside SQL
  * query statements. A hint consist of a name and an optional list of arguments.
  */
-public class PlanHint {
+public class PlanHint implements JsonSerializable {
   /// The plan hint name.
   private final String name_;
 
@@ -70,4 +73,10 @@ public class PlanHint {
 
   public List<String> getArgs() { return args_; }
   public String toSql() { return toString(); }
+
+  @Override
+  public void serialize(ObjectSerializer os) {
+    os.field("name", name_);
+    os.strList("values", args_);
+  }
 }

@@ -26,6 +26,8 @@ import org.apache.impala.catalog.Type;
 import org.apache.impala.catalog.View;
 import org.apache.impala.common.AnalysisException;
 import org.apache.impala.common.SqlCastException;
+import org.apache.impala.common.serialize.ArraySerializer;
+import org.apache.impala.common.serialize.ObjectSerializer;
 import org.apache.impala.planner.DataSink;
 import org.apache.impala.planner.PlanRootSink;
 
@@ -511,4 +513,23 @@ public abstract class QueryStmt extends StatementBase {
 
   @Override
   public abstract QueryStmt clone();
+
+  @Override
+  public void serialize(ObjectSerializer os) {
+    if (hasWithClause()) withClause_.serialize(os);
+    serializeFields(os);
+  }
+
+  public void serializeFields(ObjectSerializer os) {
+    if (os.options().showInternals()) {
+      os.elidable("eval_order_by", evaluateOrderBy_);
+      os.elidable("is_scalar", isRuntimeScalar_);
+      os.objList("order-elements", orderByElements_);
+      os.objList("base_table_result_exprs", baseTblResultExprs_);
+      os.objList("ambiguous_aliases", ambiguousAliasList_);
+      if (aliasSmap_.size() > 0 || !os.options().elide())
+        aliasSmap_.serialize(os.array("alias_map"));
+    }
+    // resultExprs_ serialized in subclasses
+  }
 }

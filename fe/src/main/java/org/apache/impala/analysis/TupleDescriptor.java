@@ -30,6 +30,8 @@ import org.apache.impala.catalog.FeFsTable;
 import org.apache.impala.catalog.FeKuduTable;
 import org.apache.impala.catalog.FeTable;
 import org.apache.impala.catalog.StructType;
+import org.apache.impala.common.serialize.JsonSerializable;
+import org.apache.impala.common.serialize.ObjectSerializer;
 import org.apache.impala.thrift.TTupleDescriptor;
 
 import com.google.common.base.Joiner;
@@ -72,7 +74,7 @@ import com.google.common.collect.Lists;
  * Slots:   string_col|int_col|smallint_col|bool_col|null_byte
  * Offsets: 0          12      16           18       19
  */
-public class TupleDescriptor {
+public class TupleDescriptor implements JsonSerializable {
   // Padding size in bytes for Kudu string slots.
   private static final int KUDU_STRING_PADDING = 4;
 
@@ -383,5 +385,17 @@ public class TupleDescriptor {
       if (!slot.getType().isFixedLengthType()) return true;
     }
     return false;
+  }
+
+  @Override
+  public void serialize(ObjectSerializer os) {
+    os.field("id", id_.asInt());
+    if (path_ != null) os.field("path", ToSqlUtils.getPathSql(path_.getCanonicalPath()));
+    os.field("debug-name", debugName_);
+    os.objList("slots", slots_);
+    os.strList("aliases", aliases_);
+    os.field("explicit-alias", hasExplicitAlias_);
+    os.field("materialized", isMaterialized_);
+    // TODO: Physical layout
   }
 }

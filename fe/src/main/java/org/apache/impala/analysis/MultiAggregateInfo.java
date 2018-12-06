@@ -28,6 +28,9 @@ import org.apache.impala.catalog.AggregateFunction;
 import org.apache.impala.catalog.Type;
 import org.apache.impala.common.AnalysisException;
 import org.apache.impala.common.InternalException;
+import org.apache.impala.common.serialize.ArraySerializer;
+import org.apache.impala.common.serialize.JsonSerializable;
+import org.apache.impala.common.serialize.ObjectSerializer;
 import org.apache.kudu.shaded.com.google.common.collect.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -110,7 +113,7 @@ import com.google.common.collect.Sets;
  * becomes unnecessary an expr substitution map is populated to remap exprs referencing
  * the transposition to the output of the new simplified aggregation.
  */
-public class MultiAggregateInfo {
+public class MultiAggregateInfo implements JsonSerializable {
   private final static Logger LOG = LoggerFactory.getLogger(MultiAggregateInfo.class);
 
   public static enum AggPhase {
@@ -685,4 +688,22 @@ public class MultiAggregateInfo {
 
   @Override
   public MultiAggregateInfo clone() { return new MultiAggregateInfo(this); }
+
+  @Override
+  public void serialize(ObjectSerializer os) {
+    os.objList("group_by", groupingExprs_);
+    os.objList("agg_exprs", aggExprs_);
+    os.objList("substitutions", substGroupingExprs_);
+    if (aggClasses_ != null && !aggClasses_.isEmpty()) {
+      ArraySerializer as = os.array("agg_classes");
+      for (List<FunctionCallExpr> fns : aggClasses_)
+        as.object().objList("functions", fns);
+    }
+    os.objList("aggregation", aggInfos_);
+    os.object("transpose", transposeAggInfo_);
+    outputSmap_.serializeTo(os, "output_map");
+    os.objList("materialized_aggregation", materializedAggInfos_);
+    if (simplifiedAggSmap_ != null)
+      simplifiedAggSmap_.serializeTo(os, "simplified_output_map");
+  }
 }

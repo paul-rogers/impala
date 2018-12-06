@@ -8,18 +8,31 @@ public abstract class AbstractTreeSerializer implements TreeSerializer {
 
     @Override
     public void field(String name, long value) {
-      unquoted(name, value);
+      scalar(name, value);
     }
 
     @Override
     public void field(String name, double value) {
-      unquoted(name, value);
+      scalar(name, value);
     }
 
     @Override
     public void field(String name, boolean value) {
-      unquoted(name, value);
+      scalar(name, value);
     }
+
+    @Override
+    public void elidable(String name, boolean value) {
+      if (value || !options().elide()) scalar(name, value);
+    }
+
+    @Override
+    public void object(String name, JsonSerializable obj) {
+      if (obj != null)
+        obj.serialize(this);
+      else if (!options().elide())
+        scalar(name, null);
+     }
 
     @Override
     public void objList(String name, List<? extends JsonSerializable> objs) {
@@ -48,7 +61,17 @@ public abstract class AbstractTreeSerializer implements TreeSerializer {
       }
     }
 
-    protected abstract void unquoted(String name, Object value);
+    @Override
+    public void scalarList(String name, List<?> values) {
+      if (values == null) {
+        if (!options().elide()) scalar(name, null);
+        return;
+      }
+      ArraySerializer as = array(name);
+      for (Object value : values) {
+        as.value(value);
+      }
+    }
   }
 
   protected final ToJsonOptions options_;

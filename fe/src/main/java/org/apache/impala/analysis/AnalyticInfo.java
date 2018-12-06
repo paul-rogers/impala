@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.impala.catalog.Type;
+import org.apache.impala.common.serialize.ObjectSerializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -185,4 +186,10 @@ public class AnalyticInfo extends AggregateInfoBase {
 
   @Override
   public AnalyticInfo clone() { return new AnalyticInfo(this); }
+
+  public void serialize(ObjectSerializer os) {
+    os.objList("exprs", analyticExprs_);
+    os.objList("partition-exprs", analyticExprs_);
+    analyticTupleSmap_.serialize(os.array("analytic-tuple-map"));
+  }
 }

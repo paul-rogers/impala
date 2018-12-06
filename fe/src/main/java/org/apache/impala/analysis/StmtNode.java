@@ -31,5 +31,6 @@ public abstract class StmtNode implements ParseNode {
    */
   public abstract void analyze(Analyzer analyzer) throws AnalysisException;
 
-  public abstract void serialize(ObjectSerializer os);
+  public void serialize(ObjectSerializer os) {
+  }
 }

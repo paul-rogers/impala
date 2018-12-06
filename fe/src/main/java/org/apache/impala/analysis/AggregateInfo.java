@@ -25,6 +25,7 @@ import org.apache.impala.catalog.AggregateFunction;
 import org.apache.impala.catalog.Type;
 import org.apache.impala.common.AnalysisException;
 import org.apache.impala.common.InternalException;
+import org.apache.impala.common.serialize.ObjectSerializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -717,4 +718,15 @@ public class AggregateInfo extends AggregateInfoBase {
 
   @Override
   public AggregateInfo clone() { return new AggregateInfo(this); }
+
+  @Override
+  public void serialize(ObjectSerializer os) {
+    os.field("phase", aggPhase_.name());
+    os.object("merge", mergeAggInfo_);
+    os.object("second_phase", secondPhaseDistinctAggInfo_);
+    intermediateTupleSmap_.serializeTo(os, "intermediate_map");
+    outputTupleSmap_.serializeTo(os, "output_map");
+    os.objList("partition", partitionExprs_);
+    super.serialize(os);
+  }
 }
