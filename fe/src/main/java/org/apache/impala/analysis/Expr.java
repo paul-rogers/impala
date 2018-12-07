@@ -39,7 +39,6 @@ import org.apache.impala.common.SqlCastException;
 import org.apache.impala.common.TreeNode;
 import org.apache.impala.common.serialize.ArraySerializer;
 import org.apache.impala.common.serialize.ObjectSerializer;
-import org.apache.impala.common.serialize.ToJsonConsts;
 import org.apache.impala.rewrite.ExprRewriter;
 import org.apache.impala.service.FeSupport;
 import org.apache.impala.thrift.TColumnValue;
@@ -1630,7 +1629,7 @@ abstract public class Expr extends TreeNode<Expr> implements ParseNode, Cloneabl
   @Override
   public void serialize(ObjectSerializer os) {
     // Skeletal version, subclasses should replace
-    os.field(ToJsonConsts.TYPE_FIELD, getClass().getSimpleName());
+    os.field("class", getClass().getSimpleName());
     serializeFields(os);
     serializeChildren(os);
   }

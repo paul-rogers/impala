@@ -39,7 +39,6 @@ import org.apache.impala.common.TableAliasGenerator;
 import org.apache.impala.common.TreeNode;
 import org.apache.impala.common.serialize.ArraySerializer;
 import org.apache.impala.common.serialize.ObjectSerializer;
-import org.apache.impala.common.serialize.ToJsonConsts;
 import org.apache.impala.rewrite.ExprRewriter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -1205,10 +1204,10 @@ public class SelectStmt extends QueryStmt {
 
   @Override
   public void serialize(ObjectSerializer os) {
-    os.field(ToJsonConsts.TYPE_FIELD, "SELECT");
+    os.field("statement", "SELECT");
     if (hasWithClause()) withClause_.serialize(os);
     if (os.options().showSource()) {
-      os.text(ToJsonConsts.SOURCE_FIELD, toSql(ToSqlOptions.DEFAULT));
+      os.text("source", toSql(ToSqlOptions.DEFAULT));
     }
     os.field("distinct", selectList_.isDistinct());
     os.objList("from", fromClause_.getTableRefs());
