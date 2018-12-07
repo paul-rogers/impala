@@ -48,7 +48,7 @@ public class PartitionKeyValue {
               "as static partition-key values in '%s'.", toString()));
     }
     if (value_ == null) return;
-    value_.analyze(analyzer);
+    analyzer.analyzeInPlace(value_);
     literalValue_ = LiteralExpr.create(value_, analyzer.getQueryCtx());
   }
 

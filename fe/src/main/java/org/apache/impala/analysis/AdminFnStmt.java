@@ -82,7 +82,7 @@ public class AdminFnStmt extends StatementBase {
   @Override
   public void analyze(Analyzer analyzer) throws AnalysisException {
     super.analyze(analyzer);
-    for (Expr param : params_) param.analyze(analyzer);
+    for (Expr param : params_) analyzer.analyzeInPlace(param);
     // Only shutdown is supported.
     if (fnName_.toLowerCase().equals("shutdown")) {
       analyzeShutdown(analyzer);

@@ -96,21 +96,13 @@ public class IsNullPredicate extends Predicate {
   }
 
   @Override
-  protected void analyzeImpl(Analyzer analyzer) throws AnalysisException {
-    super.analyzeImpl(analyzer);
-    propagateTypes(analyzer);
-    propagateCost();
-  }
-
-  @Override
-  protected void propagateTypes(Analyzer analyzer) throws AnalysisException {
-    super.propagateTypes(analyzer);
+  protected void analyzeNode(Analyzer analyzer) throws AnalysisException {
+    super.analyzeNode(analyzer);
     if (contains(Subquery.class)) {
       if (getChild(0) instanceof ExistsPredicate) {
         // Replace the EXISTS subquery with a BoolLiteral as it can never return
         // a null value.
         setChild(0, new BoolLiteral(true));
-        getChild(0).analyze(analyzer);
       } else if (!getChild(0).contains(Expr.IS_SCALAR_SUBQUERY) &&
           !getChild(0).getSubquery().getStatement().isRuntimeScalar()) {
         // We only support scalar subqueries in an IS NULL predicate because
@@ -144,8 +136,8 @@ public class IsNullPredicate extends Predicate {
   }
 
   @Override
-  protected void propagateCost() {
-    super.propagateCost();
+  protected void computeNodeCost() {
+    super.computeNodeCost();
     // determine selectivity
     // TODO: increase this to make sure we don't end up favoring broadcast joins
     // due to underestimated cardinalities?

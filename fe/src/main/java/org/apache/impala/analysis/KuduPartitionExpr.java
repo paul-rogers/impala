@@ -65,12 +65,7 @@ public class KuduPartitionExpr extends Expr {
   }
 
   @Override
-  protected void analyzeImpl(Analyzer analyzer) throws AnalysisException {
-    propagateTypes(analyzer);
-  }
-
-  @Override
-  protected void propagateTypes(Analyzer analyzer) throws AnalysisException {
+  protected void analyzeNode(Analyzer analyzer) throws AnalysisException {
     type_ = Type.INT;
     // IMPALA-5294: If one of the children is a NullLiteral, it has to be cast to a type
     // to be passed to the BE.

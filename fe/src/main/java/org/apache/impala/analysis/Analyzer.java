@@ -378,11 +378,14 @@ public class Analyzer {
   // conjunct evaluating to false.
   private boolean hasEmptySpjResultSet_ = false;
 
+  private final ExprAnalyzer exprAnalyzer_;
+
   public Analyzer(StmtTableCache stmtTableCache, TQueryCtx queryCtx,
       AuthorizationConfig authzConfig) {
     ancestors_ = Lists.newArrayList();
     globalState_ = new GlobalState(stmtTableCache, queryCtx, authzConfig);
     user_ = new User(TSessionStateUtil.getEffectiveUser(queryCtx.session));
+    exprAnalyzer_ = new ExprAnalyzer(this);
   }
 
   /**
@@ -406,6 +409,7 @@ public class Analyzer {
     maskPrivChecks_ = parentAnalyzer.maskPrivChecks_;
     enablePrivChecks_ = parentAnalyzer.enablePrivChecks_;
     isWithClause_ = parentAnalyzer.isWithClause_;
+    exprAnalyzer_ = new ExprAnalyzer(this);
   }
 
   /**
@@ -1083,7 +1087,7 @@ public class Analyzer {
           conjunct = rewriter.rewrite(conjunct, this);
           // analyze this conjunct here: we know it can't contain references to select list
           // aliases and having it analyzed is needed for the following EvalPredicate() call
-          conjunct.analyze(this);
+          analyzeInPlace(conjunct);
         }
         if (!FeSupport.EvalPredicate(conjunct, globalState_.queryCtx)) {
           if (fromHavingClause) {
@@ -2292,7 +2296,7 @@ public class Analyzer {
     Expr lastCompatibleExpr = sortedExprs.get(0);
     Type compatibleType = null;
     for (int i = 0; i < sortedExprs.size(); ++i) {
-      sortedExprs.get(i).analyze(this);
+      analyzeInPlace(sortedExprs.get(i));
       compatibleType = getCompatibleType(compatibleType, lastCompatibleExpr,
           sortedExprs.get(i));
     }
@@ -2690,4 +2694,20 @@ public class Analyzer {
     return getAuthzConfig().isEnabled() ? getAuthzConfig().getServerName().intern() :
         null;
   }
+
+  public Expr analyzeAndRewrite(Expr expr) throws AnalysisException {
+    exprAnalyzer_.analyze(expr);
+    return expr;
+  }
+
+  /**
+   * Analyze a synthetic expression (one created outside of the parser).
+   * Does a partial analysis: type and cost propagation, but not rewrites
+   * or symbol resolution.
+   */
+  public void analyzeInPlace(Expr expr) throws AnalysisException {
+    exprAnalyzer_.analyze(expr);
+  }
+
+  public ExprAnalyzer exprResolver() { return exprAnalyzer_; }
 }

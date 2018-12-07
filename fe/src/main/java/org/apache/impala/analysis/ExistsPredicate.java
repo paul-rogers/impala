@@ -53,10 +53,9 @@ public class ExistsPredicate extends Predicate {
   }
 
   @Override
-  protected void analyzeImpl(Analyzer analyzer) throws AnalysisException {
-    super.analyzeImpl(analyzer);
+  protected void analyzeNode(Analyzer analyzer) throws AnalysisException {
+    super.analyzeNode(analyzer);
     ((Subquery)children_.get(0)).getStatement().setIsRuntimeScalar(false);
-    propagateCost();
   }
 
   @Override

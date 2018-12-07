@@ -182,7 +182,7 @@ public class AnalyticWindow {
     }
 
     public void analyze(Analyzer analyzer) throws AnalysisException {
-      if (expr_ != null) expr_.analyze(analyzer);
+      if (expr_ != null) analyzer.analyzeInPlace(expr_);
     }
   }
 

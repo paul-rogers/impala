@@ -372,8 +372,10 @@ public abstract class QueryStmt extends StatementBase {
     }
 
     // Ordinal reference?
-    expr.analyze(analyzer_);
-    if (allowOrdinal && Expr.IS_INT_LITERAL.apply(expr)) {
+    // Analysis may rewrite, only want values that started as numeric literals
+    boolean wasNumber = expr instanceof NumericLiteral;
+    expr = analyzer.analyzeAndRewrite(expr);
+    if (allowOrdinal && wasNumber && Expr.IS_INT_LITERAL.apply(expr)) {
       long pos = ((NumericLiteral) expr).getLongValue();
       if (pos < 1) {
         throw new AnalysisException(

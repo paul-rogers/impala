@@ -51,13 +51,8 @@ public class ValidTupleIdExpr extends Expr {
   }
 
   @Override
-  protected void analyzeImpl(Analyzer analyzer) throws AnalysisException {
+  protected void analyzeNode(Analyzer analyzer) throws AnalysisException {
     analyzer_ = analyzer;
-    propagateTypes(analyzer);
-  }
-
-  @Override
-  protected void propagateTypes(Analyzer analyzer) throws AnalysisException {
     type_ = Type.INT;
   }
 

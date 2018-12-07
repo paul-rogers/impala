@@ -117,15 +117,8 @@ public class CompoundPredicate extends Predicate {
   }
 
   @Override
-  protected void analyzeImpl(Analyzer analyzer) throws AnalysisException {
-    super.analyzeImpl(analyzer);
-    propagateTypes(analyzer);
-    propagateCost();
-  }
-
-  @Override
-  protected void propagateTypes(Analyzer analyzer) throws AnalysisException {
-    super.propagateTypes(analyzer);
+  protected void analyzeNode(Analyzer analyzer) throws AnalysisException {
+    super.analyzeNode(analyzer);
     // Check that children are predicates.
     for (Expr e: children_) {
       if (!e.getType().isBoolean() && !e.getType().isNull()) {
@@ -143,8 +136,8 @@ public class CompoundPredicate extends Predicate {
   }
 
   @Override
-  protected void propagateCost() {
-    super.propagateCost();
+  protected void computeNodeCost() {
+    super.computeNodeCost();
     if (!getChild(0).hasSelectivity() ||
         (children_.size() == 2 && !getChild(1).hasSelectivity())) {
       // Give up if one of our children has an unknown selectivity.

@@ -64,7 +64,7 @@ public class ExtractFromExpr extends FunctionCallExpr {
   }
 
   @Override
-  protected void analyzeImpl(Analyzer analyzer) throws AnalysisException {
+  protected void analyzeNode(Analyzer analyzer) throws AnalysisException {
     // Do these sanity checks before calling the super class to get the expected error
     // messages if extract() is used in an invalid way.
     getFnName().analyze(analyzer);
@@ -77,8 +77,6 @@ public class ExtractFromExpr extends FunctionCallExpr {
       throw new AnalysisException("Function " + getFnName().toString() + " conflicts " +
           "with the EXTRACT builtin.");
     }
-
-    super.analyzeImpl(analyzer);
 
     String extractFieldIdent =
         ((StringLiteral)children_.get(1)).getValueWithOriginalEscapes();

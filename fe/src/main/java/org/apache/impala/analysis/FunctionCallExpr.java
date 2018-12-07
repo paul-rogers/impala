@@ -476,13 +476,9 @@ public class FunctionCallExpr extends Expr {
   }
 
   @Override
-  protected void analyzeImpl(Analyzer analyzer) throws AnalysisException {
+  protected void analyzeNode(Analyzer analyzer) throws AnalysisException {
     fnName_.analyze(analyzer);
-    propagateTypes(analyzer);
-  }
 
-  @Override
-  protected void propagateTypes(Analyzer analyzer) throws AnalysisException {
     if (isMergeAggFn()) {
       // This is the function call expr after splitting up to a merge aggregation.
       // The function has already been analyzed so just do the minimal sanity

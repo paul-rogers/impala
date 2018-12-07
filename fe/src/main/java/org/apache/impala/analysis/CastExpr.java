@@ -210,12 +210,7 @@ public class CastExpr extends Expr {
   public boolean isImplicit() { return isImplicit_; }
 
   @Override
-  protected void analyzeImpl(Analyzer analyzer) throws AnalysisException {
-    propagateTypes(analyzer);
-  }
-
-  @Override
-  protected void propagateTypes(Analyzer analyzer) throws AnalysisException {
+  protected void analyzeNode(Analyzer analyzer) throws AnalysisException {
     Preconditions.checkState(!isImplicit_);
     targetTypeDef_.analyze(analyzer);
     type_ = targetTypeDef_.getType();

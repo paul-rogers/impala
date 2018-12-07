@@ -408,34 +408,33 @@ abstract public class Expr extends TreeNode<Expr> implements ParseNode, Cloneabl
   // expression, leaving the StmtNode version to analyze statements
   // in-place.
   public final void analyze(Analyzer analyzer) throws AnalysisException {
-    ExprAnalyzer exprAnalyzer = new ExprAnalyzer(analyzer);
-    exprAnalyzer.analyze(this);
+    analyzer.analyzeInPlace(this);
   }
 
   /**
-   * Does subclass-specific name resolution.
+   * Does subclass-specific name resolution. Resolution can replace one
+   * node with another.
    */
   protected Expr resolve(ColumnResolver resolver) throws AnalysisException {
     return this;
   }
 
   /**
-   * Does type propagation.
+   * Analyze contents (except for children), Perform type analysis.
+   * Cost and selectivity computation occurs in {@link #computeCost()}
+   * after any rewrites.
+   *
+   * If a node has internal structure beyond children; analyze it
+   * here.
    */
-  protected void propagateTypes(Analyzer analyzer) throws AnalysisException { }
-
-  /**
-   * Analyze the contents of nodes with internal structure beyond
-   * the list of children.
-   */
-  protected void analyzeContents(ExprAnalyzer exprAnalyzer) throws AnalysisException { }
+  protected void analyzeNode(Analyzer analyzer) throws AnalysisException { }
 
   /**
    * Called from ExprAnalyzer to compute costs after type propagation and rewrites.
    */
   protected void computeCost() {
     computeNumDistinctValues();
-    propagateCost();
+    computeNodeCost();
     evalCost_ = computeEvalCost();
   }
 
@@ -443,11 +442,17 @@ abstract public class Expr extends TreeNode<Expr> implements ParseNode, Cloneabl
    * Common cost propagation called by both old-style analyzeImpl and by the
    * above.
    */
-  protected void propagateCost() { }
+  protected void computeNodeCost() { }
   /**
    * Does subclass-specific analysis. Subclasses should override analyzeImpl().
    */
-  abstract protected void analyzeImpl(Analyzer analyzer) throws AnalysisException;
+  protected void analyzeImpl(Analyzer analyzer) throws AnalysisException {
+    Expr resolution = resolve(analyzer.exprResolver().columnResolver());
+    // This version can't handle resolutions that change the node
+    Preconditions.checkState(resolution == this);
+    analyzeNode(analyzer);
+    computeNodeCost();
+  }
 
   /**
    * Helper function to analyze this expr and assert that the analysis was successful.
@@ -457,7 +462,7 @@ abstract public class Expr extends TreeNode<Expr> implements ParseNode, Cloneabl
    */
   public void analyzeNoThrow(Analyzer analyzer) {
     try {
-      analyze(analyzer);
+      analyzer.analyzeInPlace(this);
     } catch (AnalysisException e) {
       throw new IllegalStateException(e);
     }
@@ -965,7 +970,7 @@ abstract public class Expr extends TreeNode<Expr> implements ParseNode, Cloneabl
     // Return clone to avoid removing casts.
     if (smap == null) return result;
     result = result.substituteImpl(smap, analyzer);
-    result.analyze(analyzer);
+    analyzer.analyzeInPlace(result);
     if (preserveRootType && !type_.equals(result.getType())) result = result.castTo(type_);
     return result;
   }
@@ -1196,7 +1201,7 @@ abstract public class Expr extends TreeNode<Expr> implements ParseNode, Cloneabl
           Expr rewritten = rewriter.rewrite(conjuncts.get(index), analyzer);
           // Re-analyze to add implicit casts and update cost
           rewritten.reset();
-          rewritten.analyze(analyzer);
+          rewritten = analyzer.analyzeAndRewrite(rewritten);
           if (!rewritten.isConstant()) {
             conjuncts.set(index, rewritten);
             if (++transfers < CONST_PROPAGATION_EXPR_LIMIT) candidates.set(index, true);
@@ -1604,7 +1609,7 @@ abstract public class Expr extends TreeNode<Expr> implements ParseNode, Cloneabl
       throw new AnalysisException(name + " expression must be a constant expression: " +
           toSql());
     }
-    analyze(analyzer);
+    analyzer.analyzeInPlace(this);
     if (!isConstant()) {
       throw new AnalysisException(name + " expression must be a constant expression: " +
           toSql());

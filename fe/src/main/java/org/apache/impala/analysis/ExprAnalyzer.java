@@ -131,15 +131,25 @@ public class ExprAnalyzer {
       analyze(child);
     }
     analyzer_.decrementCallDepth();
-    // Why is this before resolve?
-    expr.computeNumDistinctValues();
+    if (true) {
+      // Why is this before resolve?
+      expr.computeNumDistinctValues();
 
-    // Do all the analysis for the expr subclass before marking the Expr analyzed.
-//    expr.resolve(colResolver_);
-    // For now, call existing methods. Create parallel paths, then switch to
-    // use those methods.
-    expr.analyzeImpl(analyzer_);
-    expr.evalCost_ = expr.computeEvalCost();
+      // For now, call existing methods. Create parallel paths, then switch to
+      // use those methods.
+      expr.analyzeImpl(analyzer_);
+      expr.evalCost_ = expr.computeEvalCost();
+    } else {
+      // TODO: maybe combine resolve and analyzeContents and propagateTypes
+      // Both are pre-rewrite steps
+      // This might just bhe the old analyzeImpl minus the cost part
+      expr.resolve(colResolver_);
+      expr.analyzeNode(analyzer_);
+      // Will do rewrites about here
+      expr.computeCost();
+    }
     expr.analysisDone();
   }
+
+  public ColumnResolver columnResolver() { return colResolver_; }
 }

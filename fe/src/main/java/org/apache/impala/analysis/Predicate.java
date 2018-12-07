@@ -41,18 +41,12 @@ public abstract class Predicate extends Expr {
   public void setIsEqJoinConjunct(boolean v) { isEqJoinConjunct_ = v; }
 
   @Override
-  protected void analyzeImpl(Analyzer analyzer) throws AnalysisException {
-    propagateTypes(analyzer);
-    propagateCost();
-  }
-
-  @Override
-  protected void propagateTypes(Analyzer analyzer) throws AnalysisException {
+  protected void analyzeNode(Analyzer analyzer) throws AnalysisException {
     type_ = Type.BOOLEAN;
   }
 
   @Override
-  protected void propagateCost() {
+  protected void computeNodeCost() {
     // values: true/false/null
     numDistinctValues_ = 3;
   }

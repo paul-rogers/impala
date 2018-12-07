@@ -70,7 +70,7 @@ public class Subquery extends Expr {
    * Analyzes the subquery in a child analyzer.
    */
   @Override
-  protected void analyzeImpl(Analyzer analyzer) throws AnalysisException {
+  protected void analyzeNode(Analyzer analyzer) throws AnalysisException {
     if (!(stmt_ instanceof SelectStmt)) {
       throw new AnalysisException("A subquery must contain a single select block: " +
         toSql());
@@ -81,11 +81,7 @@ public class Subquery extends Expr {
     stmt_.analyze(analyzer_);
     // Check whether the stmt_ contains an illegal mix of un/correlated table refs.
     stmt_.getCorrelatedTupleIds();
-    propagateTypes(analyzer);
-  }
-
-  @Override
-  protected void propagateTypes(Analyzer analyzer) throws AnalysisException {
+    
     // Set the subquery type based on the types of the exprs in the
     // result list of the associated SelectStmt.
     List<Expr> stmtResultExprs = stmt_.getResultExprs();

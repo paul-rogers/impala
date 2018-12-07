@@ -241,7 +241,7 @@ public class ColumnDef {
     // single function.
     if (defaultValue_ != null) {
       try {
-        defaultValue_.analyze(analyzer);
+        analyzer.analyzeInPlace(defaultValue_);
       } catch (AnalysisException e) {
         throw new AnalysisException(String.format("Only constant values are allowed " +
             "for default values: %s", defaultValue_.toSql()), e);

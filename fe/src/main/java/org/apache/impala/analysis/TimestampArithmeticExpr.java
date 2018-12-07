@@ -116,7 +116,7 @@ public class TimestampArithmeticExpr extends Expr {
   }
 
   @Override
-  protected void analyzeImpl(Analyzer analyzer) throws AnalysisException {
+  protected void analyzeNode(Analyzer analyzer) throws AnalysisException {
     if (funcName_ != null) {
       // Set op based on funcName for function-call like version.
       if (funcName_.equals("date_add")) {
@@ -129,11 +129,7 @@ public class TimestampArithmeticExpr extends Expr {
             "Expected function name 'DATE_ADD' or 'DATE_SUB'.");
       }
     }
-    propagateTypes(analyzer);
-  }
 
-  @Override
-  protected void propagateTypes(Analyzer analyzer) throws AnalysisException {
     timeUnit_ = TIME_UNITS_MAP.get(timeUnitIdent_.toUpperCase());
     if (timeUnit_ == null) {
       throw new AnalysisException("Invalid time unit '" + timeUnitIdent_ +

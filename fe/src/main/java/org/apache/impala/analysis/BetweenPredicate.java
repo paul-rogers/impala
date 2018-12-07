@@ -18,6 +18,7 @@
 package org.apache.impala.analysis;
 
 import org.apache.impala.catalog.ScalarType;
+import org.apache.impala.catalog.Type;
 import org.apache.impala.common.AnalysisException;
 import org.apache.impala.thrift.TExprNode;
 
@@ -65,20 +66,15 @@ public class BetweenPredicate extends Predicate {
   }
 
   @Override
-  protected void analyzeImpl(Analyzer analyzer) throws AnalysisException {
-    super.analyzeImpl(analyzer);
+  protected void analyzeNode(Analyzer analyzer) throws AnalysisException {
+    super.analyzeNode(analyzer);
+    type_ = Type.BOOLEAN;
     if (children_.get(0) instanceof Subquery &&
         (children_.get(1) instanceof Subquery || children_.get(2) instanceof Subquery)) {
       throw new AnalysisException("Comparison between subqueries is not " +
           "supported in a BETWEEN predicate: " + toSqlImpl());
     }
-    propagateTypes(analyzer);
-    propagateCost();
-  }
 
-  @Override
-  protected void propagateTypes(Analyzer analyzer) throws AnalysisException {
-    super.propagateTypes(analyzer);
     if (checkDecimalCast()) {
       for(int i = 0; i < children_.size(); ++i) {
         ScalarType t = (ScalarType) children_.get(i).getType();

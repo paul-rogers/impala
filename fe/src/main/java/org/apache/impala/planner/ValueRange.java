@@ -103,7 +103,7 @@ public class ValueRange {
     Preconditions.checkState(p.isConstant());
     // analyze to insert casts, etc.
     try {
-      p.analyze(analyzer);
+      p = (Predicate) analyzer.analyzeAndRewrite(p);
     } catch (AnalysisException e) {
       // this should never happen
       throw new InternalException(
@@ -111,6 +111,8 @@ public class ValueRange {
     }
 
     // call backend
+    // TODO: Remove this once rewrites are integrated: will have been
+    // done above.
     return FeSupport.EvalPredicate(p, analyzer.getQueryCtx());
   }
 

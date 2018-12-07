@@ -104,15 +104,8 @@ public class InPredicate extends Predicate {
   }
 
   @Override
-  protected void analyzeImpl(Analyzer analyzer) throws AnalysisException {
-    super.analyzeImpl(analyzer);
-    propagateTypes(analyzer);
-    propagateCost();
-  }
-
-  @Override
-  protected void propagateTypes(Analyzer analyzer) throws AnalysisException {
-    super.propagateTypes(analyzer);
+  protected void analyzeNode(Analyzer analyzer) throws AnalysisException {
+    super.analyzeNode(analyzer);
     if (contains(Subquery.class)) {
       // An [NOT] IN predicate with a subquery must contain two children, the second of
       // which is a Subquery.
@@ -180,8 +173,8 @@ public class InPredicate extends Predicate {
   }
 
   @Override
-  protected void propagateCost() {
-    super.propagateCost();
+  protected void computeNodeCost() {
+    super.computeNodeCost();
     // TODO: Fix selectivity_ for nested predicate
     Reference<SlotRef> slotRefRef = new Reference<SlotRef>();
     Reference<Integer> idxRef = new Reference<Integer>();

@@ -107,7 +107,7 @@ public class HashJoinNode extends JoinNode {
           eqPred.getChild(0).getType().matchesType(eqPred.getChild(1).getType()));
       BinaryPredicate newEqPred = new BinaryPredicate(eqPred.getOp(),
           eqPred.getChild(0), eqPred.getChild(1));
-      newEqPred.analyze(analyzer);
+      newEqPred = (BinaryPredicate) analyzer.analyzeAndRewrite(newEqPred);
       newEqJoinConjuncts.add(newEqPred);
     }
     eqJoinConjuncts_ = newEqJoinConjuncts;

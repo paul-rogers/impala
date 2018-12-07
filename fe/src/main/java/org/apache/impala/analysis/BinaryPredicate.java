@@ -165,16 +165,9 @@ public class BinaryPredicate extends Predicate {
         .toString();
   }
 
-  @Override
-  protected void analyzeImpl(Analyzer analyzer) throws AnalysisException {
-    super.analyzeImpl(analyzer);
-    propagateTypes(analyzer);
-    propagateCost();
-  }
-
-  @Override
-  protected void propagateTypes(Analyzer analyzer) throws AnalysisException {
-    super.propagateTypes(analyzer);
+   @Override
+  protected void analyzeNode(Analyzer analyzer) throws AnalysisException {
+    super.analyzeNode(analyzer);
     convertNumericLiteralsFromDecimal(analyzer);
     String opName = op_.getName().equals("null_matching_eq") ? "eq" : op_.getName();
     fn_ = getBuiltinFunction(analyzer, opName, collectChildReturnTypes(),
@@ -215,8 +208,8 @@ public class BinaryPredicate extends Predicate {
   }
 
   @Override
-  protected void propagateCost() {
-    super.propagateCost();
+  protected void computeNodeCost() {
+    super.computeNodeCost();
     // Determine selectivity
     // TODO: Compute selectivity for nested predicates.
     // TODO: Improve estimation using histograms.

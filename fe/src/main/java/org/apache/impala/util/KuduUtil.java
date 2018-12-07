@@ -28,6 +28,7 @@ import java.util.Map;
 import org.apache.impala.analysis.Analyzer;
 import org.apache.impala.analysis.DescriptorTable;
 import org.apache.impala.analysis.Expr;
+import org.apache.impala.analysis.ExprAnalyzer;
 import org.apache.impala.analysis.FunctionCallExpr;
 import org.apache.impala.analysis.InsertStmt;
 import org.apache.impala.analysis.KuduPartitionExpr;
@@ -246,7 +247,8 @@ public class KuduUtil {
     Preconditions.checkArgument(timestampExpr.getType() == Type.TIMESTAMP);
     Expr toUnixTimeExpr = new FunctionCallExpr("utc_to_unix_micros",
         Lists.newArrayList(timestampExpr));
-    toUnixTimeExpr.analyze(analyzer);
+    toUnixTimeExpr = analyzer.analyzeAndRewrite(toUnixTimeExpr);
+    // TODO: Replace the following when rewrites are integrated above
     TColumnValue result = FeSupport.EvalExprWithoutRow(toUnixTimeExpr,
         analyzer.getQueryCtx());
     if (!result.isSetLong_val()) {
@@ -458,7 +460,7 @@ public class KuduUtil {
         (FeKuduTable) insertStmt.getTargetTable(),
         Lists.newArrayList(insertStmt.getPartitionKeyExprs()),
         insertStmt.getPartitionColPos());
-    kuduPartitionExpr.analyze(analyzer);
+    analyzer.analyzeInPlace(kuduPartitionExpr);
     return kuduPartitionExpr;
   }
 }

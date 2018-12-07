@@ -418,8 +418,8 @@ public class AnalyticExpr extends Expr {
   }
 
   @Override
-  protected void analyzeImpl(Analyzer analyzer) throws AnalysisException {
-    fnCall_.analyze(analyzer);
+  protected void analyzeNode(Analyzer analyzer) throws AnalysisException {
+    analyzer.analyzeInPlace(fnCall_);
     type_ = getFnCall().getType();
 
     for (Expr e: partitionExprs_) {
