@@ -73,6 +73,7 @@ public class BetweenPredicate extends Predicate {
           "supported in a BETWEEN predicate: " + toSqlImpl());
     }
     propagateTypes(analyzer);
+    propagateCost();
   }
 
   @Override

@@ -99,6 +99,7 @@ public class IsNullPredicate extends Predicate {
   protected void analyzeImpl(Analyzer analyzer) throws AnalysisException {
     super.analyzeImpl(analyzer);
     propagateTypes(analyzer);
+    propagateCost();
   }
 
   @Override
@@ -140,7 +141,11 @@ public class IsNullPredicate extends Predicate {
       fn_ = getBuiltinFunction(
           analyzer, IS_NULL, collectChildReturnTypes(), CompareMode.IS_IDENTICAL);
     }
+  }
 
+  @Override
+  protected void propagateCost() {
+    super.propagateCost();
     // determine selectivity
     // TODO: increase this to make sure we don't end up favoring broadcast joins
     // due to underestimated cardinalities?

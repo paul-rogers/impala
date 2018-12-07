@@ -431,6 +431,20 @@ abstract public class Expr extends TreeNode<Expr> implements ParseNode, Cloneabl
   protected void analyzeContents(ExprAnalyzer exprAnalyzer) throws AnalysisException { }
 
   /**
+   * Called from ExprAnalyzer to compute costs after type propagation and rewrites.
+   */
+  protected void computeCost() {
+    computeNumDistinctValues();
+    propagateCost();
+    evalCost_ = computeEvalCost();
+  }
+
+  /**
+   * Common cost propagation called by both old-style analyzeImpl and by the
+   * above.
+   */
+  protected void propagateCost() { }
+  /**
    * Does subclass-specific analysis. Subclasses should override analyzeImpl().
    */
   abstract protected void analyzeImpl(Analyzer analyzer) throws AnalysisException;

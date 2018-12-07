@@ -60,6 +60,7 @@ public class TupleIsNullPredicate extends Predicate {
   protected void analyzeImpl(Analyzer analyzer) throws AnalysisException {
     super.analyzeImpl(analyzer);
     analyzer_ = analyzer;
+    propagateCost();
   }
 
   @Override

@@ -107,6 +107,7 @@ public class InPredicate extends Predicate {
   protected void analyzeImpl(Analyzer analyzer) throws AnalysisException {
     super.analyzeImpl(analyzer);
     propagateTypes(analyzer);
+    propagateCost();
   }
 
   @Override
@@ -176,7 +177,11 @@ public class InPredicate extends Predicate {
       Preconditions.checkState(fn_.getReturnType().isBoolean());
       castForFunctionCall(false, analyzer.isDecimalV2());
     }
+  }
 
+  @Override
+  protected void propagateCost() {
+    super.propagateCost();
     // TODO: Fix selectivity_ for nested predicate
     Reference<SlotRef> slotRefRef = new Reference<SlotRef>();
     Reference<Integer> idxRef = new Reference<Integer>();

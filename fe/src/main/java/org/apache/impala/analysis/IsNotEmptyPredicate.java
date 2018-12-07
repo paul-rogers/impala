@@ -43,6 +43,7 @@ public class IsNotEmptyPredicate extends Predicate {
   protected void analyzeImpl(Analyzer analyzer) throws AnalysisException {
     super.analyzeImpl(analyzer);
     propagateTypes(analyzer);
+    propagateCost();
   }
 
   @Override
@@ -52,6 +53,11 @@ public class IsNotEmptyPredicate extends Predicate {
       throw new AnalysisException("Operand must be a collection type: "
           + getChild(0).toSql() + " is of type " + getChild(0).getType());
     }
+  }
+
+  @Override
+  protected void propagateCost() {
+    super.propagateCost();
     // Avoid influencing cardinality estimates.
     selectivity_ = 1.0;
   }

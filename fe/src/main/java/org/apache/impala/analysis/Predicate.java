@@ -42,14 +42,19 @@ public abstract class Predicate extends Expr {
 
   @Override
   protected void analyzeImpl(Analyzer analyzer) throws AnalysisException {
-    // values: true/false/null
-    numDistinctValues_ = 3;
     propagateTypes(analyzer);
+    propagateCost();
   }
 
   @Override
   protected void propagateTypes(Analyzer analyzer) throws AnalysisException {
     type_ = Type.BOOLEAN;
+  }
+
+  @Override
+  protected void propagateCost() {
+    // values: true/false/null
+    numDistinctValues_ = 3;
   }
 
   /**

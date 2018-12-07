@@ -117,6 +117,7 @@ public class LikePredicate extends Predicate {
   protected void analyzeImpl(Analyzer analyzer) throws AnalysisException {
     super.analyzeImpl(analyzer);
     propagateTypes(analyzer);
+    propagateCost();
   }
 
   @Override

@@ -120,6 +120,7 @@ public class CompoundPredicate extends Predicate {
   protected void analyzeImpl(Analyzer analyzer) throws AnalysisException {
     super.analyzeImpl(analyzer);
     propagateTypes(analyzer);
+    propagateCost();
   }
 
   @Override
@@ -139,7 +140,11 @@ public class CompoundPredicate extends Predicate {
     Preconditions.checkState(fn_ != null);
     Preconditions.checkState(fn_.getReturnType().isBoolean());
     castForFunctionCall(false, analyzer.isDecimalV2());
+  }
 
+  @Override
+  protected void propagateCost() {
+    super.propagateCost();
     if (!getChild(0).hasSelectivity() ||
         (children_.size() == 2 && !getChild(1).hasSelectivity())) {
       // Give up if one of our children has an unknown selectivity.

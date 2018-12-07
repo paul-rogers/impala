@@ -169,6 +169,7 @@ public class BinaryPredicate extends Predicate {
   protected void analyzeImpl(Analyzer analyzer) throws AnalysisException {
     super.analyzeImpl(analyzer);
     propagateTypes(analyzer);
+    propagateCost();
   }
 
   @Override
@@ -211,7 +212,11 @@ public class BinaryPredicate extends Predicate {
       // required will be performed when the subquery is unnested.
       castForFunctionCall(true, analyzer.isDecimalV2());
     }
+  }
 
+  @Override
+  protected void propagateCost() {
+    super.propagateCost();
     // Determine selectivity
     // TODO: Compute selectivity for nested predicates.
     // TODO: Improve estimation using histograms.

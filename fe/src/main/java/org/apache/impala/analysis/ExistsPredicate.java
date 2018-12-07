@@ -56,6 +56,7 @@ public class ExistsPredicate extends Predicate {
   protected void analyzeImpl(Analyzer analyzer) throws AnalysisException {
     super.analyzeImpl(analyzer);
     ((Subquery)children_.get(0)).getStatement().setIsRuntimeScalar(false);
+    propagateCost();
   }
 
   @Override
