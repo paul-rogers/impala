@@ -211,6 +211,11 @@ public class CastExpr extends Expr {
 
   @Override
   protected void analyzeImpl(Analyzer analyzer) throws AnalysisException {
+    propagateTypes(analyzer);
+  }
+
+  @Override
+  protected void propagateTypes(Analyzer analyzer) throws AnalysisException {
     Preconditions.checkState(!isImplicit_);
     targetTypeDef_.analyze(analyzer);
     type_ = targetTypeDef_.getType();

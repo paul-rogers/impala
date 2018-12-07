@@ -415,10 +415,20 @@ abstract public class Expr extends TreeNode<Expr> implements ParseNode, Cloneabl
   /**
    * Does subclass-specific name resolution.
    */
-  protected Expr resolve(ColumnResolver resolver) throws AnalysisException
-  {
-    return null;
+  protected Expr resolve(ColumnResolver resolver) throws AnalysisException {
+    return this;
   }
+
+  /**
+   * Does type propagation.
+   */
+  protected void propagateTypes(Analyzer analyzer) throws AnalysisException { }
+
+  /**
+   * Analyze the contents of nodes with internal structure beyond
+   * the list of children.
+   */
+  protected void analyzeContents(ExprAnalyzer exprAnalyzer) throws AnalysisException { }
 
   /**
    * Does subclass-specific analysis. Subclasses should override analyzeImpl().

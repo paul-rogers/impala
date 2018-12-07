@@ -98,6 +98,12 @@ public class IsNullPredicate extends Predicate {
   @Override
   protected void analyzeImpl(Analyzer analyzer) throws AnalysisException {
     super.analyzeImpl(analyzer);
+    propagateTypes(analyzer);
+  }
+
+  @Override
+  protected void propagateTypes(Analyzer analyzer) throws AnalysisException {
+    super.propagateTypes(analyzer);
     if (contains(Subquery.class)) {
       if (getChild(0) instanceof ExistsPredicate) {
         // Replace the EXISTS subquery with a BoolLiteral as it can never return

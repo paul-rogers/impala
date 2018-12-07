@@ -238,6 +238,11 @@ public class CaseExpr extends Expr {
 
   @Override
   protected void analyzeImpl(Analyzer analyzer) throws AnalysisException {
+    propagateTypes(analyzer);
+  }
+
+  @Override
+  protected void propagateTypes(Analyzer analyzer) throws AnalysisException {
     if (isDecode()) {
       Preconditions.checkState(!hasCaseExpr_);
       // decodeExpr_.analyze() would fail validating function existence. The complex

@@ -116,6 +116,12 @@ public class LikePredicate extends Predicate {
   @Override
   protected void analyzeImpl(Analyzer analyzer) throws AnalysisException {
     super.analyzeImpl(analyzer);
+    propagateTypes(analyzer);
+  }
+
+  @Override
+  protected void propagateTypes(Analyzer analyzer) throws AnalysisException {
+    super.propagateTypes(analyzer);
     if (!getChild(0).getType().isStringType() && !getChild(0).getType().isNull()) {
       throw new AnalysisException(
           "left operand of " + op_.toString() + " must be of type STRING: " + toSql());

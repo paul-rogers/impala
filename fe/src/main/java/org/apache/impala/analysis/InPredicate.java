@@ -106,6 +106,12 @@ public class InPredicate extends Predicate {
   @Override
   protected void analyzeImpl(Analyzer analyzer) throws AnalysisException {
     super.analyzeImpl(analyzer);
+    propagateTypes(analyzer);
+  }
+
+  @Override
+  protected void propagateTypes(Analyzer analyzer) throws AnalysisException {
+    super.propagateTypes(analyzer);
     if (contains(Subquery.class)) {
       // An [NOT] IN predicate with a subquery must contain two children, the second of
       // which is a Subquery.

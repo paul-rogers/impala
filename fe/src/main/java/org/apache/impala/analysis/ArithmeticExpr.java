@@ -172,6 +172,11 @@ public class ArithmeticExpr extends Expr {
 
   @Override
   protected void analyzeImpl(Analyzer analyzer) throws AnalysisException {
+    propagateTypes(analyzer);
+  }
+
+  @Override
+  protected void propagateTypes(Analyzer analyzer) throws AnalysisException {
     for (Expr child: children_) {
       Expr operand = (Expr) child;
       if (!operand.type_.isNumericType() && !operand.type_.isNull()) {

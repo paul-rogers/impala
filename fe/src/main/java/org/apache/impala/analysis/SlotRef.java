@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.Set;
 
 import org.apache.impala.analysis.ExprAnalyzer.ColumnResolver;
+import org.apache.impala.analysis.ExprAnalyzer.SlotResolver;
 import org.apache.impala.analysis.Path.PathType;
 import org.apache.impala.catalog.FeTable;
 import org.apache.impala.catalog.TableLoadingException;
@@ -100,7 +101,9 @@ public class SlotRef extends Expr {
   }
 
   @Override
-  protected void analyzeImpl(Analyzer analyzer) throws AnalysisException { }
+  protected void analyzeImpl(Analyzer analyzer) throws AnalysisException {
+    resolve(new SlotResolver(analyzer));
+  }
 
   /**
    * Resolves this slot reference against the given column resolver, which

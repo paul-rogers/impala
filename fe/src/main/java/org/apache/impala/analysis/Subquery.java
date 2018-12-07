@@ -81,7 +81,11 @@ public class Subquery extends Expr {
     stmt_.analyze(analyzer_);
     // Check whether the stmt_ contains an illegal mix of un/correlated table refs.
     stmt_.getCorrelatedTupleIds();
+    propagateTypes(analyzer);
+  }
 
+  @Override
+  protected void propagateTypes(Analyzer analyzer) throws AnalysisException {
     // Set the subquery type based on the types of the exprs in the
     // result list of the associated SelectStmt.
     List<Expr> stmtResultExprs = stmt_.getResultExprs();

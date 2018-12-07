@@ -105,7 +105,8 @@ public class ExprAnalyzer {
 
   /**
    * Perform semantic analysis of a node and all of its children.
-   * Throws exception if any errors found.
+   *
+   * throws AnalysisException if any errors found.
    * @see ParseNode#analyze(Analyzer)
    */
   public void analyze(Expr expr) throws AnalysisException {
@@ -130,10 +131,13 @@ public class ExprAnalyzer {
       analyze(child);
     }
     analyzer_.decrementCallDepth();
+    // Why is this before resolve?
     expr.computeNumDistinctValues();
 
     // Do all the analysis for the expr subclass before marking the Expr analyzed.
-    expr.resolve(colResolver_);
+//    expr.resolve(colResolver_);
+    // For now, call existing methods. Create parallel paths, then switch to
+    // use those methods.
     expr.analyzeImpl(analyzer_);
     expr.evalCost_ = expr.computeEvalCost();
     expr.analysisDone();

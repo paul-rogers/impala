@@ -42,6 +42,12 @@ public class IsNotEmptyPredicate extends Predicate {
   @Override
   protected void analyzeImpl(Analyzer analyzer) throws AnalysisException {
     super.analyzeImpl(analyzer);
+    propagateTypes(analyzer);
+  }
+
+  @Override
+  protected void propagateTypes(Analyzer analyzer) throws AnalysisException {
+    super.propagateTypes(analyzer);
     if (!getChild(0).getType().isCollectionType()) {
       throw new AnalysisException("Operand must be a collection type: "
           + getChild(0).toSql() + " is of type " + getChild(0).getType());

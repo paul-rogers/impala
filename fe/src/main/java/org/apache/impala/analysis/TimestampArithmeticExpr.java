@@ -129,7 +129,11 @@ public class TimestampArithmeticExpr extends Expr {
             "Expected function name 'DATE_ADD' or 'DATE_SUB'.");
       }
     }
+    propagateTypes(analyzer);
+  }
 
+  @Override
+  protected void propagateTypes(Analyzer analyzer) throws AnalysisException {
     timeUnit_ = TIME_UNITS_MAP.get(timeUnitIdent_.toUpperCase());
     if (timeUnit_ == null) {
       throw new AnalysisException("Invalid time unit '" + timeUnitIdent_ +

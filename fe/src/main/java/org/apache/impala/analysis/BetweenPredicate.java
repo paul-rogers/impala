@@ -72,7 +72,12 @@ public class BetweenPredicate extends Predicate {
       throw new AnalysisException("Comparison between subqueries is not " +
           "supported in a BETWEEN predicate: " + toSqlImpl());
     }
+    propagateTypes(analyzer);
+  }
 
+  @Override
+  protected void propagateTypes(Analyzer analyzer) throws AnalysisException {
+    super.propagateTypes(analyzer);
     if (checkDecimalCast()) {
       for(int i = 0; i < children_.size(); ++i) {
         ScalarType t = (ScalarType) children_.get(i).getType();

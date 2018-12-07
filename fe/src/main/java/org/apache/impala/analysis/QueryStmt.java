@@ -427,7 +427,7 @@ public abstract class QueryStmt extends StatementBase {
   public void setLimit(long limit) throws SqlCastException {
     Preconditions.checkState(limit >= 0);
     long newLimit = hasLimit() ? Math.min(limit, getLimit()) : limit;
-    limitElement_ = new LimitElement(new NumericLiteral(newLimit, Type.BIGINT),
+    limitElement_ = new LimitElement(NumericLiteral.create(newLimit, Type.BIGINT),
         limitElement_.getOffsetExpr());
   }
 
