@@ -775,7 +775,7 @@ PLAN-ROOT SINK
 |
 02:AGGREGATE [FINALIZE]
 |  output: count(tinyint_col), min:merge(string_col), max:merge(string_col)
-|  having: count(tinyint_col) = 10, max(string_col) > '0', min(string_col) < '9', max(string_col) < min(string_col)
+|  having: max(string_col) > '0', min(string_col) < '9', max(string_col) < min(string_col), count(tinyint_col) = 10
 |
 01:AGGREGATE
 |  output: min(string_col), max(string_col)
@@ -788,7 +788,7 @@ PLAN-ROOT SINK
 |
 07:AGGREGATE [FINALIZE]
 |  output: count:merge(tinyint_col), min:merge(string_col), max:merge(string_col)
-|  having: count(tinyint_col) = 10, max(string_col) > '0', min(string_col) < '9', max(string_col) < min(string_col)
+|  having: max(string_col) > '0', min(string_col) < '9', max(string_col) < min(string_col), count(tinyint_col) = 10
 |
 06:EXCHANGE [UNPARTITIONED]
 |

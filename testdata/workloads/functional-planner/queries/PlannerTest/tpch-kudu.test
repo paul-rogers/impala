@@ -850,7 +850,7 @@ order by
   custdist desc,
   c_count desc
 ---- PLAN
-Max Per-Host Resource Reservation: Memory=10.75MB Threads=3
+Max Per-Host Resource Reservation: Memory=7.94MB Threads=3
 Per-Host Resource Estimates: Memory=20MB
 PLAN-ROOT SINK
 |

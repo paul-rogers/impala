@@ -2572,8 +2572,8 @@ PLAN-ROOT SINK
    predicates: NOT o_comment LIKE '%special%requests%'
    runtime filters: RF000 -> o_custkey
 ---- DISTRIBUTEDPLAN
-Max Per-Host Resource Reservation: Memory=41.38MB Threads=7
-Per-Host Resource Estimates: Memory=289MB
+Max Per-Host Resource Reservation: Memory=35.56MB Threads=7
+Per-Host Resource Estimates: Memory=287MB
 PLAN-ROOT SINK
 |
 10:MERGING-EXCHANGE [UNPARTITIONED]
@@ -2612,8 +2612,8 @@ PLAN-ROOT SINK
    predicates: NOT o_comment LIKE '%special%requests%'
    runtime filters: RF000 -> o_custkey
 ---- PARALLELPLANS
-Max Per-Host Resource Reservation: Memory=69.38MB Threads=9
-Per-Host Resource Estimates: Memory=334MB
+Max Per-Host Resource Reservation: Memory=65.50MB Threads=9
+Per-Host Resource Estimates: Memory=331MB
 PLAN-ROOT SINK
 |
 10:MERGING-EXCHANGE [UNPARTITIONED]
@@ -2822,7 +2822,7 @@ PLAN-ROOT SINK
    runtime filters: RF000 -> s_suppkey
 ---- DISTRIBUTEDPLAN
 Max Per-Host Resource Reservation: Memory=43.75MB Threads=10
-Per-Host Resource Estimates: Memory=638MB
+Per-Host Resource Estimates: Memory=639MB
 PLAN-ROOT SINK
 |
 17:MERGING-EXCHANGE [UNPARTITIONED]
@@ -2883,7 +2883,7 @@ PLAN-ROOT SINK
    runtime filters: RF000 -> tpch.lineitem.l_suppkey
 ---- PARALLELPLANS
 Max Per-Host Resource Reservation: Memory=87.50MB Threads=12
-Per-Host Resource Estimates: Memory=530MB
+Per-Host Resource Estimates: Memory=531MB
 PLAN-ROOT SINK
 |
 17:MERGING-EXCHANGE [UNPARTITIONED]

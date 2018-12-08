@@ -1593,7 +1593,7 @@ order by
   custdist desc,
   c_count desc
 ---- PLAN
-Max Per-Host Resource Reservation: Memory=40.00MB Threads=2
+Max Per-Host Resource Reservation: Memory=20.75MB Threads=2
 Per-Host Resource Estimates: Memory=274MB
 PLAN-ROOT SINK
 |
@@ -1620,8 +1620,8 @@ PLAN-ROOT SINK
    partitions=1/1 files=4 size=288.96MB
    predicates on c_orders: (NOT o_comment LIKE '%special%requests%')
 ---- DISTRIBUTEDPLAN
-Max Per-Host Resource Reservation: Memory=94.94MB Threads=5
-Per-Host Resource Estimates: Memory=548MB
+Max Per-Host Resource Reservation: Memory=30.88MB Threads=5
+Per-Host Resource Estimates: Memory=311MB
 PLAN-ROOT SINK
 |
 12:MERGING-EXCHANGE [UNPARTITIONED]
