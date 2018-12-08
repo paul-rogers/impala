@@ -277,11 +277,8 @@ public class FunctionCallExpr extends Expr {
   public void setIsInternalFnCall(boolean v) { isInternalFnCall_ = v; }
 
   static boolean isNondeterministicBuiltinFnName(String fnName) {
-    if (fnName.equalsIgnoreCase("rand") || fnName.equalsIgnoreCase("random")
-        || fnName.equalsIgnoreCase("uuid")) {
-      return true;
-    }
-    return false;
+    return fnName.equalsIgnoreCase("rand") || fnName.equalsIgnoreCase("random") ||
+           fnName.equalsIgnoreCase("uuid");
   }
 
   /**
@@ -628,6 +625,12 @@ public class FunctionCallExpr extends Expr {
   }
 
   @Override
+  protected void computeNumDistinctValues() {
+    if (fn_ instanceof AggregateFunction) numDistinctValues_ = 1;
+    else super.computeNumDistinctValues();
+  }
+
+  @Override
   protected float computeEvalCost() {
     // TODO(tmarshall): Differentiate based on the specific function.
     return hasChildCosts() ? getChildCosts() + FUNCTION_CALL_COST : UNKNOWN_COST;
@@ -693,7 +696,10 @@ public class FunctionCallExpr extends Expr {
     os.scalar("name", ToSqlUtils.getPathSql(fnName_.getFnNamePath()));
     os.elidable("analytic", isAnalyticFnCall_);
     os.elidable("internal", isInternalFnCall_);
-    params_.serializeTo(os);
+    if (params_.isStar())
+      os.field("param", "*");
+    else if (params_.size() > 0)
+      params_.serializeTo(os);
     super.serializeFields(os);
   }
 }

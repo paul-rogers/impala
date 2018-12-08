@@ -349,7 +349,6 @@ abstract public class Expr extends TreeNode<Expr> implements ParseNode, Cloneabl
   private boolean isAnalyzed_ = false;
 
   protected Expr() {
-    super();
     type_ = Type.INVALID;
     selectivity_ = -1.0;
     evalCost_ = -1.0f;

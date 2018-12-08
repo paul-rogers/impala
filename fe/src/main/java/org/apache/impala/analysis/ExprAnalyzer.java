@@ -131,7 +131,7 @@ public class ExprAnalyzer {
       analyze(child);
     }
     analyzer_.decrementCallDepth();
-    if (true) {
+    if (false) {
       // Why is this before resolve?
       expr.computeNumDistinctValues();
 
@@ -140,9 +140,6 @@ public class ExprAnalyzer {
       expr.analyzeImpl(analyzer_);
       expr.evalCost_ = expr.computeEvalCost();
     } else {
-      // TODO: maybe combine resolve and analyzeContents and propagateTypes
-      // Both are pre-rewrite steps
-      // This might just bhe the old analyzeImpl minus the cost part
       expr.resolve(colResolver_);
       expr.analyzeNode(analyzer_);
       // Will do rewrites about here

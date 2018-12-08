@@ -147,11 +147,11 @@ public class SlotRef extends Expr {
     }
   }
 
-//  @Override
-//  protected void computeNumDistinctValues() {
-//    // Use the value computed above. This override prevents
-//    // default calculations.
-//  }
+  @Override
+  protected void computeNumDistinctValues() {
+    // Use the value computed above. This override prevents
+    // default calculations.
+  }
 
   @Override
   protected float computeEvalCost() {

@@ -322,7 +322,8 @@ public class SlotDescriptor implements JsonSerializable {
     os.field("nullable", isNullable_);
     if (stats_ != null) {
       ObjectSerializer stats = os.object("stats");
-      stats.field("ndv", stats_.getNumDistinctValues());
+      if (stats_.getNumDistinctValues() != -1)
+        stats.field("ndv", stats_.getNumDistinctValues());
       if (stats_.getNumNulls() != -1) stats.field("nulls", stats_.getNumNulls());
       stats.field("max_size", stats_.getMaxSize());
     }

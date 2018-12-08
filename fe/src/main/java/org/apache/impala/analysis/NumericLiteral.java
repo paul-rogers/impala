@@ -436,7 +436,7 @@ public class NumericLiteral extends LiteralExpr {
   }
 
   @Override
-  protected void analyzeImpl(Analyzer analyzer) throws AnalysisException {
+  protected void analyzeNode(Analyzer analyzer) throws AnalysisException {
     // On re-analysis after rewrite or other operation, revert to the
     // explicit type. Ideally would not be needed, but seems to be
     // required after a clone() operation.
@@ -449,6 +449,11 @@ public class NumericLiteral extends LiteralExpr {
     // the analysis flag. Clear any implicit type.
     type_ = explicitType_;
     return this;
+  }
+
+  @Override
+  protected void resetAnalysisState() {
+    type_ = explicitType_;
   }
 
   /**

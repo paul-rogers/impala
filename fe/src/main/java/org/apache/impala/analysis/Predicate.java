@@ -46,7 +46,7 @@ public abstract class Predicate extends Expr {
   }
 
   @Override
-  protected void computeNodeCost() {
+  protected void computeNumDistinctValues() {
     // values: true/false/null
     numDistinctValues_ = 3;
   }

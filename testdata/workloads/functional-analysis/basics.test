@@ -686,7 +686,7 @@ having 1024 * 1024 * count(*) % 2 = 0
                     object_id: 22,
                     class: "SlotRef",
                     type: "BIGINT",
-                    ndv: 7300,
+                    ndv: 1,
                     cost: 1.0,
                     label: "sum(1 + 1 + id)",
                     marker: "$ao$1",
@@ -720,7 +720,7 @@ having 1024 * 1024 * count(*) % 2 = 0
                     object_id: 25,
                     class: "SlotRef",
                     type: "BIGINT",
-                    ndv: 7300,
+                    ndv: 1,
                     cost: 1.0,
                     label: "sum(1 + 1 + id)",
                     marker: "$ao$1",
@@ -767,7 +767,7 @@ having 1024 * 1024 * count(*) % 2 = 0
                 object_id: 29,
                 class: "SlotRef",
                 type: "BIGINT",
-                ndv: 7300,
+                ndv: 1,
                 cost: 1.0,
                 label: "sum(1 + 1 + id)",
                 marker: "$ao$1",
@@ -802,7 +802,7 @@ having 1024 * 1024 * count(*) % 2 = 0
                 object_id: 32,
                 class: "SlotRef",
                 type: "BIGINT",
-                ndv: 7300,
+                ndv: 1,
                 cost: 1.0,
                 label: "sum(1 + 1 + id)",
                 marker: "$ao$1",
@@ -834,7 +834,7 @@ having 1024 * 1024 * count(*) % 2 = 0
         object_id: 34,
         class: "SlotRef",
         type: "BIGINT",
-        ndv: 7300,
+        ndv: 1,
         cost: 1.0,
         label: "sum(1 + 1 + id)",
         marker: "$ao$1",
@@ -922,7 +922,7 @@ having 1024 * 1024 * count(*) % 2 = 0
         class: "FunctionCallExpr",
         name: sum,
         type: "BIGINT",
-        ndv: 7300,
+        ndv: 1,
         cost: 17.0,
         fn: "_impala_builtins.sum",
         children: [
@@ -1008,9 +1008,7 @@ having 1024 * 1024 * count(*) % 2 = 0
         object_id: 50,
         class: "FunctionCallExpr",
         name: count,
-        params: {
-          arg: "*"
-        },
+        param: "*",
         type: "BIGINT",
         ndv: 1,
         cost: 10.0,
@@ -1121,7 +1119,7 @@ having 1024 * 1024 * count(*) % 2 = 0
                 class: "FunctionCallExpr",
                 name: sum,
                 type: "BIGINT",
-                ndv: 7300,
+                ndv: 1,
                 cost: 17.0,
                 fn: "_impala_builtins.sum",
                 children: [
@@ -1207,7 +1205,7 @@ having 1024 * 1024 * count(*) % 2 = 0
                 object_id: 68,
                 class: "SlotRef",
                 type: "BIGINT",
-                ndv: 7300,
+                ndv: 1,
                 cost: 1.0,
                 label: "sum(1 + 1 + id)",
                 marker: "$ao$1",
@@ -1223,9 +1221,7 @@ having 1024 * 1024 * count(*) % 2 = 0
                 object_id: 69,
                 class: "FunctionCallExpr",
                 name: count,
-                params: {
-                  arg: "*"
-                },
+                param: "*",
                 type: "BIGINT",
                 ndv: 1,
                 cost: 10.0,
@@ -1282,7 +1278,7 @@ having 1024 * 1024 * count(*) % 2 = 0
               class: "FunctionCallExpr",
               name: sum,
               type: "BIGINT",
-              ndv: 7300,
+              ndv: 1,
               cost: 11.0,
               fn: "_impala_builtins.sum",
               children: [
@@ -1290,7 +1286,7 @@ having 1024 * 1024 * count(*) % 2 = 0
                   object_id: 73,
                   class: "SlotRef",
                   type: "BIGINT",
-                  ndv: 7300,
+                  ndv: 1,
                   cost: 1.0,
                   label: "sum(1 + 1 + id)",
                   descriptor: {
@@ -1424,7 +1420,7 @@ having 1024 * 1024 * count(*) % 2 = 0
                     class: "FunctionCallExpr",
                     name: sum,
                     type: "BIGINT",
-                    ndv: 7300,
+                    ndv: 1,
                     cost: 17.0,
                     fn: "_impala_builtins.sum",
                     children: [
@@ -1510,7 +1506,7 @@ having 1024 * 1024 * count(*) % 2 = 0
                 materialized: false,
                 nullable: true,
                 stats: {
-                  ndv: 7300,
+                  ndv: 1,
                   max_size: 8
                 }
               },
@@ -1525,9 +1521,7 @@ having 1024 * 1024 * count(*) % 2 = 0
                     object_id: 94,
                     class: "FunctionCallExpr",
                     name: count,
-                    params: {
-                      arg: "*"
-                    },
+                    param: "*",
                     type: "BIGINT",
                     ndv: 1,
                     cost: 10.0,
@@ -1608,7 +1602,7 @@ having 1024 * 1024 * count(*) % 2 = 0
       object_id: 95,
       class: "SlotRef",
       type: "BIGINT",
-      ndv: 7300,
+      ndv: 1,
       cost: 1.0,
       label: "sum(1 + 1 + id)",
       marker: "$ao$1",
@@ -1632,7 +1626,7 @@ having 1024 * 1024 * count(*) % 2 = 0
         class: "FunctionCallExpr",
         name: sum,
         type: "BIGINT",
-        ndv: 7300,
+        ndv: 1,
         cost: 17.0,
         fn: "_impala_builtins.sum",
         children: [
