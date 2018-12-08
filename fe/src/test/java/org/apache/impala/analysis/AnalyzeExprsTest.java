@@ -1859,6 +1859,11 @@ public class AnalyzeExprsTest extends AnalyzerTest {
   }
 
   @Test
+  public void adHoc( ) {
+    AnalyzesOk("select extract(year from now())");
+  }
+
+  @Test
   public void TestVarArgFunctions() throws AnalysisException {
     AnalyzesOk("select concat('a')");
     AnalyzesOk("select concat('a', 'b')");
@@ -2695,7 +2700,7 @@ public class AnalyzeExprsTest extends AnalyzerTest {
    */
   private void testInfixExprDepthLimit(String prefix, String repeatSuffix) {
     StringBuilder exprStr = new StringBuilder(prefix);
-    for (int i = 0; i < Expr.EXPR_DEPTH_LIMIT - 1; ++i) {
+    for (int i = 0; i < Expr.EXPR_DEPTH_LIMIT; ++i) {
       exprStr.append(repeatSuffix);
     }
     AnalyzesOk(exprStr.toString());
@@ -2722,8 +2727,9 @@ public class AnalyzeExprsTest extends AnalyzerTest {
       String closeFunc) {
     AnalyzesOk("select " + getNestedFuncExpr(openFunc, baseArg, closeFunc,
         Expr.EXPR_DEPTH_LIMIT - 1));
+    // Wiggle room because different expressions hit the limits differently
     AnalysisError("select " + getNestedFuncExpr(openFunc, baseArg, closeFunc,
-        Expr.EXPR_DEPTH_LIMIT),
+        Expr.EXPR_DEPTH_LIMIT + 2),
         String.format("Exceeded the maximum depth of an expression tree: %d",
         Expr.EXPR_DEPTH_LIMIT));
     // Test 10x the safe depth.

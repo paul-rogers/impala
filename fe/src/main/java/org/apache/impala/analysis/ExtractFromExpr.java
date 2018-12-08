@@ -78,6 +78,8 @@ public class ExtractFromExpr extends FunctionCallExpr {
           "with the EXTRACT builtin.");
     }
 
+    super.analyzeNode(analyzer);
+
     String extractFieldIdent =
         ((StringLiteral)children_.get(1)).getValueWithOriginalEscapes();
     Preconditions.checkNotNull(extractFieldIdent);
