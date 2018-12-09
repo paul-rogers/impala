@@ -18,12 +18,16 @@
 package org.apache.impala.analysis;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import java.util.List;
 
+import org.apache.hbase.thirdparty.com.google.common.collect.Sets;
+import org.apache.impala.analysis.StmtMetadataLoader.StmtTableCache;
 import org.apache.impala.catalog.ScalarType;
+import org.apache.impala.catalog.Type;
 import org.apache.impala.common.AnalysisException;
 import org.apache.impala.common.FrontendTestBase;
 import org.apache.impala.common.ImpalaException;
@@ -40,6 +44,7 @@ import org.apache.impala.rewrite.NormalizeExprsRule;
 import org.apache.impala.rewrite.RemoveRedundantStringCast;
 import org.apache.impala.rewrite.SimplifyConditionalsRule;
 import org.apache.impala.rewrite.SimplifyDistinctFromRule;
+import org.apache.impala.util.treevis.AstPrinter;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -95,6 +100,13 @@ public class ExprRewriteRulesTest extends FrontendTestBase {
     return rewrittenExpr;
   }
 
+  private void verifyRewrite(String exprSql, String expectedSql) {
+    String stmtSql = "select " + exprSql + " from functional.alltypessmall";
+    SelectStmt stmt = (SelectStmt) AnalyzesOk(stmtSql);
+    Expr expr = stmt.getSelectList().getItems().get(0).getExpr();
+    assertEquals(expectedSql, expr.toSql());
+  }
+
   public Expr RewritesOkWhereExpr(String exprStr, ExprRewriteRule rule, String expectedExprStr)
       throws ImpalaException {
     return RewritesOkWhereExpr("functional.alltypessmall", exprStr, rule, expectedExprStr);
@@ -148,44 +160,125 @@ public class ExprRewriteRulesTest extends FrontendTestBase {
     return rewrittenExpr;
   }
 
+  private Analyzer prepareAnalyzer() throws ImpalaException {
+    AnalysisContext ctx = createAnalysisCtx();
+    StmtMetadataLoader mdLoader =
+        new StmtMetadataLoader(frontend_, ctx.getQueryCtx().session.database, null);
+    StmtTableCache loadedTables = mdLoader.loadTables(Sets.newHashSet(
+        new TableName("functional", "alltypes")));
+    Analyzer analyzer = ctx.createAnalyzer(loadedTables);
+    TableRef tableRef = analyzer.resolveTableRef(
+        new TableRef(Lists.newArrayList("functional", "alltypes"), null));
+    tableRef.analyze(analyzer);
+    return analyzer;
+  }
+
+  private Expr parseSelectExpr(String exprSql) {
+    String stmtSql = "select " + exprSql + " from functional.alltypes";
+    return ((SelectStmt) ParsesOk(stmtSql)).getSelectList().getItems().get(0).getExpr();
+  }
+
+  private Expr analyzeSelectExpr(Expr expr) throws ImpalaException {
+    Analyzer analyzer = prepareAnalyzer();
+    return analyzer.analyzeAndRewrite(expr);
+  }
+
+  /**
+   * Verify internal structure of a BETWEEEN rewrite
+   */
+  @Test
+  public void testBetweenToCompoundDeep() throws ImpalaException {
+    {
+      Expr between = parseSelectExpr("int_col between 1 and 10");
+      assertTrue(between instanceof BetweenPredicate);
+
+      Expr result = analyzeSelectExpr(between);
+      assertEquals("int_col >= 1 AND int_col <= 10", result.toSql());
+      verifyBetweenRewrite(between, result);
+    }
+    {
+      Expr between = parseSelectExpr("int_col not between 1 and 10");
+      assertTrue(between instanceof BetweenPredicate);
+
+      Expr result = analyzeSelectExpr(between);
+      assertEquals("(int_col < 1 OR int_col > 10)", result.toSql());
+      verifyBetweenRewrite(between, result);
+    }
+  }
+
+  private void verifyBetweenRewrite(Expr between, Expr result) {
+    Expr intCol = between.getChild(0);
+    Expr lowBound = between.getChild(1);
+    Expr highBound = between.getChild(2);
+
+    assertTrue(result instanceof CompoundPredicate);
+    assertTrue(result.isAnalyzed());
+    assertEquals(Type.BOOLEAN, result.getType());
+    assertEquals(3, result.getNumDistinctValues());
+    assertEquals(7.0, result.getCost(), 0.001);
+
+    Expr left = result.getChild(0);
+    assertTrue(left instanceof BinaryPredicate);
+    assertEquals(Type.BOOLEAN, left.getType());
+    assertEquals(3, left.getNumDistinctValues());
+    assertEquals(3.0, left.getCost(), 0.001);
+    // TODO: Fix this, use indistry standard guess
+    assertEquals(-1, left.getSelectivity(), 0.01);
+    assertSame(intCol, left.getChild(0));
+    assertSame(lowBound, left.getChild(1));
+
+    Expr right = result.getChild(1);
+    assertTrue(right instanceof BinaryPredicate);
+    assertEquals(Type.BOOLEAN, right.getType());
+    assertEquals(3, right.getNumDistinctValues());
+    assertEquals(3.0, right.getCost(), 0.001);
+    // TODO: Fix this, use indistry standard guess
+    assertEquals(-1, right.getSelectivity(), 0.01);
+    assertSame(intCol, right.getChild(0));
+    assertSame(highBound, right.getChild(1));
+  }
 
   @Test
-  public void TestBetweenToCompoundRule() throws ImpalaException {
-    ExprRewriteRule rule = BetweenToCompoundRule.INSTANCE;
+  public void testBetweenToCompoundRule() throws ImpalaException {
 
     // Basic BETWEEN predicates.
-    RewritesOk("int_col between float_col and double_col", rule,
+    verifyRewrite("int_col between float_col and double_col",
         "int_col >= float_col AND int_col <= double_col");
-    RewritesOk("int_col not between float_col and double_col", rule,
-        "int_col < float_col OR int_col > double_col");
-    RewritesOk("50.0 between null and 5000", rule,
+    verifyRewrite("int_col not between float_col and double_col",
+        "(int_col < float_col OR int_col > double_col)");
+    verifyRewrite("50.0 between null and 5000",
         "50.0 >= NULL AND 50.0 <= 5000");
     // Basic NOT BETWEEN predicates.
-    RewritesOk("int_col between 10 and 20", rule,
+    verifyRewrite("int_col between 10 and 20",
         "int_col >= 10 AND int_col <= 20");
-    RewritesOk("int_col not between 10 and 20", rule,
-        "int_col < 10 OR int_col > 20");
-    RewritesOk("50.0 not between null and 5000", rule,
-        "50.0 < NULL OR 50.0 > 5000");
+    verifyRewrite("int_col not between 10 and 20",
+        "(int_col < 10 OR int_col > 20)");
+    verifyRewrite("50.0 not between null and 5000",
+        "(50.0 < NULL OR 50.0 > 5000)");
+
+    // Rewrites don't change perceived precedence
+    verifyRewrite(
+        "int_col not between 1 and 10 and int_col <> -1",
+        "(int_col < 1 OR int_col > 10) AND int_col != -1");
 
     // Nested BETWEEN predicates.
-    RewritesOk(
+    verifyRewrite(
         "int_col between if(tinyint_col between 1 and 2, 10, 20) " +
-        "and cast(smallint_col between 1 and 2 as int)", rule,
+        "and cast(smallint_col between 1 and 2 as int)",
         "int_col >= if(tinyint_col >= 1 AND tinyint_col <= 2, 10, 20) " +
         "AND int_col <= CAST(smallint_col >= 1 AND smallint_col <= 2 AS INT)");
     // Nested NOT BETWEEN predicates.
-    RewritesOk(
+    verifyRewrite(
         "int_col not between if(tinyint_col not between 1 and 2, 10, 20) " +
-        "and cast(smallint_col not between 1 and 2 as int)", rule,
-        "int_col < if(tinyint_col < 1 OR tinyint_col > 2, 10, 20) " +
-        "OR int_col > CAST(smallint_col < 1 OR smallint_col > 2 AS INT)");
+        "and cast(smallint_col not between 1 and 2 as int)",
+        "(int_col < if((tinyint_col < 1 OR tinyint_col > 2), 10, 20) " +
+        "OR int_col > CAST((smallint_col < 1 OR smallint_col > 2) AS INT))");
     // Mixed nested BETWEEN and NOT BETWEEN predicates.
-    RewritesOk(
+    verifyRewrite(
         "int_col between if(tinyint_col between 1 and 2, 10, 20) " +
-        "and cast(smallint_col not between 1 and 2 as int)", rule,
+        "and cast(smallint_col not between 1 and 2 as int)",
         "int_col >= if(tinyint_col >= 1 AND tinyint_col <= 2, 10, 20) " +
-        "AND int_col <= CAST(smallint_col < 1 OR smallint_col > 2 AS INT)");
+        "AND int_col <= CAST((smallint_col < 1 OR smallint_col > 2) AS INT)");
   }
 
   @Test
@@ -234,7 +327,7 @@ public class ExprRewriteRulesTest extends FrontendTestBase {
         "(string_col = '10' and int_col between 10 and 30) or " +
         "(id < 20 and int_col between 10 and 30) or " +
         "(int_col between 10 and 30 and float_col > 3.14)", rule,
-        "int_col BETWEEN 10 AND 30 AND " +
+        "int_col >= 10 AND int_col <= 30 AND " +
         "((bigint_col < 10) OR (string_col = '10') OR " +
         "(id < 20) OR (float_col > 3.14))");
     // Test common NOT BetweenPredicate: int_col not between 10 and 30
@@ -243,7 +336,7 @@ public class ExprRewriteRulesTest extends FrontendTestBase {
         "(string_col = '10' and int_col not between 10 and 30) or " +
         "(id < 20 and int_col not between 10 and 30) or " +
         "(int_col not between 10 and 30 and float_col > 3.14)", rule,
-        "int_col NOT BETWEEN 10 AND 30 AND " +
+        "int_col < 10 OR int_col > 30 AND " +
         "((bigint_col < 10) OR (string_col = '10') OR " +
         "(id < 20) OR (float_col > 3.14))");
     // Test mixed BetweenPredicates are not common.
@@ -259,7 +352,7 @@ public class ExprRewriteRulesTest extends FrontendTestBase {
         "(int_col < 10 and id between 5 and 6) or " +
         "(id between 5 and 6 and int_col < 10) or " +
         "(int_col < 10 and id between 5 and 6)", rule,
-        "int_col < 10 AND id BETWEEN 5 AND 6");
+        "int_col < 10 AND id >= 5 AND id <= 6");
     // Complex disjuncts are redundant.
     RewritesOk(
         "(int_col < 10) or " +

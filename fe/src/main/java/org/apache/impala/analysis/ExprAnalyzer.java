@@ -96,11 +96,14 @@ public class ExprAnalyzer {
 
   private final Analyzer analyzer_;
   private final ColumnResolver colResolver_;
+  private final boolean enableRewrites_;
+  private int rewriteCount_;
 
   public ExprAnalyzer(Analyzer analyzer) {
     Preconditions.checkNotNull(analyzer);
     analyzer_ = analyzer;
     colResolver_ = new SlotResolver(analyzer_);
+    enableRewrites_ = analyzer_.getQueryCtx().getClient_request().getQuery_options().enable_expr_rewrites;
   }
 
   /**
@@ -109,8 +112,8 @@ public class ExprAnalyzer {
    * throws AnalysisException if any errors found.
    * @see ParseNode#analyze(Analyzer)
    */
-  public void analyze(Expr expr) throws AnalysisException {
-    if (expr.isAnalyzed()) return;
+  public Expr analyze(Expr expr) throws AnalysisException {
+    if (expr.isAnalyzed()) return expr;
 
     // Check the expr child limit.
     if (expr.getChildCount() > Expr.EXPR_CHILDREN_LIMIT) {
@@ -127,8 +130,8 @@ public class ExprAnalyzer {
       throw new AnalysisException(String.format("Exceeded the maximum depth of an " +
           "expression tree: %d", Expr.EXPR_DEPTH_LIMIT));
     }
-    for (Expr child: expr.getChildren()) {
-      analyze(child);
+    for (int i = 0; i < expr.getChildCount(); i++) {
+      expr.setChild(i, analyze(expr.getChild(i)));
     }
     analyzer_.decrementCallDepth();
     if (false) {
@@ -140,12 +143,21 @@ public class ExprAnalyzer {
       expr.analyzeImpl(analyzer_);
       expr.evalCost_ = expr.computeEvalCost();
     } else {
-      expr.resolve(colResolver_);
-      expr.analyzeNode(analyzer_);
-      // Will do rewrites about here
+      expr = expr.resolve(colResolver_);
+      for (;;) {
+        expr.analyzeNode(analyzer_);
+        Expr result = expr.rewrite(this);
+        if (result == expr) break;
+        expr = result;
+        rewriteCount_++;
+        for (Expr child: expr.getChildren()) {
+          analyze(child);
+        }
+      }
       expr.computeCost();
     }
     expr.analysisDone();
+    return expr;
   }
 
   public ColumnResolver columnResolver() { return colResolver_; }

@@ -92,6 +92,41 @@ public class BetweenPredicate extends Predicate {
 
   public boolean isNotBetween() { return isNotBetween_; }
 
+  /**
+   * Rewrites BetweenPredicates into an equivalent conjunctive/disjunctive
+   * CompoundPredicate.
+   * It can be applied to pre-analysis expr trees and therefore does not reanalyze
+   * the transformation output itself.
+   * Examples:
+   * A BETWEEN X AND Y ==> A >= X AND A <= Y
+   * A NOT BETWEEN X AND Y ==> (A < X OR A > Y)
+   *
+   * BetweenPredicates must be rewritten to be executable.
+   */
+  @Override
+  public Expr rewrite(ExprAnalyzer exprAnalyzer) {
+    if (isNotBetween()) {
+      // Rewrite into disjunction.
+      Predicate lower = new BinaryPredicate(BinaryPredicate.Operator.LT,
+          getChild(0), getChild(1));
+      Predicate upper = new BinaryPredicate(BinaryPredicate.Operator.GT,
+          getChild(0), getChild(2));
+      Expr result = new CompoundPredicate(CompoundPredicate.Operator.OR, lower, upper);
+
+      // OR has lower precedence than any surrounding AND. Ensure SQL
+      // reflects this: (foo < lower OR foo > higher) AND something
+      result.setPrintSqlInParens(true);
+      return result;
+    } else {
+      // Rewrite into conjunction.
+      Predicate lower = new BinaryPredicate(BinaryPredicate.Operator.GE,
+          getChild(0), getChild(1));
+      Predicate upper = new BinaryPredicate(BinaryPredicate.Operator.LE,
+          getChild(0), getChild(2));
+      return new CompoundPredicate(CompoundPredicate.Operator.AND, lower, upper);
+    }
+  }
+
   @Override
   protected void toThrift(TExprNode msg) {
     throw new IllegalStateException(

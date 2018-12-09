@@ -57,12 +57,12 @@ public interface SelectListItem {
     public boolean isStar() { return false; }
 
     @Override
-    protected Expr prepare() throws AnalysisException {
+    public final void analyze(Analyzer analyzer) throws AnalysisException {
       // Called both for "pristine" items created by the parser, and for "synthetic"
       // items for rewriten SELECT statements in the analyzer. Only worth keeping a
       // source copy for unanalyzed, "pristine" expressions.
       if (!expr_.isAnalyzed()) saveSource(expr_);
-      return expr_;
+      expr_ = analyzer.analyzeAndRewrite(expr_);
     }
 
     @Override

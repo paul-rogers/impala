@@ -50,9 +50,9 @@ public abstract class AbstractExpression {
     }
 
     @Override
-    protected Expr prepare() throws AnalysisException {
+    public void analyze(Analyzer analyzer) throws AnalysisException {
       saveSource(expr_);
-      return expr_;
+      expr_ = analyzer.analyzeAndRewrite(expr_);
     }
 
     @Override
@@ -117,9 +117,9 @@ public abstract class AbstractExpression {
     }
 
     @Override
-    protected Expr prepare() throws AnalysisException {
+    public void analyze(Analyzer analyzer) throws AnalysisException {
       saveSource(preExpansion_);
-      return preExpansion_;
+      expr_ = analyzer.analyzeAndRewrite(preExpansion_);
     }
 
     public void reset() {
@@ -134,7 +134,7 @@ public abstract class AbstractExpression {
     }
 
     public void analyze(SelectStmt stmt, Analyzer analyzer) throws AnalysisException {
-      expr_ = stmt.resolveReferenceExpr(prepare(), "HAVING", analyzer, false);
+      expr_ = stmt.resolveReferenceExpr(preExpansion_, "HAVING", analyzer, false);
     }
 
     public void substitute(ExprSubstitutionMap combinedSmap, Analyzer analyzer) {
@@ -166,22 +166,10 @@ public abstract class AbstractExpression {
     }
   }
 
-  public final void analyze(Analyzer analyzer) throws AnalysisException {
-    ExprAnalyzer exprAnalyzer = new ExprAnalyzer(analyzer);
-    exprAnalyzer.analyze(prepare());
-  }
+  public abstract void analyze(Analyzer analyzer) throws AnalysisException;
 
   public String getSourceExpr() { return source_; }
   public abstract Expr getExpr();
-
-  /**
-   * Temporary shim to prepare the expression to be used for analysis. With
-   * the current two-step analysis, chooses the version of the expression
-   * to rewrite. To be replaced later with the final version.
-   * TODO: Revisit
-   * @throws AnalysisException
-   */
-  protected abstract Expr prepare() throws AnalysisException;
 
   public static Expr unwrap(AbstractExpression expression) {
     return expression == null ? null : expression.getExpr();

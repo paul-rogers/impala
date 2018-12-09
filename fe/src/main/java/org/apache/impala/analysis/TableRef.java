@@ -531,7 +531,7 @@ public class TableRef extends StmtNode {
     if (onClause_ != null) {
       Preconditions.checkState(joinOp_ != JoinOperator.CROSS_JOIN);
       analyzer.setVisibleSemiJoinedTuple(semiJoinedTupleId);
-      onClause_.analyze(analyzer);
+      onClause_ = analyzer.analyzeAndRewrite(onClause_);
       analyzer.setVisibleSemiJoinedTuple(null);
       onClause_.checkReturnsBool("ON clause", true);
         if (onClause_.contains(Expr.isAggregatePredicate())) {

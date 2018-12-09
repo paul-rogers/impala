@@ -317,9 +317,6 @@ public class Analyzer {
       this.authzConfig = authzConfig;
       this.lineageGraph = new ColumnLineageGraph();
       List<ExprRewriteRule> rules = Lists.newArrayList();
-      // BetweenPredicates must be rewritten to be executable. Other non-essential
-      // expr rewrites can be disabled via a query option. When rewrites are enabled
-      // BetweenPredicates should be rewritten first to help trigger other rules.
       rules.add(BetweenToCompoundRule.INSTANCE);
       // Binary predicates must be rewritten to a canonical form for both Kudu predicate
       // pushdown and Parquet row group pruning based on min/max statistics.
@@ -2696,8 +2693,7 @@ public class Analyzer {
   }
 
   public Expr analyzeAndRewrite(Expr expr) throws AnalysisException {
-    exprAnalyzer_.analyze(expr);
-    return expr;
+    return exprAnalyzer_.analyze(expr);
   }
 
   /**
@@ -2706,8 +2702,9 @@ public class Analyzer {
    * or symbol resolution.
    */
   public void analyzeInPlace(Expr expr) throws AnalysisException {
-    exprAnalyzer_.analyze(expr);
+    Expr result = exprAnalyzer_.analyze(expr);
+    Preconditions.checkState(result == expr);
   }
 
-  public ExprAnalyzer exprResolver() { return exprAnalyzer_; }
+  public ExprAnalyzer exprAnalyzer() { return exprAnalyzer_; }
 }

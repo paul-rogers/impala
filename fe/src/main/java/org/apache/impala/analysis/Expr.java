@@ -428,6 +428,10 @@ abstract public class Expr extends TreeNode<Expr> implements ParseNode, Cloneabl
    */
   protected void analyzeNode(Analyzer analyzer) throws AnalysisException { }
 
+  protected Expr rewrite(ExprAnalyzer exprAnalyzer) throws AnalysisException {
+    return this;
+  }
+
   /**
    * Called from ExprAnalyzer to compute costs after type propagation and rewrites.
    */
@@ -446,7 +450,7 @@ abstract public class Expr extends TreeNode<Expr> implements ParseNode, Cloneabl
    * Does subclass-specific analysis. Subclasses should override analyzeImpl().
    */
   protected void analyzeImpl(Analyzer analyzer) throws AnalysisException {
-    Expr resolution = resolve(analyzer.exprResolver().columnResolver());
+    Expr resolution = resolve(analyzer.exprAnalyzer().columnResolver());
     // This version can't handle resolutions that change the node
     Preconditions.checkState(resolution == this);
     analyzeNode(analyzer);
