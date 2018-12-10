@@ -161,4 +161,5 @@ public class ExprAnalyzer {
   }
 
   public ColumnResolver columnResolver() { return colResolver_; }
+  public boolean performOptionalRewrites() { return enableRewrites_; }
 }

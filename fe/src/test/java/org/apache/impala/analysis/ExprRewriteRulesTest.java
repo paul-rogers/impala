@@ -25,6 +25,7 @@ import static org.junit.Assert.fail;
 import java.util.List;
 
 import org.apache.hbase.thirdparty.com.google.common.collect.Sets;
+import org.apache.impala.analysis.BinaryPredicate.Operator;
 import org.apache.impala.analysis.StmtMetadataLoader.StmtTableCache;
 import org.apache.impala.catalog.ScalarType;
 import org.apache.impala.catalog.Type;
@@ -604,6 +605,61 @@ public class ExprRewriteRulesTest extends FrontendTestBase {
     RewritesOk("true and id = 0", rule, null);
     RewritesOk("false or id = 1", rule, null);
     RewritesOk("false or true", rule, null);
+  }
+
+  @Test
+  public void testNormalizeBinaryPredicateDeep() throws ImpalaException {
+    assertEquals(Operator.GT, Operator.LT.converse());
+    assertEquals(Operator.GE, Operator.LE.converse());
+    assertEquals(Operator.EQ, Operator.EQ.converse());
+    assertEquals(Operator.NE, Operator.NE.converse());
+    assertEquals(Operator.LE, Operator.GE.converse());
+    assertEquals(Operator.LT, Operator.GT.converse());
+    assertEquals(Operator.DISTINCT_FROM, Operator.DISTINCT_FROM.converse());
+    assertEquals(Operator.NOT_DISTINCT, Operator.NOT_DISTINCT.converse());
+
+    Expr expr = parseSelectExpr("cast(0 as double) < id");
+    assertTrue(expr instanceof BinaryPredicate);
+    AstPrinter.printTree(expr);
+
+    Expr result = analyzeSelectExpr(expr);
+    assertEquals("id > cast(0 as double)", result.toSql());
+
+    assertTrue(result instanceof BinaryPredicate);
+    assertTrue(result.isAnalyzed());
+    assertEquals(Type.BOOLEAN, result.getType());
+    assertEquals(3, result.getNumDistinctValues());
+    assertEquals(5.0, result.getCost(), 0.001);
+    // TODO: Fix this, use indistry standard guess
+    assertEquals(-1, result.getSelectivity(), 0.01); // Enhancement
+
+    Expr left = result.getChild(0);
+    assertTrue(left instanceof CastExpr);
+    assertEquals(Type.DOUBLE, left.getType());
+    assertEquals(7300, left.getNumDistinctValues());
+    assertEquals(3.0, left.getCost(), 0.001);
+    // TODO: Fix this, use SlotRef selectivity
+    assertEquals(-1, left.getSelectivity(), 0.01); // BUG
+
+    // BUG: Extra cast
+    Expr leftValue = left.getChild(0);
+    assertTrue(leftValue instanceof SlotRef);
+    assertEquals(Type.INT, leftValue.getType());
+    assertEquals(7300, leftValue.getNumDistinctValues());
+    assertEquals(1.0, leftValue.getCost(), 0.001);
+    // TODO: Fix this, use indistry standard guess
+    assertEquals(-1, leftValue.getSelectivity(), 0.01); // BUG: Should be 1/7300
+
+    Expr right = result.getChild(1);
+    assertTrue(right instanceof CastExpr);
+    assertEquals(Type.DOUBLE, right.getType());
+    assertEquals(1, left.getNumDistinctValues());
+    assertEquals(2.0, left.getCost(), 0.001);
+    // TODO: Fix this, use indistry standard guess
+    assertEquals(-1, left.getSelectivity(), 0.01);
+
+    Expr rightValue = right.getChild(0);
+    assertTrue(rightValue instanceof NumericLiteral);
   }
 
   @Test

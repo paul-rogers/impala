@@ -693,7 +693,9 @@ public class FunctionCallExpr extends Expr {
 
   @Override
   public void serializeFields(ObjectSerializer os) {
-    os.scalar("name", ToSqlUtils.getPathSql(fnName_.getFnNamePath()));
+    os.field("name", fnName_.isBuiltin() ? fnName_.getFunction() :
+      ToSqlUtils.getPathSql(fnName_.getFnNamePath()));
+    os.field("built_in", fnName_.isBuiltin());
     os.elidable("analytic", isAnalyticFnCall_);
     os.elidable("internal", isInternalFnCall_);
     if (params_.isStar())

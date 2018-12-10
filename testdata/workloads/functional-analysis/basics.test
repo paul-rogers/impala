@@ -75,6 +75,815 @@ select id from functional.alltypes
   ]
 }
 ====
+# Expr rewrites - select list
+# Test just samples the rules to verify the resulting AST,
+# full testing of the rules is done elsewhere
+select
+  if(1 > 2, 3, 4) * 10, -- constant folding
+  id between 10 and 20, -- between
+  if(10 > id, 5, 6), -- binary predicate
+  id
+from functional.alltypes
+---- AST
+{
+  statement: "SELECT",
+  distinct: false,
+  from: [
+    {
+      object_id: 1,
+      path: "functional.alltypes",
+      aliaes: [
+        "functional.alltypes",
+        "alltypes"
+      ]
+    }
+  ],
+  result_tuple: [
+    {
+      label: "if(1 > 2, 3, 4) * 10",
+      expr: {
+        object_id: 2,
+        class: "ArithmeticExpr",
+        op: "*",
+        type: "SMALLINT",
+        ndv: 1,
+        cost: 18.0,
+        constant: true,
+        fn: "_impala_builtins.multiply",
+        children: [
+          {
+            object_id: 3,
+            class: "CastExpr",
+            type: "SMALLINT",
+            ndv: 1,
+            cost: 16.0,
+            constant: true,
+            fn: "_impala_builtins.casttosmallint",
+            children: [
+              {
+                object_id: 4,
+                class: "FunctionCallExpr",
+                name: "if",
+                built_in: true,
+                type: "TINYINT",
+                ndv: 1,
+                cost: 15.0,
+                constant: true,
+                fn: "_impala_builtins.if",
+                children: [
+                  {
+                    object_id: 5,
+                    class: "BinaryPredicate",
+                    op: ">",
+                    type: "BOOLEAN",
+                    ndv: 3,
+                    cost: 3.0,
+                    constant: true,
+                    fn: "_impala_builtins.gt",
+                    children: [
+                      {
+                        object_id: 6,
+                        class: "NumericLiteral",
+                        value: 1,
+                        type: "TINYINT",
+                        ndv: 1,
+                        cost: 1.0,
+                        constant: true
+                      },
+                      {
+                        object_id: 7,
+                        class: "NumericLiteral",
+                        value: 2,
+                        type: "TINYINT",
+                        ndv: 1,
+                        cost: 1.0,
+                        constant: true
+                      }
+                    ]
+                  },
+                  {
+                    object_id: 8,
+                    class: "NumericLiteral",
+                    value: 3,
+                    type: "TINYINT",
+                    ndv: 1,
+                    cost: 1.0,
+                    constant: true
+                  },
+                  {
+                    object_id: 9,
+                    class: "NumericLiteral",
+                    value: 4,
+                    type: "TINYINT",
+                    ndv: 1,
+                    cost: 1.0,
+                    constant: true
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            object_id: 10,
+            class: "NumericLiteral",
+            value: 10,
+            type: "SMALLINT",
+            ndv: 1,
+            cost: 1.0,
+            constant: true
+          }
+        ]
+      }
+    },
+    {
+      label: "id >= 10 and id <= 20",
+      expr: {
+        object_id: 11,
+        class: "CompoundPredicate",
+        type: "BOOLEAN",
+        ndv: 3,
+        cost: 7.0,
+        fn: "_impala_builtins.and",
+        children: [
+          {
+            object_id: 12,
+            class: "BinaryPredicate",
+            op: ">=",
+            type: "BOOLEAN",
+            ndv: 3,
+            cost: 3.0,
+            fn: "_impala_builtins.ge",
+            children: [
+              {
+                object_id: 13,
+                class: "SlotRef",
+                type: "INT",
+                ndv: 7300,
+                cost: 1.0,
+                path: "id",
+                label: "id",
+                descriptor: {
+                  table_id: 0,
+                  slot_id: 0,
+                  path: "functional.alltypes.id"
+                }
+              },
+              {
+                object_id: 14,
+                class: "NumericLiteral",
+                value: 10,
+                type: "INT",
+                ndv: 1,
+                cost: 1.0,
+                constant: true
+              }
+            ]
+          },
+          {
+            object_id: 15,
+            class: "BinaryPredicate",
+            op: "<=",
+            type: "BOOLEAN",
+            ndv: 3,
+            cost: 3.0,
+            fn: "_impala_builtins.le",
+            children: [
+              "<13>",
+              {
+                object_id: 16,
+                class: "NumericLiteral",
+                value: 20,
+                type: "INT",
+                ndv: 1,
+                cost: 1.0,
+                constant: true
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      label: "if(id < 10, 5, 6)",
+      expr: {
+        object_id: 17,
+        class: "FunctionCallExpr",
+        name: "if",
+        built_in: true,
+        type: "TINYINT",
+        ndv: 3,
+        cost: 15.0,
+        fn: "_impala_builtins.if",
+        children: [
+          {
+            object_id: 18,
+            class: "BinaryPredicate",
+            op: "<",
+            type: "BOOLEAN",
+            ndv: 3,
+            cost: 3.0,
+            fn: "_impala_builtins.lt",
+            children: [
+              {
+                object_id: 19,
+                class: "SlotRef",
+                type: "INT",
+                ndv: 7300,
+                cost: 1.0,
+                path: "id",
+                label: "id",
+                descriptor: {
+                  table_id: 0,
+                  slot_id: 0,
+                  path: "functional.alltypes.id"
+                }
+              },
+              {
+                object_id: 20,
+                class: "NumericLiteral",
+                value: 10,
+                type: "INT",
+                ndv: 1,
+                cost: 1.0,
+                constant: true
+              }
+            ]
+          },
+          {
+            object_id: 21,
+            class: "NumericLiteral",
+            value: 5,
+            type: "TINYINT",
+            ndv: 1,
+            cost: 1.0,
+            constant: true
+          },
+          {
+            object_id: 22,
+            class: "NumericLiteral",
+            value: 6,
+            type: "TINYINT",
+            ndv: 1,
+            cost: 1.0,
+            constant: true
+          }
+        ]
+      }
+    },
+    {
+      label: "id",
+      expr: {
+        object_id: 23,
+        class: "SlotRef",
+        type: "INT",
+        ndv: 7300,
+        cost: 1.0,
+        path: "id",
+        label: "id",
+        descriptor: {
+          table_id: 0,
+          slot_id: 0,
+          path: "functional.alltypes.id"
+        }
+      }
+    }
+  ],
+  base_table_result_exprs: [
+    {
+      object_id: 24,
+      class: "ArithmeticExpr",
+      op: "*",
+      type: "SMALLINT",
+      ndv: 1,
+      cost: 18.0,
+      constant: true,
+      fn: "_impala_builtins.multiply",
+      children: [
+        {
+          object_id: 25,
+          class: "CastExpr",
+          type: "SMALLINT",
+          ndv: 1,
+          cost: 16.0,
+          constant: true,
+          fn: "_impala_builtins.casttosmallint",
+          children: [
+            {
+              object_id: 26,
+              class: "FunctionCallExpr",
+              name: "if",
+              built_in: true,
+              type: "TINYINT",
+              ndv: 1,
+              cost: 15.0,
+              constant: true,
+              fn: "_impala_builtins.if",
+              children: [
+                {
+                  object_id: 27,
+                  class: "BinaryPredicate",
+                  op: ">",
+                  type: "BOOLEAN",
+                  ndv: 3,
+                  cost: 3.0,
+                  constant: true,
+                  fn: "_impala_builtins.gt",
+                  children: [
+                    {
+                      object_id: 28,
+                      class: "NumericLiteral",
+                      value: 1,
+                      type: "TINYINT",
+                      ndv: 1,
+                      cost: 1.0,
+                      constant: true
+                    },
+                    {
+                      object_id: 29,
+                      class: "NumericLiteral",
+                      value: 2,
+                      type: "TINYINT",
+                      ndv: 1,
+                      cost: 1.0,
+                      constant: true
+                    }
+                  ]
+                },
+                {
+                  object_id: 30,
+                  class: "NumericLiteral",
+                  value: 3,
+                  type: "TINYINT",
+                  ndv: 1,
+                  cost: 1.0,
+                  constant: true
+                },
+                {
+                  object_id: 31,
+                  class: "NumericLiteral",
+                  value: 4,
+                  type: "TINYINT",
+                  ndv: 1,
+                  cost: 1.0,
+                  constant: true
+                }
+              ]
+            }
+          ]
+        },
+        {
+          object_id: 32,
+          class: "NumericLiteral",
+          value: 10,
+          type: "SMALLINT",
+          ndv: 1,
+          cost: 1.0,
+          constant: true
+        }
+      ]
+    },
+    {
+      object_id: 33,
+      class: "CompoundPredicate",
+      type: "BOOLEAN",
+      ndv: 3,
+      cost: 7.0,
+      fn: "_impala_builtins.and",
+      children: [
+        {
+          object_id: 34,
+          class: "BinaryPredicate",
+          op: ">=",
+          type: "BOOLEAN",
+          ndv: 3,
+          cost: 3.0,
+          fn: "_impala_builtins.ge",
+          children: [
+            {
+              object_id: 35,
+              class: "SlotRef",
+              type: "INT",
+              ndv: 7300,
+              cost: 1.0,
+              path: "id",
+              label: "id",
+              descriptor: {
+                table_id: 0,
+                slot_id: 0,
+                path: "functional.alltypes.id"
+              }
+            },
+            {
+              object_id: 36,
+              class: "NumericLiteral",
+              value: 10,
+              type: "INT",
+              ndv: 1,
+              cost: 1.0,
+              constant: true
+            }
+          ]
+        },
+        {
+          object_id: 37,
+          class: "BinaryPredicate",
+          op: "<=",
+          type: "BOOLEAN",
+          ndv: 3,
+          cost: 3.0,
+          fn: "_impala_builtins.le",
+          children: [
+            {
+              object_id: 38,
+              class: "SlotRef",
+              type: "INT",
+              ndv: 7300,
+              cost: 1.0,
+              path: "id",
+              label: "id",
+              descriptor: {
+                table_id: 0,
+                slot_id: 0,
+                path: "functional.alltypes.id"
+              }
+            },
+            {
+              object_id: 39,
+              class: "NumericLiteral",
+              value: 20,
+              type: "INT",
+              ndv: 1,
+              cost: 1.0,
+              constant: true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      object_id: 40,
+      class: "FunctionCallExpr",
+      name: "if",
+      built_in: true,
+      type: "TINYINT",
+      ndv: 3,
+      cost: 15.0,
+      fn: "_impala_builtins.if",
+      children: [
+        {
+          object_id: 41,
+          class: "BinaryPredicate",
+          op: "<",
+          type: "BOOLEAN",
+          ndv: 3,
+          cost: 3.0,
+          fn: "_impala_builtins.lt",
+          children: [
+            {
+              object_id: 42,
+              class: "SlotRef",
+              type: "INT",
+              ndv: 7300,
+              cost: 1.0,
+              path: "id",
+              label: "id",
+              descriptor: {
+                table_id: 0,
+                slot_id: 0,
+                path: "functional.alltypes.id"
+              }
+            },
+            {
+              object_id: 43,
+              class: "NumericLiteral",
+              value: 10,
+              type: "INT",
+              ndv: 1,
+              cost: 1.0,
+              constant: true
+            }
+          ]
+        },
+        {
+          object_id: 44,
+          class: "NumericLiteral",
+          value: 5,
+          type: "TINYINT",
+          ndv: 1,
+          cost: 1.0,
+          constant: true
+        },
+        {
+          object_id: 45,
+          class: "NumericLiteral",
+          value: 6,
+          type: "TINYINT",
+          ndv: 1,
+          cost: 1.0,
+          constant: true
+        }
+      ]
+    },
+    {
+      object_id: 46,
+      class: "SlotRef",
+      type: "INT",
+      ndv: 7300,
+      cost: 1.0,
+      path: "id",
+      label: "id",
+      descriptor: {
+        table_id: 0,
+        slot_id: 0,
+        path: "functional.alltypes.id"
+      }
+    }
+  ],
+  alias_map: [
+    {
+      from: {
+        object_id: 47,
+        class: "SlotRef",
+        label: "`if(1 > 2, 3, 4) * 10`",
+        marker: "$sl$0"
+      },
+      to: {
+        object_id: 48,
+        class: "ArithmeticExpr",
+        op: "*",
+        type: "SMALLINT",
+        ndv: 1,
+        cost: 18.0,
+        constant: true,
+        fn: "_impala_builtins.multiply",
+        children: [
+          {
+            object_id: 49,
+            class: "CastExpr",
+            type: "SMALLINT",
+            ndv: 1,
+            cost: 16.0,
+            constant: true,
+            fn: "_impala_builtins.casttosmallint",
+            children: [
+              {
+                object_id: 50,
+                class: "FunctionCallExpr",
+                name: "if",
+                built_in: true,
+                type: "TINYINT",
+                ndv: 1,
+                cost: 15.0,
+                constant: true,
+                fn: "_impala_builtins.if",
+                children: [
+                  {
+                    object_id: 51,
+                    class: "BinaryPredicate",
+                    op: ">",
+                    type: "BOOLEAN",
+                    ndv: 3,
+                    cost: 3.0,
+                    constant: true,
+                    fn: "_impala_builtins.gt",
+                    children: [
+                      {
+                        object_id: 52,
+                        class: "NumericLiteral",
+                        value: 1,
+                        type: "TINYINT",
+                        ndv: 1,
+                        cost: 1.0,
+                        constant: true
+                      },
+                      {
+                        object_id: 53,
+                        class: "NumericLiteral",
+                        value: 2,
+                        type: "TINYINT",
+                        ndv: 1,
+                        cost: 1.0,
+                        constant: true
+                      }
+                    ]
+                  },
+                  {
+                    object_id: 54,
+                    class: "NumericLiteral",
+                    value: 3,
+                    type: "TINYINT",
+                    ndv: 1,
+                    cost: 1.0,
+                    constant: true
+                  },
+                  {
+                    object_id: 55,
+                    class: "NumericLiteral",
+                    value: 4,
+                    type: "TINYINT",
+                    ndv: 1,
+                    cost: 1.0,
+                    constant: true
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            object_id: 56,
+            class: "NumericLiteral",
+            value: 10,
+            type: "SMALLINT",
+            ndv: 1,
+            cost: 1.0,
+            constant: true
+          }
+        ]
+      }
+    },
+    {
+      from: {
+        object_id: 57,
+        class: "SlotRef",
+        label: "`id >= 10 and id <= 20`",
+        marker: "$sl$1"
+      },
+      to: {
+        object_id: 58,
+        class: "CompoundPredicate",
+        type: "BOOLEAN",
+        ndv: 3,
+        cost: 7.0,
+        fn: "_impala_builtins.and",
+        children: [
+          {
+            object_id: 59,
+            class: "BinaryPredicate",
+            op: ">=",
+            type: "BOOLEAN",
+            ndv: 3,
+            cost: 3.0,
+            fn: "_impala_builtins.ge",
+            children: [
+              {
+                object_id: 60,
+                class: "SlotRef",
+                type: "INT",
+                ndv: 7300,
+                cost: 1.0,
+                path: "id",
+                label: "id",
+                descriptor: {
+                  table_id: 0,
+                  slot_id: 0,
+                  path: "functional.alltypes.id"
+                }
+              },
+              {
+                object_id: 61,
+                class: "NumericLiteral",
+                value: 10,
+                type: "INT",
+                ndv: 1,
+                cost: 1.0,
+                constant: true
+              }
+            ]
+          },
+          {
+            object_id: 62,
+            class: "BinaryPredicate",
+            op: "<=",
+            type: "BOOLEAN",
+            ndv: 3,
+            cost: 3.0,
+            fn: "_impala_builtins.le",
+            children: [
+              {
+                object_id: 63,
+                class: "SlotRef",
+                type: "INT",
+                ndv: 7300,
+                cost: 1.0,
+                path: "id",
+                label: "id",
+                descriptor: {
+                  table_id: 0,
+                  slot_id: 0,
+                  path: "functional.alltypes.id"
+                }
+              },
+              {
+                object_id: 64,
+                class: "NumericLiteral",
+                value: 20,
+                type: "INT",
+                ndv: 1,
+                cost: 1.0,
+                constant: true
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      from: {
+        object_id: 65,
+        class: "SlotRef",
+        label: "`if(id < 10, 5, 6)`",
+        marker: "$sl$2"
+      },
+      to: {
+        object_id: 66,
+        class: "FunctionCallExpr",
+        name: "if",
+        built_in: true,
+        type: "TINYINT",
+        ndv: 3,
+        cost: 15.0,
+        fn: "_impala_builtins.if",
+        children: [
+          {
+            object_id: 67,
+            class: "BinaryPredicate",
+            op: "<",
+            type: "BOOLEAN",
+            ndv: 3,
+            cost: 3.0,
+            fn: "_impala_builtins.lt",
+            children: [
+              {
+                object_id: 68,
+                class: "SlotRef",
+                type: "INT",
+                ndv: 7300,
+                cost: 1.0,
+                path: "id",
+                label: "id",
+                descriptor: {
+                  table_id: 0,
+                  slot_id: 0,
+                  path: "functional.alltypes.id"
+                }
+              },
+              {
+                object_id: 69,
+                class: "NumericLiteral",
+                value: 10,
+                type: "INT",
+                ndv: 1,
+                cost: 1.0,
+                constant: true
+              }
+            ]
+          },
+          {
+            object_id: 70,
+            class: "NumericLiteral",
+            value: 5,
+            type: "TINYINT",
+            ndv: 1,
+            cost: 1.0,
+            constant: true
+          },
+          {
+            object_id: 71,
+            class: "NumericLiteral",
+            value: 6,
+            type: "TINYINT",
+            ndv: 1,
+            cost: 1.0,
+            constant: true
+          }
+        ]
+      }
+    },
+    {
+      from: {
+        object_id: 72,
+        class: "SlotRef",
+        label: "id",
+        marker: "$sl$3"
+      },
+      to: {
+        object_id: 73,
+        class: "SlotRef",
+        type: "INT",
+        ndv: 7300,
+        cost: 1.0,
+        path: "id",
+        label: "id",
+        descriptor: {
+          table_id: 0,
+          slot_id: 0,
+          path: "functional.alltypes.id"
+        }
+      }
+    }
+  ]
+}
+====
 # Test HDFS scan node.
 select 1
 from tpch_nested_parquet.customer c, c.c_orders o, o.o_lineitems
@@ -307,7 +1116,8 @@ where 5 + 5 < c_custkey and o_orderkey = (2 + 2)
                           {
                             object_id: 23,
                             class: "FunctionCallExpr",
-                            name: coalesce,
+                            name: "coalesce",
+                            built_in: true,
                             type: "TINYINT",
                             ndv: 1,
                             cost: 13.0,
@@ -920,7 +1730,8 @@ having 1024 * 1024 * count(*) % 2 = 0
       {
         object_id: 42,
         class: "FunctionCallExpr",
-        name: sum,
+        name: "sum",
+        built_in: true,
         type: "BIGINT",
         ndv: 1,
         cost: 17.0,
@@ -1007,7 +1818,8 @@ having 1024 * 1024 * count(*) % 2 = 0
       {
         object_id: 50,
         class: "FunctionCallExpr",
-        name: count,
+        name: "count",
+        built_in: true,
         param: "*",
         type: "BIGINT",
         ndv: 1,
@@ -1117,7 +1929,8 @@ having 1024 * 1024 * count(*) % 2 = 0
               from: {
                 object_id: 60,
                 class: "FunctionCallExpr",
-                name: sum,
+                name: "sum",
+                built_in: true,
                 type: "BIGINT",
                 ndv: 1,
                 cost: 17.0,
@@ -1220,7 +2033,8 @@ having 1024 * 1024 * count(*) % 2 = 0
               from: {
                 object_id: 69,
                 class: "FunctionCallExpr",
-                name: count,
+                name: "count",
+                built_in: true,
                 param: "*",
                 type: "BIGINT",
                 ndv: 1,
@@ -1276,7 +2090,8 @@ having 1024 * 1024 * count(*) % 2 = 0
             {
               object_id: 72,
               class: "FunctionCallExpr",
-              name: sum,
+              name: "sum",
+              built_in: true,
               type: "BIGINT",
               ndv: 1,
               cost: 11.0,
@@ -1300,7 +2115,8 @@ having 1024 * 1024 * count(*) % 2 = 0
             {
               object_id: 74,
               class: "FunctionCallExpr",
-              name: count,
+              name: "count",
+              built_in: true,
               type: "BIGINT",
               ndv: 1,
               cost: 11.0,
@@ -1418,7 +2234,8 @@ having 1024 * 1024 * count(*) % 2 = 0
                   {
                     object_id: 85,
                     class: "FunctionCallExpr",
-                    name: sum,
+                    name: "sum",
+                    built_in: true,
                     type: "BIGINT",
                     ndv: 1,
                     cost: 17.0,
@@ -1520,7 +2337,8 @@ having 1024 * 1024 * count(*) % 2 = 0
                   {
                     object_id: 94,
                     class: "FunctionCallExpr",
-                    name: count,
+                    name: "count",
+                    built_in: true,
                     param: "*",
                     type: "BIGINT",
                     ndv: 1,
@@ -1624,7 +2442,8 @@ having 1024 * 1024 * count(*) % 2 = 0
       to: {
         object_id: 97,
         class: "FunctionCallExpr",
-        name: sum,
+        name: "sum",
+        built_in: true,
         type: "BIGINT",
         ndv: 1,
         cost: 17.0,

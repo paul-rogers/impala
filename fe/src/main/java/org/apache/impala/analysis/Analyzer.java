@@ -317,10 +317,9 @@ public class Analyzer {
       this.authzConfig = authzConfig;
       this.lineageGraph = new ColumnLineageGraph();
       List<ExprRewriteRule> rules = Lists.newArrayList();
-      rules.add(BetweenToCompoundRule.INSTANCE);
-      // Binary predicates must be rewritten to a canonical form for both Kudu predicate
-      // pushdown and Parquet row group pruning based on min/max statistics.
-      rules.add(NormalizeBinaryPredicatesRule.INSTANCE);
+      // Now done during expression analysis
+      //rules.add(BetweenToCompoundRule.INSTANCE);
+      //rules.add(NormalizeBinaryPredicatesRule.INSTANCE);
       if (queryCtx.getClient_request().getQuery_options().enable_expr_rewrites) {
         rules.add(FoldConstantsRule.INSTANCE);
         rules.add(NormalizeExprsRule.INSTANCE);
