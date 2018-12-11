@@ -57,6 +57,12 @@ import com.google.common.base.Preconditions;
  */
 public class ExprAnalyzer {
 
+  public enum RewriteMode {
+    NONE,
+    REQUIRED,
+    OPTIONAL
+  }
+
   /**
    * Resolve a column reference which may be either an alias or a
    * slot reference. Returns the resolved reference.
@@ -96,14 +102,16 @@ public class ExprAnalyzer {
 
   private final Analyzer analyzer_;
   private final ColumnResolver colResolver_;
-  private final boolean enableRewrites_;
+  private RewriteMode rewriteMode_ = RewriteMode.REQUIRED;
   private int rewriteCount_;
 
   public ExprAnalyzer(Analyzer analyzer) {
     Preconditions.checkNotNull(analyzer);
     analyzer_ = analyzer;
     colResolver_ = new SlotResolver(analyzer_);
-    enableRewrites_ = analyzer_.getQueryCtx().getClient_request().getQuery_options().enable_expr_rewrites;
+    rewriteMode_ =
+        analyzer_.getQueryCtx().getClient_request().getQuery_options().enable_expr_rewrites
+        ? RewriteMode.OPTIONAL : RewriteMode.REQUIRED;
   }
 
   /**
@@ -146,6 +154,7 @@ public class ExprAnalyzer {
       expr = expr.resolve(colResolver_);
       for (;;) {
         expr.analyzeNode(analyzer_);
+        if (rewriteMode_ == RewriteMode.NONE) break;
         Expr result = expr.rewrite(this);
         if (result == expr) break;
         expr = result;
@@ -160,6 +169,19 @@ public class ExprAnalyzer {
     return expr;
   }
 
+  public void analyzeWithoutRewrite(Expr expr) throws AnalysisException {
+    RewriteMode oldMode = rewriteMode_;
+    rewriteMode_ = RewriteMode.NONE;
+    try {
+      Expr result = analyze(expr);
+      Preconditions.checkState(result == expr);
+    } finally {
+      rewriteMode_ = oldMode;
+    }
+  }
+
   public ColumnResolver columnResolver() { return colResolver_; }
-  public boolean performOptionalRewrites() { return enableRewrites_; }
+  public boolean perrormRequiredRewrites() { return rewriteMode_ != RewriteMode.NONE; }
+  public boolean performOptionalRewrites() { return rewriteMode_ == RewriteMode.OPTIONAL; }
+  public int rewriteCount() { return rewriteCount_; }
 }

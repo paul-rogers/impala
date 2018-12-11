@@ -217,6 +217,10 @@ public class BinaryPredicate extends Predicate {
     * 5 > id -> id < 5
     * cast(0 as double) = id -> id = cast(0 as double)
     * 5 = id + 2 -> id + 2 = 5
+    * id + 5 = int_col -> int_col = id + 5
+    *
+    * The last form above ensures that, if both sides have a slot, the one with the
+    * "bare" slot is put on the left.
     *
     * Binary predicates must be rewritten to a canonical form for both Kudu predicate
     * pushdown and Parquet row group pruning based on min/max statistics.

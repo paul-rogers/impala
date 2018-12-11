@@ -33,13 +33,11 @@ import org.apache.impala.common.AnalysisException;
 import org.apache.impala.common.FrontendTestBase;
 import org.apache.impala.common.ImpalaException;
 import org.apache.impala.common.SqlCastException;
-import org.apache.impala.rewrite.BetweenToCompoundRule;
 import org.apache.impala.rewrite.EqualityDisjunctsToInRule;
 import org.apache.impala.rewrite.ExprRewriteRule;
 import org.apache.impala.rewrite.ExprRewriter;
 import org.apache.impala.rewrite.ExtractCommonConjunctRule;
 import org.apache.impala.rewrite.FoldConstantsRule;
-import org.apache.impala.rewrite.NormalizeBinaryPredicatesRule;
 import org.apache.impala.rewrite.NormalizeCountStarRule;
 import org.apache.impala.rewrite.NormalizeExprsRule;
 import org.apache.impala.rewrite.RemoveRedundantStringCast;
@@ -105,7 +103,7 @@ public class ExprRewriteRulesTest extends FrontendTestBase {
     String stmtSql = "select " + exprSql + " from functional.alltypessmall";
     SelectStmt stmt = (SelectStmt) AnalyzesOk(stmtSql);
     Expr expr = stmt.getSelectList().getItems().get(0).getExpr();
-    assertEquals(expectedSql, expr.toSql());
+    assertEquals(expectedSql == null ? exprSql : expectedSql, expr.toSql());
   }
 
   public Expr RewritesOkWhereExpr(String exprStr, ExprRewriteRule rule, String expectedExprStr)
@@ -223,7 +221,7 @@ public class ExprRewriteRulesTest extends FrontendTestBase {
     assertEquals(Type.BOOLEAN, left.getType());
     assertEquals(3, left.getNumDistinctValues());
     assertEquals(3.0, left.getCost(), 0.001);
-    // TODO: Fix this, use indistry standard guess
+    // TODO: Fix this, use industry standard guess
     assertEquals(-1, left.getSelectivity(), 0.01);
     assertSame(intCol, left.getChild(0));
     assertSame(lowBound, left.getChild(1));
@@ -233,7 +231,7 @@ public class ExprRewriteRulesTest extends FrontendTestBase {
     assertEquals(Type.BOOLEAN, right.getType());
     assertEquals(3, right.getNumDistinctValues());
     assertEquals(3.0, right.getCost(), 0.001);
-    // TODO: Fix this, use indistry standard guess
+    // TODO: Fix this, use industry standard guess
     assertEquals(-1, right.getSelectivity(), 0.01);
     assertSame(intCol, right.getChild(0));
     assertSame(highBound, right.getChild(1));
@@ -490,17 +488,17 @@ public class ExprRewriteRulesTest extends FrontendTestBase {
     RewritesOk("decode(1, 0, id, 1, id + 1, 2, id + 2)", rules, "id + 1");
     // Single TRUE case with predecing non-constant case.
     RewritesOk("decode(1, id, id, 1, id + 1, 0)", rules,
-        "CASE WHEN 1 = id THEN id ELSE id + 1 END");
+        "CASE WHEN id = 1 THEN id ELSE id + 1 END");
     // Single FALSE case.
     RewritesOk("decode(1, 0, id, tinyint_col, id + 1)", rules,
-        "CASE WHEN 1 = tinyint_col THEN id + 1 END");
+        "CASE WHEN tinyint_col = 1 THEN id + 1 END");
     // All FALSE, return ELSE.
     RewritesOk("decode(1, 0, id, 2, 2, 3)", rules, "3");
     // All FALSE, return implicit NULL ELSE.
     RewritesOk("decode(1, 1 + 1, id, 1 + 2, 3)", rules, "NULL");
     // Multiple TRUE, first one becomes ELSE.
     RewritesOk("decode(1, id, id, 1 + 1, 0, 1 * 1, 1, 2 - 1, 2)", rules,
-        "CASE WHEN 1 = id THEN id ELSE 1 END");
+        "CASE WHEN id = 1 THEN id ELSE 1 END");
     // When NULL - DECODE allows the decodeExpr to equal NULL (see CaseExpr.java), so the
     // NULL case is not treated as a constant FALSE and removed.
     RewritesOk("decode(id, null, 0, 1)", rules, null);
@@ -609,6 +607,8 @@ public class ExprRewriteRulesTest extends FrontendTestBase {
 
   @Test
   public void testNormalizeBinaryPredicateDeep() throws ImpalaException {
+    // Verify the converse step to avoid needing to test this logic
+    // in a set of queries.
     assertEquals(Operator.GT, Operator.LT.converse());
     assertEquals(Operator.GE, Operator.LE.converse());
     assertEquals(Operator.EQ, Operator.EQ.converse());
@@ -618,78 +618,92 @@ public class ExprRewriteRulesTest extends FrontendTestBase {
     assertEquals(Operator.DISTINCT_FROM, Operator.DISTINCT_FROM.converse());
     assertEquals(Operator.NOT_DISTINCT, Operator.NOT_DISTINCT.converse());
 
+    // Verify the details of a simple, typical rewrite case.
+    // Other cases use the same code so not additional detail tests
+    // are needed.
     Expr expr = parseSelectExpr("cast(0 as double) < id");
     assertTrue(expr instanceof BinaryPredicate);
-    AstPrinter.printTree(expr);
 
     Expr result = analyzeSelectExpr(expr);
-    assertEquals("id > cast(0 as double)", result.toSql());
+    assertEquals("id > CAST(0 AS DOUBLE)", result.toSql());
 
+    // Verify the binary predicate
     assertTrue(result instanceof BinaryPredicate);
     assertTrue(result.isAnalyzed());
     assertEquals(Type.BOOLEAN, result.getType());
     assertEquals(3, result.getNumDistinctValues());
     assertEquals(5.0, result.getCost(), 0.001);
-    // TODO: Fix this, use indistry standard guess
+    // TODO: Fix this, use industry standard guess
     assertEquals(-1, result.getSelectivity(), 0.01); // Enhancement
 
+    // The left implicit cast around id
     Expr left = result.getChild(0);
     assertTrue(left instanceof CastExpr);
     assertEquals(Type.DOUBLE, left.getType());
     assertEquals(7300, left.getNumDistinctValues());
-    assertEquals(3.0, left.getCost(), 0.001);
+    assertEquals(2.0, left.getCost(), 0.001);
     // TODO: Fix this, use SlotRef selectivity
     assertEquals(-1, left.getSelectivity(), 0.01); // BUG
 
-    // BUG: Extra cast
+    // The id node itself
     Expr leftValue = left.getChild(0);
     assertTrue(leftValue instanceof SlotRef);
     assertEquals(Type.INT, leftValue.getType());
     assertEquals(7300, leftValue.getNumDistinctValues());
     assertEquals(1.0, leftValue.getCost(), 0.001);
-    // TODO: Fix this, use indistry standard guess
+    // TODO: Fix this, use industry standard guess
     assertEquals(-1, leftValue.getSelectivity(), 0.01); // BUG: Should be 1/7300
 
+    // The right node, the explicit cast to DOUBLE
     Expr right = result.getChild(1);
     assertTrue(right instanceof CastExpr);
     assertEquals(Type.DOUBLE, right.getType());
-    assertEquals(1, left.getNumDistinctValues());
-    assertEquals(2.0, left.getCost(), 0.001);
+    assertEquals(1, right.getNumDistinctValues());
+    assertEquals(2.0, right.getCost(), 0.001);
     // TODO: Fix this, use indistry standard guess
-    assertEquals(-1, left.getSelectivity(), 0.01);
+    assertEquals(-1, right.getSelectivity(), 0.01);
 
+    // The child should be a numeric literal
     Expr rightValue = right.getChild(0);
     assertTrue(rightValue instanceof NumericLiteral);
+    assertEquals(Type.DOUBLE, rightValue.getType()); // Bug: should be TINYINT
   }
 
   @Test
-  public void TestNormalizeBinaryPredicatesRule() throws ImpalaException {
-    ExprRewriteRule rule = NormalizeBinaryPredicatesRule.INSTANCE;
-
-    RewritesOk("0 = id", rule, "id = 0");
-    RewritesOk("cast(0 as double) = id", rule, "id = CAST(0 AS DOUBLE)");
-    RewritesOk("1 + 1 = cast(id as int)", rule, "CAST(id AS INT) = 1 + 1");
-    RewritesOk("5 = id + 2", rule, "id + 2 = 5");
-    RewritesOk("5 + 3 = id", rule, "id = 5 + 3");
-    RewritesOk("tinyint_col + smallint_col = int_col", rule,
+  public void testNormalizeBinaryPredicates() throws ImpalaException {
+    verifyRewrite("0 = id", "id = 0");
+    verifyRewrite("cast(0 as double) = id", "id = CAST(0 AS DOUBLE)");
+    verifyRewrite("1 + 1 = cast(id as int)", "CAST(id AS INT) = 1 + 1");
+    verifyRewrite("5 = id + 2", "id + 2 = 5");
+    verifyRewrite("5 + 3 = id", "id = 5 + 3");
+    verifyRewrite("tinyint_col + smallint_col = int_col",
         "int_col = tinyint_col + smallint_col");
-
+    // Two levels of cast
+    verifyRewrite("cast(cast(0 as smallint) as double) < cast(cast(id as int) as double)",
+        "CAST(CAST(id AS INT) AS DOUBLE) > CAST(CAST(0 AS SMALLINT) AS DOUBLE)");
+    // Col ref is inside an expression
+    verifyRewrite("5 + 3 = id + 2", "id + 2 = 5 + 3");
+    // Bare slot ref goes on left, even if other side is a slot ref expression
+    verifyRewrite("id + 6 = int_col", "int_col = id + 6");
+    verifyRewrite("sum(id) = sum(int_col) + 1", null);
+    verifyRewrite("sum(int_col) + 1 = sum(id)", null);
 
     // Verify that these don't get rewritten.
-    RewritesOk("5 = 6", rule, null);
-    RewritesOk("id = 5", rule, null);
-    RewritesOk("cast(id as int) = int_col", rule, null);
-    RewritesOk("int_col = cast(id as int)", rule, null);
-    RewritesOk("int_col = tinyint_col", rule, null);
-    RewritesOk("tinyint_col = int_col", rule, null);
+    verifyRewrite("5 = 6", null);
+    verifyRewrite("id = 5", null);
+    verifyRewrite("cast(id as int) = int_col", "CAST(id AS INT) = int_col");
+    verifyRewrite("int_col = cast(id as int)", "int_col = CAST(id AS INT)");
+    verifyRewrite("int_col = tinyint_col", null);
+    verifyRewrite("tinyint_col = int_col", null);
+    verifyRewrite("2 + 6 = 8", null);
+    verifyRewrite("8 = 2 + 6", null);
+    verifyRewrite("int_col = id + 6", null);
   }
 
   @Test
   public void TestEqualityDisjunctsToInRule() throws ImpalaException {
     ExprRewriteRule edToInrule = EqualityDisjunctsToInRule.INSTANCE;
-    ExprRewriteRule normalizeRule = NormalizeBinaryPredicatesRule.INSTANCE;
-    List<ExprRewriteRule> comboRules = Lists.newArrayList(normalizeRule,
-        edToInrule);
+    List<ExprRewriteRule> comboRules = Lists.newArrayList(edToInrule);
 
     RewritesOk("int_col = 1 or int_col = 2", edToInrule, "int_col IN (1, 2)");
     RewritesOk("int_col = 1 or int_col = 2 or int_col = 3", edToInrule,
@@ -708,12 +722,17 @@ public class ExprRewriteRulesTest extends FrontendTestBase {
         edToInrule, "int_col * 3 IN (6, 9, 12)");
 
     // cases where rewrite should happen partially
+    // Note: the binary predicate rewrite ensures proper form of each predicate
     RewritesOk("(int_col = 1 or int_col = 2) or (int_col = 3 and int_col = 4)",
         edToInrule, "int_col IN (1, 2) OR (int_col = 3 AND int_col = 4)");
     RewritesOk(
         "1 = int_col or 2 = int_col or 3 = int_col AND (float_col = 5 or float_col = 6)",
         edToInrule,
-        "1 = int_col OR 2 = int_col OR 3 = int_col AND float_col IN (5, 6)");
+        "int_col IN (1, 2) OR int_col = 3 AND float_col IN (5, 6)");
+    RewritesOk(
+        "(1 = int_col or 2 = int_col or 3 = int_col) AND (float_col = 5 or float_col = 6)",
+        edToInrule,
+        "int_col IN (1, 2, 3) AND float_col IN (5, 6)");
     RewritesOk("int_col * 3 = 6 or int_col * 3 = 9 or int_col * 3 <= 12",
         edToInrule, "int_col * 3 IN (6, 9) OR int_col * 3 <= 12");
 

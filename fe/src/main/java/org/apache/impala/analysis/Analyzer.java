@@ -2691,6 +2691,13 @@ public class Analyzer {
         null;
   }
 
+  /**
+   * Normal expression analysis and rewrite. The output expression may differ
+   * from the input, and analysis errors may occur.
+   *
+   * @param expr the expression to analyze and rewrite
+   * @return the possibly rewritten expression that should replace the input
+   */
   public Expr analyzeAndRewrite(Expr expr) throws AnalysisException {
     return exprAnalyzer_.analyze(expr);
   }
@@ -2699,10 +2706,25 @@ public class Analyzer {
    * Analyze a synthetic expression (one created outside of the parser).
    * Does a partial analysis: type and cost propagation, but not rewrites
    * or symbol resolution.
+   * @throws AnalysisException
    */
   public void analyzeInPlace(Expr expr) throws AnalysisException {
-    Expr result = exprAnalyzer_.analyze(expr);
-    Preconditions.checkState(result == expr);
+    exprAnalyzer_.analyzeWithoutRewrite(expr);
+  }
+
+  /**
+   * Analyze an internally-generated, synthetic expression that should not
+   * result in an error. Disables rewrites as needed to preserve argument
+   * order for binary predicates.
+   *
+   * @param expr the expression to analyze without rewriting
+   */
+  public void analyzeSafe(Expr expr) {
+    try {
+      exprAnalyzer_.analyzeWithoutRewrite(expr);
+    } catch (AnalysisException e) {
+      throw new IllegalStateException(e);
+    }
   }
 
   public ExprAnalyzer exprAnalyzer() { return exprAnalyzer_; }

@@ -50,7 +50,6 @@ public class CastExpr extends Expr {
    * C'tor for "pre-analyzed" implicit casts.
    */
   public CastExpr(Type targetType, Expr e) {
-    super();
     Preconditions.checkState(targetType.isValid());
     Preconditions.checkNotNull(e);
     type_ = targetType;
@@ -215,6 +214,12 @@ public class CastExpr extends Expr {
     targetTypeDef_.analyze(analyzer);
     type_ = targetTypeDef_.getType();
     analyze();
+  }
+
+  @Override
+  protected void computeNumDistinctValues() {
+    // A cast does not change the child's NDV.
+    numDistinctValues_ = getChild(0).getNumDistinctValues();
   }
 
   @Override

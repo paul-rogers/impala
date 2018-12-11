@@ -885,7 +885,7 @@ public class StmtRewriter {
         BinaryPredicate pred =
             new BinaryPredicate(BinaryPredicate.Operator.EQ, exprWithSubquery.getChild(0),
                 slotRef);
-        pred.analyze(analyzer);
+        analyzer.analyzeInPlace(pred);
         return pred;
       }
       Subquery subquery = exprWithSubquery.getSubquery();
@@ -1041,7 +1041,7 @@ public class StmtRewriter {
         if (conjunct instanceof InPredicate && conjunct.getChild(0).isConstant()) {
           Expr newConjunct = rewriteInConstant(stmt, (InPredicate) conjunct);
           if (newConjunct != null) {
-            newConjunct.analyze(analyzer);
+            analyzer.analyzeInPlace(newConjunct);
             rewrittenConjunct = newConjunct;
           }
         }

@@ -63,6 +63,7 @@ import org.apache.impala.catalog.FeHBaseTable;
 import org.apache.impala.catalog.FeKuduTable;
 import org.apache.impala.catalog.FeTable;
 import org.apache.impala.catalog.Type;
+import org.apache.impala.common.AnalysisException;
 import org.apache.impala.common.ImpalaException;
 import org.apache.impala.common.InternalException;
 import org.apache.impala.common.NotImplementedException;
@@ -1484,7 +1485,7 @@ public class SingleNodePlanner {
     if (lhsExpr == null || rhsExpr == null || lhsExpr == rhsExpr) return null;
 
     BinaryPredicate result = new BinaryPredicate(pred.getOp(), lhsExpr, rhsExpr);
-    result.analyzeNoThrow(analyzer);
+    analyzer.analyzeSafe(result);
     return result;
   }
 
