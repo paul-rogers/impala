@@ -227,7 +227,9 @@ public class BinaryPredicate extends Predicate {
     */
   @Override
   public Expr rewrite(ExprAnalyzer exprAnalyzer) {
-    if (isExprOpSlotRef() || isConstantOpExpr()) {
+    // Null matching eq does not support converse()
+    // TODO: is this intentional: should such exprs be rewritten?
+    if ((isExprOpSlotRef() || isConstantOpExpr()) && op_ != Operator.NULL_MATCHING_EQ) {
       return new BinaryPredicate(getOp().converse(), getChild(1), getChild(0));
     }
     return this;
