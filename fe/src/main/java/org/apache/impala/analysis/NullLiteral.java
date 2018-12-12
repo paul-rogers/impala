@@ -56,7 +56,8 @@ public class NullLiteral extends LiteralExpr {
 
   @Override
   public String toSqlImpl(ToSqlOptions options) {
-    return getStringValue();
+    return type_ == Type.NULL || options == ToSqlOptions.DEFAULT ? getStringValue()
+      : "CAST(NULL AS " + type_.toSql() + ")";
   }
 
   @Override

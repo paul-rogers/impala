@@ -148,14 +148,14 @@ PLAN-ROOT SINK
 |  in pipelines: 01(GETNEXT), 00(OPEN)
 |
 00:SCAN HDFS [functional_parquet.alltypes]
-   partitions=24/24 files=24 size=189.12KB
-   predicates: id IN (int_col), id NOT IN (CAST(0 AS INT), CAST(1 AS INT), CAST(2 AS INT)), int_col % CAST(50 AS INT) IN (CAST(0 AS INT), CAST(1 AS INT)), string_col IN ('aaaa', 'bbbb', 'cccc', NULL)
+   partitions=24/24 files=24 size=198.42KB
+   predicates: id IN (int_col), id NOT IN (CAST(0 AS INT), CAST(1 AS INT), CAST(2 AS INT)), int_col % CAST(50 AS INT) IN (CAST(0 AS INT), CAST(1 AS INT)), string_col IN ('aaaa', 'bbbb', 'cccc', CAST(NULL AS STRING))
    stored statistics:
      table: rows=unavailable size=unavailable
      partitions: 0/24 rows=unavailable
      columns: unavailable
    extrapolated-rows=disabled max-scan-range-rows=unavailable
-   parquet dictionary predicates: id NOT IN (CAST(0 AS INT), CAST(1 AS INT), CAST(2 AS INT)), int_col % CAST(50 AS INT) IN (CAST(0 AS INT), CAST(1 AS INT)), string_col IN ('aaaa', 'bbbb', 'cccc', NULL)
+   parquet dictionary predicates: id NOT IN (CAST(0 AS INT), CAST(1 AS INT), CAST(2 AS INT)), int_col % CAST(50 AS INT) IN (CAST(0 AS INT), CAST(1 AS INT)), string_col IN ('aaaa', 'bbbb', 'cccc', CAST(NULL AS STRING))
    mem-estimate=48.00MB mem-reservation=24.00KB thread-reservation=1
    tuple-ids=0 row-size=20B cardinality=unavailable
    in pipelines: 00(GETNEXT)

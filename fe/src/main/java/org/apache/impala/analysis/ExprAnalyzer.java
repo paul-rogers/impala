@@ -123,8 +123,16 @@ public class ExprAnalyzer {
    * @see ParseNode#analyze(Analyzer)
    */
   public Expr analyze(Expr expr) throws AnalysisException {
-    if (expr.isAnalyzed()) return expr;
-
+    // Always to at least the constant folding check.
+    if (expr.isAnalyzed()) {
+      return foldConstants(expr);
+    }
+    // Check the expr depth limit. Do not print the toSql() to not overflow the stack.
+    analyzer_.incrementCallDepth();
+    if (analyzer_.getCallDepth() > Expr.EXPR_DEPTH_LIMIT) {
+      throw new AnalysisException(String.format("Exceeded the maximum depth of an " +
+          "expression tree: %d", Expr.EXPR_DEPTH_LIMIT));
+    }
     // Check the expr child limit.
     if (expr.getChildCount() > Expr.EXPR_CHILDREN_LIMIT) {
       String sql = expr.toSql();
@@ -134,41 +142,70 @@ public class ExprAnalyzer {
           Expr.EXPR_CHILDREN_LIMIT, expr.getChildCount(), sqlSubstr));
     }
 
-    analyzer_.incrementCallDepth();
-    // Check the expr depth limit. Do not print the toSql() to not overflow the stack.
-    if (analyzer_.getCallDepth() > Expr.EXPR_DEPTH_LIMIT) {
-      throw new AnalysisException(String.format("Exceeded the maximum depth of an " +
-          "expression tree: %d", Expr.EXPR_DEPTH_LIMIT));
-    }
-    for (int i = 0; i < expr.getChildCount(); i++) {
-      expr.setChild(i, analyze(expr.getChild(i)));
+    // Resolve is for leaves; OK not to have checked children
+    expr = expr.resolve(colResolver_);
+    for (;;) {
+      // Analyze
+      for (int i = 0; i < expr.getChildCount(); i++) {
+        expr.setChild(i, analyze(expr.getChild(i)));
+      }
+      expr.analyzeNode(analyzer_);
+
+      // Analysis can revise children
+      // TODO: optimize by returning true/false from above
+      for (int i = 0; i < expr.getChildCount(); i++) {
+        expr.setChild(i, analyze(expr.getChild(i)));
+      }
+
+      // Rewrite
+      if (rewriteMode_ == RewriteMode.NONE) break;
+      Expr result = expr.rewrite(this);
+      if (result == expr) break;
+      expr = result;
+      rewriteCount_++;
     }
     analyzer_.decrementCallDepth();
-    if (false) {
-      // Why is this before resolve?
-      expr.computeNumDistinctValues();
-
-      // For now, call existing methods. Create parallel paths, then switch to
-      // use those methods.
-      expr.analyzeImpl(analyzer_);
-      expr.evalCost_ = expr.computeEvalCost();
-    } else {
-      expr = expr.resolve(colResolver_);
-      for (;;) {
-        expr.analyzeNode(analyzer_);
-        if (rewriteMode_ == RewriteMode.NONE) break;
-        Expr result = expr.rewrite(this);
-        if (result == expr) break;
-        expr = result;
-        rewriteCount_++;
-        for (Expr child: expr.getChildren()) {
-          analyze(child);
-        }
-      }
-      expr.computeCost();
-    }
+    expr.computeCost();
     expr.analysisDone();
-    return expr;
+    // Fold constants last; requires the node be marked as analyzed.
+    return foldConstants(expr);
+  }
+
+  /**
+   * Replace a constant Expr with its equivalent LiteralExpr by evaluating the
+   * Expr in the BE. Exprs that are already LiteralExprs are not changed.
+   *
+   * Examples:
+   * 1 + 1 + 1 --> 3
+   * toupper('abc') --> 'ABC'
+   * cast('2016-11-09' as timestamp) --> TIMESTAMP '2016-11-09 00:00:00'
+   * @throws AnalysisException
+   */
+  private Expr foldConstants(Expr expr) throws AnalysisException {
+    if (rewriteMode_ != RewriteMode.OPTIONAL ||
+        !expr.isConstant() ||
+        Expr.IS_LITERAL.apply(expr)) return expr;
+
+    // Do not constant fold cast(null as dataType) because we cannot preserve the
+    // cast-to-types and that can lead to query failures, e.g., CTAS
+    // Testing change:
+    // Convert CAST(NULL AS <type>) to a null literal of the given type
+    Expr result;
+    if (expr instanceof CastExpr) {
+      CastExpr castExpr = (CastExpr) expr;
+      if (Expr.IS_NULL_LITERAL.apply(castExpr.getChild(0))) {
+        // Trying using a typed null literal
+        return new NullLiteral(castExpr.getType());
+      }
+      else {
+        // Cast, eval to the given type
+        result = LiteralExpr.evalCast(expr, expr.getType(), analyzer_.getQueryCtx());
+      }
+    } else {
+      // No cast, eval to the natural type
+      result = LiteralExpr.eval(expr, analyzer_.getQueryCtx());
+    }
+    return result == null ? expr : result;
   }
 
   public void analyzeWithoutRewrite(Expr expr) throws AnalysisException {

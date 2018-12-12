@@ -340,9 +340,9 @@ select first_value(1 + 1 + int_col - (1 - 1)) over
    order by greatest(greatest(10, 20), bigint_col))
 from functional.alltypes
 ---- PLAN
-Analyzed query: SELECT first_value(1 + 1 + int_col - (1 - 1)) OVER (PARTITION BY
-concat(concat('a', 'b'), string_col) ORDER BY greatest(greatest(10, 20),
-bigint_col) ASC) FROM functional.alltypes
+Analyzed query: SELECT first_value(2 + int_col - 0) OVER (PARTITION BY
+concat('ab', string_col) ORDER BY greatest(20, bigint_col) ASC) FROM
+functional.alltypes
 F00:PLAN FRAGMENT [UNPARTITIONED] hosts=1 instances=1
 |  Per-Host Resources: mem-estimate=144.00MB mem-reservation=16.03MB thread-reservation=2
 PLAN-ROOT SINK
