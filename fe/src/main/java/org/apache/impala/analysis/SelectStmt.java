@@ -167,7 +167,7 @@ public class SelectStmt extends QueryStmt {
   private class SelectAnalyzer {
 
     private final Analyzer analyzer_;
-    private ArrayList<Expr> groupingExprsCopy_;
+    private List<Expr> groupingExprsCopy_;
     private List<FunctionCallExpr> aggExprs_;
     private ExprSubstitutionMap ndvSmap_;
     private ExprSubstitutionMap countAllMap_;
@@ -623,12 +623,12 @@ public class SelectStmt extends QueryStmt {
 
     private void analyzeGroupingExprs() throws AnalysisException {
       // analyze grouping exprs
-      groupingExprsCopy_ = Lists.newArrayList();
-      if (! hasGroupByClause()) return;
-      // make a deep copy here, we don't want to modify the original
-      // exprs during analysis (in case we need to print them later)
-      groupingExprsCopy_ = Expr.cloneList(groupByClause_.getGroupingExprs());
-      substituteOrdinalsAndAliases(groupingExprsCopy_, "GROUP BY", analyzer_);
+      if (! hasGroupByClause()) {
+        groupingExprsCopy_ = Lists.newArrayList();
+        return;
+      }
+      groupByClause_.analyze(SelectStmt.this, analyzer_);
+      groupingExprsCopy_ = groupByClause_.getExprs();
 
       for (int i = 0; i < groupingExprsCopy_.size(); ++i) {
         groupingExprsCopy_.get(i).analyze(analyzer_);

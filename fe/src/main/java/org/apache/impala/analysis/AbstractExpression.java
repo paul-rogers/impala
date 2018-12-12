@@ -165,6 +165,12 @@ public abstract class AbstractExpression {
       original_ = expr;
     }
 
+    public void analyze(SelectStmt stmt, Analyzer analyzer) throws AnalysisException {
+      saveSource(original_);
+      expr_ = stmt.resolveReferenceExpr(original_,
+          "GROUP BY", analyzer, true);
+    }
+    
     @Override
     public Expr getExpr() { return expr_; }
 
@@ -180,6 +186,15 @@ public abstract class AbstractExpression {
     @Override
     public void serialize(ObjectSerializer os) {
       expr_.serialize(os);
+    }
+
+    @Override
+    public String toSql(ToSqlOptions options) {
+      if (options == ToSqlOptions.DEFAULT) {
+        return sourceSql_ == null ? original_.toSql(options) : sourceSql_;
+      } else {
+        return expr_ == null ? original_.toSql(options) : expr_.toSql(options);
+      }
     }
   }
 
@@ -205,6 +220,11 @@ public abstract class AbstractExpression {
       return new GroupByClause(groupingExprs);
     }
 
+    public void analyze(SelectStmt stmt, Analyzer analyzer) throws AnalysisException {
+      for (GroupByExpression expr : groupBy_)
+        expr.analyze(stmt, analyzer);
+    }
+
     public List<Expr> getGroupingExprs() {
       List<Expr> exprs = new ArrayList<>();
       for (GroupByExpression expr : groupBy_)
@@ -222,6 +242,19 @@ public abstract class AbstractExpression {
     public void rewrite(ExprRewriter rewriter, Analyzer analyzer) throws AnalysisException {
       for (GroupByExpression expr : groupBy_)
         expr.rewrite(rewriter, analyzer);
+    }
+
+    public String toSql(ToSqlOptions options) {
+      StringBuilder strBuilder = new StringBuilder();
+      strBuilder.append(" GROUP BY ");
+      // Handle both analyzed (multiAggInfo_ != null) and unanalyzed cases.
+      // Unanalyzed case is used to generate SQL such as for views.
+      // See ToSqlUtils.getCreateViewSql().
+      for (int i = 0; i < groupBy_.size(); i++) {
+        if (i > 0) strBuilder.append(", ");
+        strBuilder.append(groupBy_.get(i).toSql(options));
+      }
+      return strBuilder.toString();
     }
 
     public void reset() {
