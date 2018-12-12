@@ -64,7 +64,7 @@ public class FoldConstantsRule implements ExprRewriteRule {
       expr = analyzer.analyzeAndRewrite(expr);
       if (!expr.isConstant()) return expr;
     }
-    Expr result = LiteralExpr.create(expr, analyzer.getQueryCtx());
+    Expr result = LiteralExpr.typedEval(expr, analyzer.getQueryCtx());
     // Preserve original type so parent Exprs do not need to be re-analyzed.
     if (result != null) return result.castTo(expr.getType());
     return expr;

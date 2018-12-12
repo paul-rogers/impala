@@ -81,8 +81,7 @@ where string_col = cast(4 as string) and 2 + 3 = tinyint_col
   and id between concat('1', '0') and upper('20')
 ---- PLAN
 Analyzed query: SELECT * FROM functional_hbase.stringids WHERE string_col = '4'
-AND CAST(tinyint_col AS SMALLINT) = CAST(5 AS SMALLINT) AND id >= '10' AND id <=
-'20'
+AND tinyint_col = CAST(5 AS TINYINT) AND id >= '10' AND id <= '20'
 F00:PLAN FRAGMENT [UNPARTITIONED] hosts=1 instances=1
 |  Per-Host Resources: mem-estimate=4.00KB mem-reservation=0B thread-reservation=1
 PLAN-ROOT SINK
@@ -92,7 +91,7 @@ PLAN-ROOT SINK
    start key: 10
    stop key: 20\0
    hbase filters: d:string_col EQUAL '4'
-   predicates: CAST(tinyint_col AS SMALLINT) = CAST(5 AS SMALLINT), string_col = '4'
+   predicates: tinyint_col = CAST(5 AS TINYINT), string_col = '4'
    stored statistics:
      table: rows=10000
      columns: all

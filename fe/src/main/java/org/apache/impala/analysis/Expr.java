@@ -497,6 +497,40 @@ abstract public class Expr extends TreeNode<Expr> implements ParseNode, Cloneabl
   }
 
   /**
+   * Reports if a constant node has an explicit type. Undefined for non-constant
+   * nodes.
+   *
+   * When performing constant folding, we want simple literal expressions to
+   * retain the "natural" type of the result. For example:
+   *
+   * 1 + 2 --> 3:TINYINT
+   * CAST(1 AS TINYINT) + 2 --> 3:SMALLINT
+   *
+   * Reasoning: if a type is given, then constant folding must follow the same
+   * type rules as if the expression where a column. So, the second example
+   * above is equivalent to:
+   *
+   * tinyint_col:TINYINT + 2 --> SMALLINT
+   *
+   * But, if the constants have no type, we are free to interpret the result
+   * as we choose. IMPALA-4213 says we should use the smallest possible type
+   * (the "natural" type) for the result.
+   *
+   * This method controls that process. It normally returns false, meaning that
+   * constant folding is free to choose the natural type. It returns true if
+   * the type has been explicitly set:
+   *
+   * - Via a cast node itself,
+   * - On a numeric literal that is the result of constant-folding a cast.
+   *
+   * @return true if the result of a constant-folding operation on this node
+   * must preserve the node's type, false if the resulting literal can take
+   * the natural type
+   */
+
+  public boolean hasExplicitType() { return false; }
+
+  /**
    * Collects the returns types of the child nodes in an array.
    */
   protected Type[] collectChildReturnTypes() {

@@ -186,25 +186,45 @@ public class ExprAnalyzer {
         !expr.isConstant() ||
         Expr.IS_LITERAL.apply(expr)) return expr;
 
-    // Do not constant fold cast(null as dataType) because we cannot preserve the
-    // cast-to-types and that can lead to query failures, e.g., CTAS
-    // Testing change:
-    // Convert CAST(NULL AS <type>) to a null literal of the given type
+    boolean hasExplicitType = expr.hasExplicitType();
     if (expr instanceof CastExpr) {
       CastExpr castExpr = (CastExpr) expr;
+
+      // Do not constant fold cast(null as dataType) because we cannot preserve the
+      // cast-to-types and that can lead to query failures, e.g., CTAS
+      // Testing change:
+      // Convert CAST(NULL AS <type>) to a null literal of the given type
       if (Expr.IS_NULL_LITERAL.apply(castExpr.getChild(0))) {
         // Trying using a typed null literal
         return new NullLiteral(castExpr.getType());
       }
+    } else {
+
+      // For pure-literal expressions, use the natural type of the
+      // result. Pure-literal expression are those without explicit casts.
+      // Due to prior folding events, we only need to check one level of
+      // children.
+      for (int i = 0; i < expr.getChildCount(); i++) {
+        hasExplicitType = expr.getChild(i).hasExplicitType();
+        if (hasExplicitType) break;
+      }
     }
 
-    // Must preserve the expression's type. Examples:
-    // CAST(1 AS INT) --> must be of type INT (natural type is TINYINT)
-    // CAST(1 AS INT) + CAST(2 AS SMALLINT) --> BIGINT (normal INT
-    //     addition result type
-    // CAST(1 AS TINYINT) + CAST(1 AS TINYINT) --> SMALLINT
-    // 1 + 1 is the same as above, but with natural types
-    Expr result = LiteralExpr.create(expr, analyzer_.getQueryCtx());
+    Expr result;
+    if (hasExplicitType) {
+      // Must preserve the expression's type. Examples:
+      // CAST(1 AS INT) --> must be of type INT (natural type is TINYINT)
+      // CAST(1 AS INT) + CAST(2 AS SMALLINT) --> 3:BIGINT (normal INT
+      //     addition result type
+      // CAST(1 AS TINYINT) + CAST(1 AS TINYINT) --> 2:SMALLINT
+      // CAST(1 AS TINYINT) + 1 --> 2:SMALLINT
+      result = LiteralExpr.typedEval(expr, analyzer_.getQueryCtx());
+    } else {
+      // No cast, eval to the natural type
+      // 1 + 1 --> 2:TINYINT
+      result = LiteralExpr.untypedEval(expr, analyzer_.getQueryCtx());
+    }
+
     return result == null ? expr : result;
   }
 

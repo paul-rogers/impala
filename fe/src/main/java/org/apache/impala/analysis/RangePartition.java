@@ -164,7 +164,7 @@ public class RangePartition extends StmtNode {
       throw new AnalysisException(String.format("Only constant values are allowed " +
           "for range-partition bounds: %s", value.toSql()));
     }
-    LiteralExpr literal = LiteralExpr.create(value, analyzer.getQueryCtx());
+    LiteralExpr literal = LiteralExpr.typedEval(value, analyzer.getQueryCtx());
     if (literal == null) {
       throw new AnalysisException(String.format("Only constant values are allowed " +
           "for range-partition bounds: %s", value.toSql()));
@@ -181,7 +181,7 @@ public class RangePartition extends StmtNode {
       // Add an explicit cast to TIMESTAMP
       Expr e = new CastExpr(new TypeDef(Type.TIMESTAMP), literal);
       e.analyze(analyzer);
-      literal = LiteralExpr.create(e, analyzer.getQueryCtx());
+      literal = LiteralExpr.typedEval(e, analyzer.getQueryCtx());
       Preconditions.checkNotNull(literal);
       if (Expr.IS_NULL_VALUE.apply(literal)) {
         throw new AnalysisException(String.format("Range partition value %s cannot be " +
@@ -199,7 +199,7 @@ public class RangePartition extends StmtNode {
     if (!literalType.equals(colType)) {
       Expr castLiteral = literal.uncheckedCastTo(colType);
       Preconditions.checkNotNull(castLiteral);
-      literal = LiteralExpr.create(castLiteral, analyzer.getQueryCtx());
+      literal = LiteralExpr.typedEval(castLiteral, analyzer.getQueryCtx());
     }
     Preconditions.checkNotNull(literal);
 

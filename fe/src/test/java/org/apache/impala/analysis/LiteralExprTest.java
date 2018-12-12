@@ -19,6 +19,7 @@ package org.apache.impala.analysis;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -34,7 +35,131 @@ import com.google.common.collect.Lists;
 
 
 public class LiteralExprTest extends FrontendTestBase {
-  // Test creation of LiteralExprs from Strings, e.g., for partitioning keys.
+
+  private Analyzer prepareAnalyzer() throws ImpalaException {
+    AnalysisContext ctx = createAnalysisCtx();
+    StmtMetadataLoader mdLoader =
+        new StmtMetadataLoader(frontend_, ctx.getQueryCtx().session.database, null);
+    StmtTableCache loadedTables = mdLoader.loadTables(Sets.newHashSet(
+        new TableName("functional", "alltypes")));
+    Analyzer analyzer = ctx.createAnalyzer(loadedTables);
+    TableRef tableRef = analyzer.resolveTableRef(
+        new TableRef(Lists.newArrayList("functional", "alltypes"), null));
+    tableRef.analyze(analyzer);
+    return analyzer;
+  }
+
+
+  private LiteralExpr typedEval(String exprSql) throws ImpalaException {
+    Analyzer analyzer = prepareAnalyzer();
+
+    String stmtSql = "select " + exprSql + " from functional.alltypes";
+    Expr expr = ((SelectStmt) ParsesOk(stmtSql)).getSelectList().getItems().get(0).getExpr();
+    assertFalse(expr instanceof LiteralExpr);
+    analyzer.analyzeSafe(expr);
+
+    return LiteralExpr.typedEval(expr, analyzer.getQueryCtx());
+  }
+
+  private LiteralExpr untypedEval(String exprSql) throws ImpalaException {
+    Analyzer analyzer = prepareAnalyzer();
+
+    String stmtSql = "select " + exprSql + " from functional.alltypes";
+    Expr expr = ((SelectStmt) ParsesOk(stmtSql)).getSelectList().getItems().get(0).getExpr();
+    assertFalse(expr instanceof LiteralExpr);
+    analyzer.analyzeSafe(expr);
+
+    return LiteralExpr.untypedEval(expr, analyzer.getQueryCtx());
+  }
+
+  private void verifyUntypedEval(Type type, String exprSql) throws ImpalaException {
+    assertEquals(type, untypedEval(exprSql).getType());
+  }
+
+  /**
+   * Untyped eval resolves to the natural type. Is used only when no explicit
+   * cast occurs in the SQL. The result type is the "natural" type of the
+   * result, independent of the type of the evaluated node.
+   *
+   * @throws ImpalaException
+   */
+  @Test
+  public void testUntypeEval() throws ImpalaException {
+    verifyUntypedEval(Type.TINYINT, "1 + 1");
+    verifyUntypedEval(Type.SMALLINT, "1 + 256");
+    verifyUntypedEval(Type.BOOLEAN, "2 > 1");
+    verifyUntypedEval(Type.STRING, "concat('a', 'b')");
+
+    // Returns null if the conversion fails
+    {
+      LiteralExpr expr = typedEval("1 / 0");
+      assertNull(expr);
+    }
+  }
+
+  private void verifyTypedEval(Type type, String exprSql) throws ImpalaException {
+    assertEquals(type, typedEval(exprSql).getType());
+  }
+
+  /**
+   * Typed eval preserves the type of the node. Used when the expression contains
+   * an explicit cast.
+   */
+  @Test
+  public void testTypedEval() throws ImpalaException {
+    verifyTypedEval(Type.SMALLINT, "1 + 1");
+    verifyTypedEval(Type.INT, "1 + 256");
+    verifyTypedEval(Type.INT, "CAST(1 AS INT)");
+    verifyTypedEval(Type.TIMESTAMP, "CAST('2015-11-15' AS TIMESTAMP)");
+    verifyTypedEval(Type.TIMESTAMP, "CAST('2016-11-20 00:00:00' AS TIMESTAMP)");
+    verifyTypedEval(Type.TIMESTAMP, "CAST('2015-11-15' AS TIMESTAMP) + INTERVAL 1 year");
+    verifyTypedEval(Type.BOOLEAN, "2 > 1");
+    verifyTypedEval(Type.STRING, "concat('a', 'b')");
+
+    // Boolean can be cast to multiple types
+    {
+      LiteralExpr expr = typedEval("cast(true as tinyint)");
+      assertEquals(Type.TINYINT, expr.getType());
+      assertEquals(1, ((NumericLiteral) expr).getIntValue());
+    }
+    {
+      LiteralExpr expr = typedEval("cast(true as int)");
+      assertEquals(Type.INT, expr.getType());
+      assertEquals(1, ((NumericLiteral) expr).getIntValue());
+    }
+    {
+      LiteralExpr expr = typedEval("cast(true as string)");
+      assertEquals(ScalarType.STRING, expr.getType());
+      assertEquals("1", ((StringLiteral) expr).getUnescapedValue());
+    }
+    // Cast of BOOLEAN to DECIMAL not supported
+
+    // BE will wrap invalid integers. More of a bug than a feature,
+    // but is related to how C++ does math.
+    {
+      LiteralExpr expr = typedEval("cast(257 as tinyint)");
+      assertEquals(Type.TINYINT, expr.getType());
+      assertEquals(1, ((NumericLiteral) expr).getIntValue());
+    }
+
+    // Returns null if the conversion fails
+    {
+      LiteralExpr expr = typedEval("CAST(10.8 AS DECIMAL(1,0))");
+      assertNull(expr);
+    }
+    {
+      LiteralExpr expr = typedEval("1 / 0");
+      assertNull(expr);
+    }
+
+    // Nulls can be cast to a type
+    verifyTypedEval(Type.INT, "CAST(NULL AS INT)");
+    verifyTypedEval(Type.STRING, "CAST(NULL AS STRING)");
+  }
+
+  /**
+   * Test creation of LiteralExprs from Strings, e.g., for partitioning keys.
+   */
   @Test
   public void TestLiteralExpr() {
     testLiteralExprPositive("false", Type.BOOLEAN);
@@ -111,6 +236,16 @@ public class LiteralExprTest extends FrontendTestBase {
    */
   @Test
   public void testLiteralCast() {
+    // Explicit cast
+    {
+      Expr expr = analyze("CAST(1 AS TINYINT) + 1", true, true);
+      assertEquals(Type.SMALLINT, expr.getType());
+    }
+    // No cast, use natural type
+    {
+      Expr expr = analyze("1 + 1", true, true);
+      assertEquals(Type.TINYINT, expr.getType());
+    }
     for (int i = 0; i < 3; i++) {
       boolean useDecimalV2 = i > 1;
       boolean enableRewrite = (i % 2) == 1;
@@ -161,73 +296,6 @@ public class LiteralExprTest extends FrontendTestBase {
         assertEquals(Type.DOUBLE, expr.getType());
         assertTrue(expr instanceof ArithmeticExpr);
       }
-    }
-  }
-
-  private Analyzer prepareAnalyzer() throws ImpalaException {
-    AnalysisContext ctx = createAnalysisCtx();
-    StmtMetadataLoader mdLoader =
-        new StmtMetadataLoader(frontend_, ctx.getQueryCtx().session.database, null);
-    StmtTableCache loadedTables = mdLoader.loadTables(Sets.newHashSet(
-        new TableName("functional", "alltypes")));
-    Analyzer analyzer = ctx.createAnalyzer(loadedTables);
-    TableRef tableRef = analyzer.resolveTableRef(
-        new TableRef(Lists.newArrayList("functional", "alltypes"), null));
-    tableRef.analyze(analyzer);
-    return analyzer;
-  }
-
-
-  private LiteralExpr eval(String exprSql) throws ImpalaException {
-    Analyzer analyzer = prepareAnalyzer();
-
-    String stmtSql = "select " + exprSql + " from functional.alltypes";
-    Expr expr = ((SelectStmt) ParsesOk(stmtSql)).getSelectList().getItems().get(0).getExpr();
-    assertFalse(expr instanceof LiteralExpr);
-    analyzer.analyzeSafe(expr);
-
-    return LiteralExpr.create(expr, analyzer.getQueryCtx());
-  }
-
-  private void verifyEval(Type type, String exprSql) throws ImpalaException {
-    assertEquals(type, eval(exprSql).getType());
-  }
-
-  @Test
-  public void testEval() throws ImpalaException {
-    verifyEval(Type.SMALLINT, "1 + 1");
-    verifyEval(Type.INT, "1 + 256");
-    verifyEval(Type.INT, "CAST(1 AS INT)");
-    verifyEval(Type.TIMESTAMP, "CAST('2015-11-15' AS TIMESTAMP)");
-    verifyEval(Type.TIMESTAMP, "CAST('2016-11-20 00:00:00' AS TIMESTAMP)");
-    verifyEval(Type.TIMESTAMP, "CAST('2015-11-15' AS TIMESTAMP) + INTERVAL 1 year");
-    verifyEval(Type.BOOLEAN, "2 > 1");
-    verifyEval(Type.STRING, "concat('a', 'b')");
-
-    // Boolean can be cast to multiple types
-    {
-      LiteralExpr expr = eval("cast(true as tinyint)");
-      assertEquals(Type.TINYINT, expr.getType());
-      assertEquals(1, ((NumericLiteral) expr).getIntValue());
-    }
-    {
-      LiteralExpr expr = eval("cast(true as int)");
-      assertEquals(Type.INT, expr.getType());
-      assertEquals(1, ((NumericLiteral) expr).getIntValue());
-    }
-    {
-      LiteralExpr expr = eval("cast(true as string)");
-      assertEquals(ScalarType.STRING, expr.getType());
-      assertEquals("1", ((StringLiteral) expr).getUnescapedValue());
-    }
-    // Cast of BOOLEAN to DECIMAL not supported
-
-    // BE will wrap invalid integers. More of a bug than a feature,
-    // but is related to how C++ does math.
-    {
-      LiteralExpr expr = eval("cast(257 as tinyint)");
-      assertEquals(Type.TINYINT, expr.getType());
-      assertEquals(1, ((NumericLiteral) expr).getIntValue());
     }
   }
 }

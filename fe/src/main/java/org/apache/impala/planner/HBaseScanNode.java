@@ -162,7 +162,7 @@ public class HBaseScanNode extends ScanNode {
         Preconditions.checkState(rowRange.getLowerBound().isConstant());
         Preconditions.checkState(
             rowRange.getLowerBound().getType().equals(Type.STRING));
-        LiteralExpr val = LiteralExpr.create(rowRange.getLowerBound(),
+        LiteralExpr val = LiteralExpr.typedEval(rowRange.getLowerBound(),
             analyzer.getQueryCtx());
         if (val instanceof StringLiteral) {
           StringLiteral litVal = (StringLiteral) val;
@@ -178,7 +178,7 @@ public class HBaseScanNode extends ScanNode {
         Preconditions.checkState(rowRange.getUpperBound().isConstant());
         Preconditions.checkState(
             rowRange.getUpperBound().getType().equals(Type.STRING));
-        LiteralExpr val = LiteralExpr.create(rowRange.getUpperBound(),
+        LiteralExpr val = LiteralExpr.typedEval(rowRange.getUpperBound(),
             analyzer.getQueryCtx());
         if (val instanceof StringLiteral) {
           StringLiteral litVal = (StringLiteral) val;

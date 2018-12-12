@@ -250,7 +250,7 @@ public class ColumnDef {
         throw new AnalysisException(String.format("Only constant values are allowed " +
             "for default values: %s", defaultValue_.toSql()));
       }
-      LiteralExpr defaultValLiteral = LiteralExpr.create(defaultValue_,
+      LiteralExpr defaultValLiteral = LiteralExpr.typedEval(defaultValue_,
           analyzer.getQueryCtx());
       if (defaultValLiteral == null) {
         throw new AnalysisException(String.format("Only constant values are allowed " +
@@ -267,7 +267,7 @@ public class ColumnDef {
         // Add an explicit cast to TIMESTAMP
         Expr e = new CastExpr(new TypeDef(Type.TIMESTAMP), defaultValLiteral);
         e.analyze(analyzer);
-        defaultValLiteral = LiteralExpr.create(e, analyzer.getQueryCtx());
+        defaultValLiteral = LiteralExpr.typedEval(e, analyzer.getQueryCtx());
         Preconditions.checkNotNull(defaultValLiteral);
         if (Expr.IS_NULL_VALUE.apply(defaultValLiteral)) {
           throw new AnalysisException(String.format("String %s cannot be cast " +
@@ -284,7 +284,7 @@ public class ColumnDef {
       if (!defaultValLiteral.getType().equals(type_)) {
         Expr castLiteral = defaultValLiteral.uncheckedCastTo(type_);
         Preconditions.checkNotNull(castLiteral);
-        defaultValLiteral = LiteralExpr.create(castLiteral, analyzer.getQueryCtx());
+        defaultValLiteral = LiteralExpr.typedEval(castLiteral, analyzer.getQueryCtx());
       }
       Preconditions.checkNotNull(defaultValLiteral);
       outputDefaultValue_ = defaultValLiteral;

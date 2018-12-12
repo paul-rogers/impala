@@ -43,6 +43,8 @@ import com.google.common.base.Preconditions;
 public abstract class LiteralExpr extends Expr implements Comparable<LiteralExpr> {
   private final static Logger LOG = LoggerFactory.getLogger(LiteralExpr.class);
 
+  private boolean hasExplicitType;
+
   public LiteralExpr() {
     // Literals start analyzed: there is nothing more to check.
     evalCost_ = LITERAL_COST;
@@ -125,9 +127,10 @@ public abstract class LiteralExpr extends Expr implements Comparable<LiteralExpr
   }
 
   @Override
-  protected float computeEvalCost() {
-    return LITERAL_COST;
-  }
+  protected float computeEvalCost() { return LITERAL_COST; }
+
+  @Override
+  public boolean hasExplicitType() { return hasExplicitType; }
 
   /**
    * Returns an analyzed literal from the thrift object.
@@ -185,25 +188,32 @@ public abstract class LiteralExpr extends Expr implements Comparable<LiteralExpr
    * or warnings in the BE.
    * TODO: Support non-scalar types.
    */
-  public static LiteralExpr create(Expr constExpr, TQueryCtx queryCtx)
+  public static LiteralExpr typedEval(Expr constExpr, TQueryCtx queryCtx)
       throws AnalysisException {
     Preconditions.checkState(constExpr.isConstant());
     Preconditions.checkState(constExpr.getType().isValid());
     if (constExpr instanceof LiteralExpr) return (LiteralExpr) constExpr;
 
-    TColumnValue val = null;
+    LiteralExpr result = typedValueOf(rawEval(constExpr, queryCtx), constExpr.getType());
+
+    // Remember that this literal is the result of a typed operation
+    if (result != null) result.hasExplicitType = true;
+    return result;
+  }
+
+  private static TColumnValue rawEval(Expr constExpr, TQueryCtx queryCtx) {
     try {
-      val = FeSupport.EvalExprWithoutRow(constExpr, queryCtx);
+      return FeSupport.EvalExprWithoutRow(constExpr, queryCtx);
     } catch (InternalException e) {
       LOG.error(String.format("Failed to evaluate expr '%s': %s",
           constExpr.toSql(), e.getMessage()));
       return null;
     }
-    return create(val, constExpr.getType());
   }
 
-  public static LiteralExpr create(TColumnValue val, Type type)
+  public static LiteralExpr typedValueOf(TColumnValue val, Type type)
       throws AnalysisException {
+    if (val == null) return null;
     switch (type.getPrimitiveType()) {
       case NULL_TYPE:
         return new NullLiteral();
@@ -278,6 +288,51 @@ public abstract class LiteralExpr extends Expr implements Comparable<LiteralExpr
     }
     // None of the fields in the thrift struct were set indicating a NULL.
     return new NullLiteral(type);
+  }
+
+  /**
+   * Evaluate the expression and return the "natural" type of the result. Use this
+   * version for expressions such as 2 + 3 in which no type information has been
+   * specified, and so Impala is free to choose the result type. The type chosen
+   * is the smallest that can hold the value so that 2 + 3 is a TINYINT, not a
+   * SMALLINT as in {@link @typedEval()}.
+   *
+   * @param constExpr analyzed constant expression which should contain no casts
+   * @return literal result, or null if the evaluation fails
+   */
+  public static LiteralExpr untypedEval(Expr constExpr, TQueryCtx queryCtx)
+      throws AnalysisException {
+    Preconditions.checkState(constExpr.isConstant());
+    Preconditions.checkState(constExpr.getType().isValid());
+    if (constExpr instanceof LiteralExpr) return (LiteralExpr) constExpr;
+
+    return naturalValueOf(rawEval(constExpr, queryCtx), constExpr.getType());
+  }
+
+  /**
+   * Return a literal of the "natural" (smallest) type for the Thrift node.
+   * Applies only to numeric types, other types work the same as the typed version.
+   */
+  public static LiteralExpr naturalValueOf(TColumnValue val, Type type)
+      throws AnalysisException {
+    if (val == null) return typedValueOf(val, type);
+    switch (type.getPrimitiveType()) {
+      case TINYINT:
+      case SMALLINT:
+      case INT:
+      case BIGINT:
+        // Use the natural type of the value, not the type computed for the
+        // expression itself. This keeps 1 + 1 + 1 as a TINYINT, not an INT.
+        if (val.isSetByte_val()) return NumericLiteral.create(val.byte_val);
+        if (val.isSetShort_val()) return NumericLiteral.create(val.short_val);
+        if (val.isSetInt_val()) return NumericLiteral.create(val.int_val);
+        if (val.isSetLong_val()) return NumericLiteral.create(val.long_val);
+        if (val.isSetLong_val()) return NumericLiteral.create(val.long_val);
+        break;
+      default:
+        break;
+    }
+    return typedValueOf(val, type);
   }
 
   // Order NullLiterals based on the SQL ORDER BY default behavior: NULLS LAST.

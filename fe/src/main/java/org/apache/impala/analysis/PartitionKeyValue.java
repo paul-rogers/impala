@@ -49,7 +49,7 @@ public class PartitionKeyValue {
     }
     if (value_ == null) return;
     analyzer.analyzeInPlace(value_);
-    literalValue_ = LiteralExpr.create(value_, analyzer.getQueryCtx());
+    literalValue_ = LiteralExpr.typedEval(value_, analyzer.getQueryCtx());
   }
 
   public String getColName() { return colName_; }

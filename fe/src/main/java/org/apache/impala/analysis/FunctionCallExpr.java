@@ -441,7 +441,7 @@ public class FunctionCallExpr extends Expr {
           throw new AnalysisException(fnName_.getFunction() +
               "() must be called with a constant second argument.");
         }
-        NumericLiteral scaleLiteral = (NumericLiteral) LiteralExpr.create(
+        NumericLiteral scaleLiteral = (NumericLiteral) LiteralExpr.typedEval(
             children_.get(1), analyzer.getQueryCtx());
         // If scale is greater than the scale of the decimal, this should be a no-op,
         // so we do not need change the scale of the output decimal.
