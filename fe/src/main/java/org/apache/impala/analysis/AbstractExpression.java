@@ -17,8 +17,16 @@
 
 package org.apache.impala.analysis;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import org.apache.impala.common.AnalysisException;
+import org.apache.impala.common.serialize.ArraySerializer;
+import org.apache.impala.common.serialize.JsonSerializable;
+import org.apache.impala.common.serialize.ObjectSerializer;
 import org.apache.impala.rewrite.ExprRewriter;
+
+import com.google.common.base.Predicates;
 
 /**
  * Represents an expression a while, while the {@link Expr} represents
@@ -146,6 +154,84 @@ public abstract class AbstractExpression {
       Expr having = options == ToSqlOptions.DEFAULT
           ? getPreExpansion() : getExpr();
       return having.toSql(options);
+    }
+  }
+
+  public static class GroupByExpression extends AbstractExpression implements JsonSerializable {
+    private Expr original_;
+    private Expr expr_;
+
+    public GroupByExpression(Expr expr) {
+      original_ = expr;
+    }
+
+    @Override
+    public Expr getExpr() { return expr_; }
+
+    public void rewrite(ExprRewriter rewriter, Analyzer analyzer) throws AnalysisException {
+      original_ = SelectStmt.rewriteCheckOrdinalResult(
+          rewriter, analyzer, original_);
+    }
+
+    public void reset() {
+      original_.reset();
+    }
+
+    @Override
+    public void serialize(ObjectSerializer os) {
+      expr_.serialize(os);
+    }
+  }
+
+  public static class GroupByClause {
+    private final List<GroupByExpression> groupBy_ = new ArrayList<>();
+
+    public GroupByClause(List<Expr> groupingExprs) {
+      append(groupingExprs);
+    }
+
+    public void append(List<Expr> groupByExprs) {
+      for (Expr expr : groupByExprs)
+        groupBy_.add(new GroupByExpression(expr));
+    }
+
+    public GroupByClause(GroupByClause from) {
+      for (GroupByExpression expr : from.groupBy_)
+        groupBy_.add(new GroupByExpression(expr.original_));
+    }
+
+    public static GroupByClause wrap(List<Expr> groupingExprs) {
+      if (groupingExprs == null || groupingExprs.isEmpty()) return null;
+      return new GroupByClause(groupingExprs);
+    }
+
+    public List<Expr> getGroupingExprs() {
+      List<Expr> exprs = new ArrayList<>();
+      for (GroupByExpression expr : groupBy_)
+        exprs.add(expr.original_);
+      return exprs;
+    }
+
+    public List<Expr> getExprs() {
+      List<Expr> exprs = new ArrayList<>();
+      for (GroupByExpression expr : groupBy_)
+        exprs.add(expr.getExpr());
+      return exprs;
+    }
+
+    public void rewrite(ExprRewriter rewriter, Analyzer analyzer) throws AnalysisException {
+      for (GroupByExpression expr : groupBy_)
+        expr.rewrite(rewriter, analyzer);
+    }
+
+    public void reset() {
+      for (GroupByExpression expr : groupBy_)
+        expr.reset();
+    }
+
+    public void serialize(ArraySerializer array) {
+      for (GroupByExpression expr : groupBy_)
+        array.object(expr.getExpr());
     }
   }
 

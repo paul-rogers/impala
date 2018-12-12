@@ -71,8 +71,12 @@ public class OrderByElement implements JsonSerializable {
   public final String toSql() { return toSql(DEFAULT); }
 
   public String toSql(ToSqlOptions options) {
+    return toSql(expr_, options);
+  }
+
+  public String toSql(Expr expr, ToSqlOptions options) {
     StringBuilder strBuilder = new StringBuilder();
-    strBuilder.append(expr_.toSql(options));
+    strBuilder.append(expr.toSql(options));
     strBuilder.append(isAsc_ ? " ASC" : " DESC");
     // When ASC and NULLS LAST or DESC and NULLS FIRST, we do not print NULLS FIRST/LAST
     // because it is the default behavior and we want to avoid printing NULLS FIRST/LAST

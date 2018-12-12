@@ -379,8 +379,8 @@ PLAN-ROOT SINK
 select int_col from functional.alltypes
 order by id * abs((factorial(5) / power(2, 4)))
 ---- PLAN
-Analyzed query: SELECT int_col FROM functional.alltypes ORDER BY id * CAST(7.5
-AS DOUBLE) ASC
+Analyzed query: SELECT int_col FROM functional.alltypes ORDER BY CAST(id AS
+DOUBLE) * CAST(7.5 AS DOUBLE) ASC
 F00:PLAN FRAGMENT [UNPARTITIONED] hosts=1 instances=1
 |  Per-Host Resources: mem-estimate=134.00MB mem-reservation=6.03MB thread-reservation=2
 PLAN-ROOT SINK

@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Set;
 
 import org.apache.impala.analysis.AbstractExpression.WhereExpression;
+import org.apache.impala.analysis.AbstractExpression.GroupByClause;
 import org.apache.impala.analysis.AbstractExpression.HavingExpression;
 import org.apache.impala.analysis.Path.PathType;
 import org.apache.impala.analysis.SelectListItem.SelectExpr;
@@ -62,7 +63,7 @@ public class SelectStmt extends QueryStmt {
   protected final List<String> colLabels_; // lower case column labels
   protected final FromClause fromClause_;
   protected WhereExpression whereClause_;
-  protected List<Expr> groupingExprs_;
+  protected GroupByClause groupByClause_;
   protected HavingExpression havingClause_;
 
   // set if we have any kind of aggregation operation, include SELECT DISTINCT
@@ -91,7 +92,7 @@ public class SelectStmt extends QueryStmt {
     selectList_ = selectList;
     fromClause_ = fromClause == null ? new FromClause() : fromClause;
     whereClause_ = WhereExpression.wrap(wherePredicate);
-    groupingExprs_ = groupingExprs;
+    groupByClause_ = GroupByClause.wrap(groupingExprs);
     havingClause_ = HavingExpression.wrap(havingPredicate);
     colLabels_ = Lists.newArrayList();
   }
@@ -111,7 +112,7 @@ public class SelectStmt extends QueryStmt {
 
   public List<TableRef> getTableRefs() { return fromClause_.getTableRefs(); }
   public boolean hasWhereClause() { return whereClause_ != null; }
-  public boolean hasGroupByClause() { return groupingExprs_ != null && !groupingExprs_.isEmpty(); }
+  public boolean hasGroupByClause() { return groupByClause_ != null; }
   public Expr getWhereClause() { return AbstractExpression.unwrap(whereClause_); }
   public void setWhereClause(Expr whereClause) { whereClause_ = WhereExpression.wrap(whereClause); }
   public MultiAggregateInfo getMultiAggInfo() { return multiAggInfo_; }
@@ -611,7 +612,7 @@ public class SelectStmt extends QueryStmt {
 
       // disallow subqueries in the GROUP BY clause
       if (hasGroupByClause()) {
-        for (Expr expr: groupingExprs_) {
+        for (Expr expr: groupByClause_.getGroupingExprs()) {
           if (expr.contains(Predicates.instanceOf(Subquery.class))) {
             throw new AnalysisException(
                 "Subqueries are not supported in the GROUP BY clause.");
@@ -626,7 +627,7 @@ public class SelectStmt extends QueryStmt {
       if (! hasGroupByClause()) return;
       // make a deep copy here, we don't want to modify the original
       // exprs during analysis (in case we need to print them later)
-      groupingExprsCopy_ = Expr.cloneList(groupingExprs_);
+      groupingExprsCopy_ = Expr.cloneList(groupByClause_.getGroupingExprs());
       substituteOrdinalsAndAliases(groupingExprsCopy_, "GROUP BY", analyzer_);
 
       for (int i = 0; i < groupingExprsCopy_.size(); ++i) {
@@ -635,7 +636,7 @@ public class SelectStmt extends QueryStmt {
           // reference the original expr in the error msg
           throw new AnalysisException(
               "GROUP BY expression must not contain aggregate functions: "
-                  + groupingExprs_.get(i).toSql());
+                  + groupingExprsCopy_.get(i).toSql());
         }
         if (groupingExprsCopy_.get(i).contains(AnalyticExpr.class)) {
           // reference the original expr in the error msg
@@ -801,7 +802,7 @@ public class SelectStmt extends QueryStmt {
         throws AnalysisException {
       ExprSubstitutionMap scalarCountAllMap = new ExprSubstitutionMap();
 
-      if (hasGroupByClause() && !groupingExprs_.isEmpty()) {
+      if (hasGroupByClause()) {
         // There are grouping expressions, so no substitution needs to be done.
         return scalarCountAllMap;
       }
@@ -988,10 +989,7 @@ public class SelectStmt extends QueryStmt {
       havingClause_.rewrite(rewriter, analyzer_);
     }
     if (hasGroupByClause()) {
-      for (int i = 0; i < groupingExprs_.size(); ++i) {
-        groupingExprs_.set(i, rewriteCheckOrdinalResult(
-            rewriter, analyzer_, groupingExprs_.get(i)));
-      }
+      groupByClause_.rewrite(rewriter, analyzer_);
     }
     if (orderByElements_ != null) {
       for (OrderByElement orderByElem: orderByElements_) {
@@ -1040,7 +1038,7 @@ public class SelectStmt extends QueryStmt {
       // Unanalyzed case us used to generate SQL such as for views.
       // See ToSqlUtils.getCreateViewSql().
       List<Expr> groupingExprs = multiAggInfo_ == null
-          ? groupingExprs_ : multiAggInfo_.getGroupingExprs();
+          ? groupByClause_.getGroupingExprs() : multiAggInfo_.getGroupingExprs();
       for (int i = 0; i < groupingExprs.size(); ++i) {
         strBuilder.append(groupingExprs.get(i).toSql(options));
         strBuilder.append((i+1 != groupingExprs.size()) ? ", " : "");
@@ -1055,7 +1053,10 @@ public class SelectStmt extends QueryStmt {
     if (orderByElements_ != null) {
       strBuilder.append(" ORDER BY ");
       for (int i = 0; i < orderByElements_.size(); ++i) {
-        strBuilder.append(orderByElements_.get(i).toSql(options));
+        Expr expr = options == ToSqlOptions.DEFAULT
+            ? orderByElements_.get(i).getExpr()
+            : sortInfo_.getSortExprs().get(i);
+        strBuilder.append(orderByElements_.get(i).toSql(expr, options));
         strBuilder.append((i+1 != orderByElements_.size()) ? ", " : "");
       }
     }
@@ -1103,8 +1104,8 @@ public class SelectStmt extends QueryStmt {
     selectList_ = other.selectList_.clone();
     fromClause_ = other.fromClause_.clone();
     whereClause_ = (other.hasWhereClause()) ? other.whereClause_.clone() : null;
-    groupingExprs_ =
-        (other.hasGroupByClause()) ? Expr.cloneList(other.groupingExprs_) : null;
+    groupByClause_ =
+        (other.hasGroupByClause()) ? new GroupByClause(other.groupByClause_) : null;
     havingClause_ = (other.hasHavingClause()) ? other.havingClause_.clone() : null;
     colLabels_ = Lists.newArrayList(other.colLabels_);
     multiAggInfo_ = (other.multiAggInfo_ != null) ? other.multiAggInfo_.clone() : null;
@@ -1158,7 +1159,7 @@ public class SelectStmt extends QueryStmt {
     colLabels_.clear();
     fromClause_.reset();
     if (hasWhereClause()) whereClause_.reset();
-    if (hasGroupByClause()) Expr.resetList(groupingExprs_);
+    if (hasGroupByClause()) groupByClause_.reset();
     if (hasHavingClause()) havingClause_.reset();
     multiAggInfo_ = null;
     analyticInfo_ = null;
@@ -1206,15 +1207,14 @@ public class SelectStmt extends QueryStmt {
   public void serialize(ObjectSerializer os) {
     os.field("statement", "SELECT");
     if (hasWithClause()) withClause_.serialize(os);
-    if (os.options().showSource()) {
+    if (os.options().showSource())
       os.text("source", toSql(ToSqlOptions.DEFAULT));
-    }
     os.field("distinct", selectList_.isDistinct());
     os.objList("from", fromClause_.getTableRefs());
-    if (hasWhereClause()) {
+    if (hasWhereClause())
       os.object("where", whereClause_.getExpr());
-    }
-    os.objList("group_by", groupingExprs_);
+    if (hasGroupByClause())
+      groupByClause_.serialize(os.array("group by"));
     if (hasHavingClause()) {
       os.object("having", havingClause_.getExpr());
     }

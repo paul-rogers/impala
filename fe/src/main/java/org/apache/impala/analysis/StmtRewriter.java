@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import org.apache.impala.analysis.AbstractExpression.GroupByClause;
 import org.apache.impala.analysis.AnalysisContext.AnalysisResult;
 import org.apache.impala.analysis.SelectListItem.SelectWildcard;
 import org.apache.impala.analysis.UnionStmt.UnionOperand;
@@ -813,9 +814,9 @@ public class StmtRewriter {
       // Update subquery's GROUP BY clause
       if (groupByExprs != null && !groupByExprs.isEmpty()) {
         if (stmt.hasGroupByClause()) {
-          stmt.groupingExprs_.addAll(groupByExprs);
+          stmt.groupByClause_.append(groupByExprs);
         } else {
-          stmt.groupingExprs_ = groupByExprs;
+          stmt.groupByClause_ = new GroupByClause(groupByExprs);
         }
       }
     }
