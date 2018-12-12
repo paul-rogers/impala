@@ -179,13 +179,12 @@ public abstract class LiteralExpr extends Expr implements Comparable<LiteralExpr
   /**
    * Evaluates the given constant expr and returns its result as a LiteralExpr.
    * Assumes expr has been analyzed. Returns constExpr if is it already a LiteralExpr.
-   * Returns null for types that do not have a LiteralExpr subclass, e.g. TIMESTAMP, or
+   * Returns null for types that do not have a LiteralExpr subclass, e.g.
    * in cases where the corresponding LiteralExpr is not able to represent the evaluation
    * result, e.g., NaN or infinity. Returns null if the expr evaluation encountered errors
    * or warnings in the BE.
    * TODO: Support non-scalar types.
    */
-  @Deprecated
   public static LiteralExpr create(Expr constExpr, TQueryCtx queryCtx)
       throws AnalysisException {
     Preconditions.checkState(constExpr.isConstant());
@@ -212,123 +211,16 @@ public abstract class LiteralExpr extends Expr implements Comparable<LiteralExpr
         if (val.isSetBool_val()) return new BoolLiteral(val.bool_val);
         break;
       case TINYINT:
-        if (val.isSetByte_val()) return NumericLiteral.create(val.byte_val);
-        break;
-      case SMALLINT:
-        if (val.isSetShort_val()) return NumericLiteral.create(val.short_val);
-        break;
-      case INT:
-        if (val.isSetInt_val()) return NumericLiteral.create(val.int_val);
-        break;
-      case BIGINT:
-        if (val.isSetLong_val()) return NumericLiteral.create(val.long_val);
-        break;
-      case FLOAT:
-      case DOUBLE:
-        if (val.isSetDouble_val()) {
-          // Create using double directly, at extreme ranges the BigDecimal
-          // value overflows a double due to conversion issues.
-          // A NumericLiteral cannot represent NaN, infinity or negative zero.
-          // SqlCastException thrown for these cases.
-          try {
-            return new NumericLiteral(val.double_val, type);
-          } catch (SqlCastException e) {
-            return null;
-          }
-        }
-        break;
-      case DECIMAL:
-        if (val.isSetString_val()) {
-          return new NumericLiteral(val.string_val, type);
-        }
-        break;
-      case STRING:
-      case VARCHAR:
-      case CHAR:
-        if (val.isSetBinary_val()) {
-          byte[] bytes = new byte[val.binary_val.remaining()];
-          val.binary_val.get(bytes);
-          // Converting strings between the BE/FE does not work properly for the
-          // extended ASCII characters above 127. Bail in such cases to avoid
-          // producing incorrect results.
-          for (byte b: bytes) if (b < 0) return null;
-          try {
-            // US-ASCII is 7-bit ASCII.
-            String strVal = new String(bytes, "US-ASCII");
-            // The evaluation result is a raw string that must not be unescaped.
-            return new StringLiteral(strVal, type, false);
-          } catch (UnsupportedEncodingException e) {
-            return null;
-          }
-        }
-        break;
-      case TIMESTAMP:
-        // Expects both the binary and string fields to be set, so we get the raw
-        // representation as well as the string representation.
-        if (val.isSetBinary_val() && val.isSetString_val()) {
-          return new TimestampLiteral(val.getBinary_val(), val.getString_val());
-        }
-        break;
-      //case DATE:
-      //case DATETIME:
-      //  return null;
-      default:
-        throw new UnsupportedFeatureException(
-            String.format("Literals of type '%s' not supported.",
-                type.toSql()));
-    }
-    // None of the fields in the thrift struct were set indicating a NULL.
-    return new NullLiteral(type);
-  }
-
-  /**
-   * Evaluates the given constant expr and returns its result as a LiteralExpr.
-   * Assumes expr has been analyzed. Returns constExpr if is it already a LiteralExpr.
-   * Returns null for types that do not have a LiteralExpr subclass, e.g. TIMESTAMP, or
-   * in cases where the corresponding LiteralExpr is not able to represent the evaluation
-   * result, e.g., NaN or infinity. Returns null if the expr evaluation encountered errors
-   * or warnings in the BE.
-   * TODO: Support non-scalar types.
-   */
-  public static LiteralExpr eval(Expr constExpr, TQueryCtx queryCtx)
-      throws AnalysisException {
-    Preconditions.checkState(constExpr.isConstant());
-    Preconditions.checkState(constExpr.getType().isValid());
-    if (constExpr instanceof LiteralExpr) return (LiteralExpr) constExpr;
-
-    return naturalValueOf(rawEval(constExpr, queryCtx), constExpr.getType());
-  }
-
-  private static TColumnValue rawEval(Expr constExpr, TQueryCtx queryCtx) {
-    try {
-      return FeSupport.EvalExprWithoutRow(constExpr, queryCtx);
-    } catch (InternalException e) {
-      LOG.error(String.format("Failed to evaluate expr '%s': %s",
-          constExpr.toSql(), e.getMessage()));
-      return null;
-    }
-  }
-
-  public static LiteralExpr naturalValueOf(TColumnValue val, Type type)
-      throws AnalysisException {
-    if (val == null) return null;
-    switch (type.getPrimitiveType()) {
-      case NULL_TYPE:
-        return new NullLiteral();
-      case BOOLEAN:
-        if (val.isSetBool_val()) return new BoolLiteral(val.bool_val);
-        break;
-      case TINYINT:
       case SMALLINT:
       case INT:
       case BIGINT:
         // Use the natural type of the value, not the type computed for the
         // expression itself. This keeps 1 + 1 + 1 as a TINYINT, not an INT.
-        if (val.isSetByte_val()) return NumericLiteral.create(val.byte_val);
-        if (val.isSetShort_val()) return NumericLiteral.create(val.short_val);
-        if (val.isSetInt_val()) return NumericLiteral.create(val.int_val);
-        if (val.isSetLong_val()) return NumericLiteral.create(val.long_val);
-        if (val.isSetLong_val()) return NumericLiteral.create(val.long_val);
+        if (val.isSetByte_val()) return NumericLiteral.create(val.byte_val, type);
+        if (val.isSetShort_val()) return NumericLiteral.create(val.short_val, type);
+        if (val.isSetInt_val()) return NumericLiteral.create(val.int_val, type);
+        if (val.isSetLong_val()) return NumericLiteral.create(val.long_val, type);
+        if (val.isSetLong_val()) return NumericLiteral.create(val.long_val, type);
         break;
       case FLOAT:
       case DOUBLE:
@@ -386,35 +278,6 @@ public abstract class LiteralExpr extends Expr implements Comparable<LiteralExpr
     }
     // None of the fields in the thrift struct were set indicating a NULL.
     return new NullLiteral(type);
-  }
-
-  /**
-   * Perform a "static" (no analyzer) conversion of a literal from one type
-   * to another. The resulting literal is of the given type, even if the
-   * "natural" type might be smaller.
-   */
-  public static LiteralExpr evalCast(Expr expr, Type type,
-      TQueryCtx queryCtx) throws AnalysisException {
-    if (expr instanceof LiteralExpr && expr.getType().equals(type))
-      return (LiteralExpr) expr;
-    TColumnValue val = rawEval(expr, queryCtx);
-    switch (type.getPrimitiveType()) {
-    case TINYINT:
-    case SMALLINT:
-    case INT:
-    case BIGINT:
-      // Use the natural type of the value, not the type computed for the
-      // expression itself. This keeps 1 + 1 + 1 as a TINYINT, not an INT.
-      if (val.isSetByte_val()) return NumericLiteral.create(val.byte_val, type);
-      if (val.isSetShort_val()) return NumericLiteral.create(val.short_val, type);
-      if (val.isSetInt_val()) return NumericLiteral.create(val.int_val, type);
-      if (val.isSetLong_val()) return NumericLiteral.create(val.long_val, type);
-      if (val.isSetLong_val()) return NumericLiteral.create(val.long_val, type);
-      break;
-    default:
-      break;
-    }
-    return naturalValueOf(val, type);
   }
 
   // Order NullLiterals based on the SQL ORDER BY default behavior: NULLS LAST.

@@ -38,7 +38,7 @@ public class AstPrinter {
   public static final int NODE_DEPTH = 3;
   public static final int TREE_DEPTH = 20;
 
-  private static ParseNode lastNode;
+  private static Object lastNode;
 
   /**
    * Print a subtree to a depth of three. Use this form for easy
@@ -59,28 +59,27 @@ public class AstPrinter {
    * @param node the root node of the subtree to print
    */
   public static void print(ParseNode node) {
-    // Don't print the same node twice. Works around the
-    // awkward double-eval when enabling and disabling expressions
-    // in Eclipse. Use printNode directly if you do want to display
-    // the same node multiple times.
-    if (node == lastNode) return;
     printTree(node, 3);
-    lastNode = node;
   }
 
   /**
    * Print an entire (sub-)tree to its entire depth.
    * @param node
    */
-  public static void printNode(ParseNode node) {
+  public static void printNode(Object node) {
     printTree(node, NODE_DEPTH);
   }
 
-  public static void printTree(ParseNode node) {
+  public static void printTree(Object node) {
     printTree(node, TREE_DEPTH);
   }
 
-  public static void printTree(ParseNode node, int maxDepth) {
+  public static void printTree(Object node, int maxDepth) {
+    // Don't print the same node twice. Works around the
+    // awkward double-eval when enabling and disabling expressions
+    // in Eclipse. Use printNode directly if you do want to display
+    // the same node multiple times.
+    if (node == lastNode) return;
     Visualizer vis = new Visualizer(
         new TreePrinter(new PrintWriter(
             new OutputStreamWriter(System.out),
@@ -93,5 +92,6 @@ public class AstPrinter {
     vis.scalar(ScalarFunction.class);
     vis.depthLimit(maxDepth);
     vis.visualize(node);
+    lastNode = node;
   }
 }

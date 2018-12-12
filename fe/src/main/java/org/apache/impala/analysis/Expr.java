@@ -682,8 +682,8 @@ abstract public class Expr extends TreeNode<Expr> implements ParseNode, Cloneabl
         this instanceof BinaryPredicate);
     // This heuristic conversion is not part of DECIMAL_V2.
     if (analyzer.getQueryOptions().isDecimal_v2()) return;
-    if (children_.size() == 1) return; // Do not attempt to convert for unary ops
-    Preconditions.checkState(children_.size() == 2);
+    if (getChildCount() == 1) return; // Do not attempt to convert for unary ops
+    Preconditions.checkState(getChildCount() == 2);
     Type t0 = getChild(0).getType();
     Type t1 = getChild(1).getType();
     boolean c0IsConstantDecimal = getChild(0).isConstant() && t0.isDecimal();

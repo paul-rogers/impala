@@ -1859,11 +1859,6 @@ public class AnalyzeExprsTest extends AnalyzerTest {
   }
 
   @Test
-  public void adHoc( ) {
-    AnalyzesOk("select extract(year from now())");
-  }
-
-  @Test
   public void TestVarArgFunctions() throws AnalysisException {
     AnalyzesOk("select concat('a')");
     AnalyzesOk("select concat('a', 'b')");
@@ -2358,7 +2353,7 @@ public class AnalyzeExprsTest extends AnalyzerTest {
     testDecimalExpr(expr, expectedType, expectedType);
   }
 
-  // Verify that mod and % returns the same type when it's DECIMAL V2 mdoe.
+  // Verify that mod and % returns the same type when it's DECIMAL V2 mode.
   // See IMPALA-6202.
   @Test
   public void TestModReturnType() {
@@ -2453,25 +2448,27 @@ public class AnalyzeExprsTest extends AnalyzerTest {
 
     // Operators between decimal and numeric types should be supported. The int
     // should be cast to the appropriate decimal (e.g. tinyint -> decimal(3,0)).
+    // For V1, the implementation prefers a DOUBLE type
+    // See Expr.convertNumericLiteralsFromDecimal()
     testDecimalExpr(decimal_10_0 + " + cast(1 as tinyint)",
-        ScalarType.createDecimalType(11, 0));
+        Type.DOUBLE, ScalarType.createDecimalType(11, 0));
     testDecimalExpr(decimal_10_0 + " + cast(1 as smallint)",
-        ScalarType.createDecimalType(11, 0));
+        Type.DOUBLE, ScalarType.createDecimalType(11, 0));
     testDecimalExpr(decimal_10_0 + " + cast(1 as int)",
-        ScalarType.createDecimalType(11, 0));
+        Type.DOUBLE, ScalarType.createDecimalType(11, 0));
     testDecimalExpr(decimal_10_0 + " + cast(1 as bigint)",
-        ScalarType.createDecimalType(20, 0));
+        Type.DOUBLE, ScalarType.createDecimalType(11, 0));
     testDecimalExpr(decimal_10_0 + " + cast(1 as float)",
-        ScalarType.createDecimalType(38, 9), ScalarType.createDecimalType(38, 8));
+        Type.DOUBLE, ScalarType.createDecimalType(38, 8));
     testDecimalExpr(decimal_10_0 + " + cast(1 as double)",
-        ScalarType.createDecimalType(38, 17), ScalarType.createDecimalType(38, 16));
+        Type.DOUBLE, ScalarType.createDecimalType(38, 16));
 
     testDecimalExpr(decimal_5_5 + " + cast(1 as tinyint)",
         ScalarType.createDecimalType(9, 5));
     testDecimalExpr(decimal_5_5 + " - cast(1 as smallint)",
-        ScalarType.createDecimalType(11, 5));
+        ScalarType.createDecimalType(9, 5));
     testDecimalExpr(decimal_5_5 + " * cast(1 as int)",
-        ScalarType.createDecimalType(15, 5), ScalarType.createDecimalType(16, 5));
+        ScalarType.createDecimalType(8, 5), ScalarType.createDecimalType(9, 5));
     testDecimalExpr(decimal_5_5 + " % cast(1 as bigint)",
         ScalarType.createDecimalType(5, 5));
     testDecimalExpr(decimal_5_5 + " / cast(1 as float)",

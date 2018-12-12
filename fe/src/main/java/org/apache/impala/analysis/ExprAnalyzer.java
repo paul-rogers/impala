@@ -190,21 +190,21 @@ public class ExprAnalyzer {
     // cast-to-types and that can lead to query failures, e.g., CTAS
     // Testing change:
     // Convert CAST(NULL AS <type>) to a null literal of the given type
-    Expr result;
     if (expr instanceof CastExpr) {
       CastExpr castExpr = (CastExpr) expr;
       if (Expr.IS_NULL_LITERAL.apply(castExpr.getChild(0))) {
         // Trying using a typed null literal
         return new NullLiteral(castExpr.getType());
       }
-      else {
-        // Cast, eval to the given type
-        result = LiteralExpr.evalCast(expr, expr.getType(), analyzer_.getQueryCtx());
-      }
-    } else {
-      // No cast, eval to the natural type
-      result = LiteralExpr.eval(expr, analyzer_.getQueryCtx());
     }
+
+    // Must preserve the expression's type. Examples:
+    // CAST(1 AS INT) --> must be of type INT (natural type is TINYINT)
+    // CAST(1 AS INT) + CAST(2 AS SMALLINT) --> BIGINT (normal INT
+    //     addition result type
+    // CAST(1 AS TINYINT) + CAST(1 AS TINYINT) --> SMALLINT
+    // 1 + 1 is the same as above, but with natural types
+    Expr result = LiteralExpr.create(expr, analyzer_.getQueryCtx());
     return result == null ? expr : result;
   }
 

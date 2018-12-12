@@ -19,7 +19,6 @@ package org.apache.impala.analysis;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -27,10 +26,8 @@ import org.apache.hbase.thirdparty.com.google.common.collect.Sets;
 import org.apache.impala.analysis.StmtMetadataLoader.StmtTableCache;
 import org.apache.impala.catalog.ScalarType;
 import org.apache.impala.catalog.Type;
-import org.apache.impala.common.AnalysisException;
 import org.apache.impala.common.FrontendTestBase;
 import org.apache.impala.common.ImpalaException;
-import org.apache.impala.common.InternalException;
 import org.junit.Test;
 
 import com.google.common.collect.Lists;
@@ -180,6 +177,7 @@ public class LiteralExprTest extends FrontendTestBase {
     return analyzer;
   }
 
+
   private LiteralExpr eval(String exprSql) throws ImpalaException {
     Analyzer analyzer = prepareAnalyzer();
 
@@ -188,58 +186,48 @@ public class LiteralExprTest extends FrontendTestBase {
     assertFalse(expr instanceof LiteralExpr);
     analyzer.analyzeSafe(expr);
 
-    return LiteralExpr.eval(expr, analyzer.getQueryCtx());
+    return LiteralExpr.create(expr, analyzer.getQueryCtx());
   }
 
-  /**
-   * Eval resolves to the natural type
-   *
-   * @throws ImpalaException
-   */
+  private void verifyEval(Type type, String exprSql) throws ImpalaException {
+    assertEquals(type, eval(exprSql).getType());
+  }
+
   @Test
   public void testEval() throws ImpalaException {
-    Expr expr = eval("1 + 1");
-    assertEquals(Type.TINYINT, expr.getType());
-    expr = eval("1 + 256");
-    assertEquals(Type.SMALLINT, expr.getType());
-    expr = eval("CAST('2015-11-15' AS TIMESTAMP)");
-    assertEquals(Type.TIMESTAMP, expr.getType());
-    expr = eval("CAST('2016-11-20 00:00:00' AS TIMESTAMP)");
-    assertEquals(Type.TIMESTAMP, expr.getType());
-    expr = eval("CAST('2015-11-15' AS TIMESTAMP) + INTERVAL 1 year");
-    assertEquals(Type.TIMESTAMP, expr.getType());
-    expr = eval("2 > 1");
-    assertEquals(Type.BOOLEAN, expr.getType());
-    expr = eval("concat('a', 'b')");
-    assertEquals(Type.STRING, expr.getType());
-  }
+    verifyEval(Type.SMALLINT, "1 + 1");
+    verifyEval(Type.INT, "1 + 256");
+    verifyEval(Type.INT, "CAST(1 AS INT)");
+    verifyEval(Type.TIMESTAMP, "CAST('2015-11-15' AS TIMESTAMP)");
+    verifyEval(Type.TIMESTAMP, "CAST('2016-11-20 00:00:00' AS TIMESTAMP)");
+    verifyEval(Type.TIMESTAMP, "CAST('2015-11-15' AS TIMESTAMP) + INTERVAL 1 year");
+    verifyEval(Type.BOOLEAN, "2 > 1");
+    verifyEval(Type.STRING, "concat('a', 'b')");
 
-  private LiteralExpr evalCast(String exprSql) throws ImpalaException {
-    Analyzer analyzer = prepareAnalyzer();
+    // Boolean can be cast to multiple types
+    {
+      LiteralExpr expr = eval("cast(true as tinyint)");
+      assertEquals(Type.TINYINT, expr.getType());
+      assertEquals(1, ((NumericLiteral) expr).getIntValue());
+    }
+    {
+      LiteralExpr expr = eval("cast(true as int)");
+      assertEquals(Type.INT, expr.getType());
+      assertEquals(1, ((NumericLiteral) expr).getIntValue());
+    }
+    {
+      LiteralExpr expr = eval("cast(true as string)");
+      assertEquals(ScalarType.STRING, expr.getType());
+      assertEquals("1", ((StringLiteral) expr).getUnescapedValue());
+    }
+    // Cast of BOOLEAN to DECIMAL not supported
 
-    String stmtSql = "select " + exprSql + " from functional.alltypes";
-    Expr expr = ((SelectStmt) ParsesOk(stmtSql)).getSelectList().getItems().get(0).getExpr();
-    assertFalse(expr instanceof LiteralExpr);
-    analyzer.analyzeSafe(expr);
-
-    return LiteralExpr.evalCast(expr, expr.getType(), analyzer.getQueryCtx());
-  }
-
-  @Test
-  public void testEvalCast() throws ImpalaException {
-    Expr expr = evalCast("1 + 1");
-    assertEquals(Type.SMALLINT, expr.getType());
-    expr = evalCast("1 + 256");
-    assertEquals(Type.INT, expr.getType());
-    expr = evalCast("CAST('2015-11-15' AS TIMESTAMP)");
-    assertEquals(Type.TIMESTAMP, expr.getType());
-    expr = eval("CAST('2016-11-20 00:00:00' AS TIMESTAMP)");
-    assertEquals(Type.TIMESTAMP, expr.getType());
-    expr = evalCast("CAST('2015-11-15' AS TIMESTAMP) + INTERVAL 1 year");
-    assertEquals(Type.TIMESTAMP, expr.getType());
-    expr = evalCast("2 > 1");
-    assertEquals(Type.BOOLEAN, expr.getType());
-    expr = evalCast("concat('a', 'b')");
-    assertEquals(Type.STRING, expr.getType());
+    // BE will wrap invalid integers. More of a bug than a feature,
+    // but is related to how C++ does math.
+    {
+      LiteralExpr expr = eval("cast(257 as tinyint)");
+      assertEquals(Type.TINYINT, expr.getType());
+      assertEquals(1, ((NumericLiteral) expr).getIntValue());
+    }
   }
 }
