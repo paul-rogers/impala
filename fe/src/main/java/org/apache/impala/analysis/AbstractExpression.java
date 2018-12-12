@@ -32,7 +32,7 @@ import org.apache.impala.rewrite.ExprRewriter;
 // TODO: Move substitute here
 // TODO: Move checkReturnsBool here
 public abstract class AbstractExpression {
-  protected String source_;
+  protected String sourceSql_;
 
   public static class WhereExpression extends AbstractExpression {
     protected Expr expr_;
@@ -49,7 +49,6 @@ public abstract class AbstractExpression {
       return expr == null ? null : new WhereExpression(expr);
     }
 
-    @Override
     public void analyze(Analyzer analyzer) throws AnalysisException {
       saveSource(expr_);
       expr_ = analyzer.analyzeAndRewrite(expr_);
@@ -116,11 +115,10 @@ public abstract class AbstractExpression {
       return new HavingExpression(this);
     }
 
-    @Override
-    public void analyze(Analyzer analyzer) throws AnalysisException {
-      saveSource(preExpansion_);
-      expr_ = analyzer.analyzeAndRewrite(preExpansion_);
-    }
+//    public void analyze(Analyzer analyzer) throws AnalysisException {
+//      saveSource(preExpansion_);
+//      expr_ = analyzer.analyzeAndRewrite(preExpansion_);
+//    }
 
     public void reset() {
       preExpansion_.reset();
@@ -153,22 +151,20 @@ public abstract class AbstractExpression {
 
   public void saveSource(Expr source) throws AnalysisException {
     // If this is the second analysis pass, keep the existing source
-    if (source_ != null) return;
+    if (sourceSql_ != null) return;
     // For very deep expressions, the call stack for toSql can blow
     // up: toSql() uses about 2-3 calls per level. In this case,
     // we flag the depth limit exception here, before we even get to
     // the formal check during analysis.
     try {
-      source_ = source.toSql(ToSqlOptions.DEFAULT);
+      sourceSql_ = source.toSql(ToSqlOptions.DEFAULT);
     } catch (StackOverflowError e) {
       throw new AnalysisException(String.format("Exceeded the maximum depth of an " +
           "expression tree: %d", Expr.EXPR_DEPTH_LIMIT));
     }
   }
 
-  public abstract void analyze(Analyzer analyzer) throws AnalysisException;
-
-  public String getSourceExpr() { return source_; }
+  public String getSourceExpr() { return sourceSql_; }
   public abstract Expr getExpr();
 
   public static Expr unwrap(AbstractExpression expression) {
@@ -178,8 +174,8 @@ public abstract class AbstractExpression {
   public String toSql(ToSqlOptions options) {
     // Enclose aliases in quotes if Hive cannot parse them without quotes.
     // This is needed for view compatibility between Impala and Hive.
-    return options == ToSqlOptions.DEFAULT && source_ != null
-        ? source_ : getExpr().toSql(options);
+    return options == ToSqlOptions.DEFAULT && sourceSql_ != null
+        ? sourceSql_ : getExpr().toSql(options);
   }
 
   @Override

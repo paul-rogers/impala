@@ -56,10 +56,9 @@ public interface SelectListItem {
     @Override
     public boolean isStar() { return false; }
 
-    @Override
     public final void analyze(Analyzer analyzer) throws AnalysisException {
       // Called both for "pristine" items created by the parser, and for "synthetic"
-      // items for rewriten SELECT statements in the analyzer. Only worth keeping a
+      // items for rewritten SELECT statements in the analyzer. Only worth keeping a
       // source copy for unanalyzed, "pristine" expressions.
       if (!expr_.isAnalyzed()) saveSource(expr_);
       expr_ = analyzer.analyzeAndRewrite(expr_);
@@ -80,8 +79,8 @@ public interface SelectListItem {
       // Enclose aliases in quotes if Hive cannot parse them without quotes.
       // This is needed for view compatibility between Impala and Hive.
       StringBuilder buf = new StringBuilder();
-      buf.append(options == ToSqlOptions.DEFAULT && source_ != null
-          ? source_ : expr_.toSql(options));
+      buf.append(options == ToSqlOptions.DEFAULT && sourceSql_ != null
+          ? sourceSql_ : expr_.toSql(options));
       if (alias_ != null) {
         buf.append(" ").append(ToSqlUtils.getIdentSql(alias_));
       }

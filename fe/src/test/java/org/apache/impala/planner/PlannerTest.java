@@ -227,11 +227,6 @@ public class PlannerTest extends PlannerTestBase {
   }
 
   @Test
-  public void adHoc() {
-    runPlannerTestFile("ad-hoc");
-  }
-
-  @Test
   public void testUnion() {
     runPlannerTestFile("union");
   }
