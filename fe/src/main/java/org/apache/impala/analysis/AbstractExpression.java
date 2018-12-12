@@ -174,17 +174,17 @@ public abstract class AbstractExpression {
       }
       expr_ = stmt.resolveReferenceExpr(original_,
           "GROUP BY", analyzer, true);
+      // Show the rewritten expression in error message since substitution
+      // may have resulted in an illegal expression.
       if (expr_.contains(Expr.isAggregatePredicate())) {
-        // reference the original expr in the error msg
         throw new AnalysisException(
             "GROUP BY expression must not contain aggregate functions: "
-                + sourceSql_);
+                + expr_.toSql());
       }
       if (expr_.contains(AnalyticExpr.class)) {
-        // reference the original expr in the error msg
         throw new AnalysisException(
             "GROUP BY expression must not contain analytic expressions: "
-                + sourceSql_);
+                + expr_.toSql());
       }
     }
 

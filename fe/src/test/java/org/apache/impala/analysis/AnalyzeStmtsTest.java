@@ -991,10 +991,10 @@ public class AnalyzeStmtsTest extends AnalyzerTest {
         "Could not resolve column/field reference: 'x'");
     // Alias referring to aggregation output in GROUP BY
     AnalysisError("select count(*) a from functional.alltypes group by a",
-        "GROUP BY expression must not contain aggregate functions: a");
+        "GROUP BY expression must not contain aggregate functions: count(*)");
     // Alias referring to predicate in GROUP BY
     AnalysisError("select count(*) > 10 a from functional.alltypes group by a",
-        "GROUP BY expression must not contain aggregate functions: a");
+        "GROUP BY expression must not contain aggregate functions: count(*)");
     // Alias referring to analytic output in GROUP BY
     AnalysisError("select sum(id) over(order by id) a " +
         "from functional.alltypes group by a",
@@ -1017,10 +1017,10 @@ public class AnalyzeStmtsTest extends AnalyzerTest {
     AnalyzesOk("select int_col / 2 as x from functional.alltypes group by 1");
     // Ordinal referring to aggregation output in GROUP BY
     AnalysisError("select count(*) from functional.alltypes group by 1",
-        "GROUP BY expression must not contain aggregate functions: 1");
+        "GROUP BY expression must not contain aggregate functions: count(*)");
     // Ordinal referring to predicate in GROUP BY
     AnalysisError("select count(*) > 10 from functional.alltypes group by 1",
-        "GROUP BY expression must not contain aggregate functions: 1");
+        "GROUP BY expression must not contain aggregate functions: count(*)");
     // Ordinal referring to analytic output in GROUP BY
     AnalysisError("select sum(id) over(order by id) " +
         "from functional.alltypes group by 1",

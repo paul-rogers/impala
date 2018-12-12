@@ -1310,20 +1310,43 @@ having 1024 * 1024 * count(*) % 2 = 0
       object_id: 2,
       class: "BinaryPredicate",
       op: "=",
+      type: "BOOLEAN",
+      ndv: 3,
+      selectivity: 1.36986301369863E-4,
+      cost: 10.0,
+      fn: "_impala_builtins.eq",
       children: [
         {
           object_id: 3,
           class: "SlotRef",
+          type: "TIMESTAMP",
+          ndv: 7300,
+          cost: 1.0,
           path: "timestamp_col",
-          label: "timestamp_col"
+          label: "timestamp_col",
+          descriptor: {
+            table_id: 0,
+            slot_id: 1,
+            path: "functional.alltypes.timestamp_col"
+          }
         },
         {
           object_id: 4,
           class: "TimestampArithmeticExpr",
+          type: "TIMESTAMP",
+          ndv: 1,
+          cost: 8.0,
+          constant: true,
+          fn: "_impala_builtins.years_add",
           children: [
             {
               object_id: 5,
               class: "CastExpr",
+              type: "TIMESTAMP",
+              ndv: 1,
+              cost: 2.0,
+              constant: true,
+              fn: "_impala_builtins.casttotimestamp",
               children: [
                 {
                   object_id: 6,
@@ -1340,7 +1363,7 @@ having 1024 * 1024 * count(*) % 2 = 0
               object_id: 7,
               class: "NumericLiteral",
               value: 1,
-              type: "TINYINT",
+              type: "INT",
               ndv: 1,
               cost: 1.0,
               constant: true

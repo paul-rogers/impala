@@ -1178,7 +1178,7 @@ public class SelectStmt extends QueryStmt {
     if (hasWhereClause())
       os.object("where", whereClause_.getExpr());
     if (hasGroupByClause())
-      groupByClause_.serialize(os.array("group by"));
+      groupByClause_.serialize(os.array("group_by"));
     if (hasHavingClause()) {
       os.object("having", havingClause_.getExpr());
     }
