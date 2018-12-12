@@ -115,7 +115,9 @@ public class ExprAnalyzer {
   }
 
   /**
-   * Perform semantic analysis of a node and all of its children.
+   * Perform semantic analysis of a node and all of its children. A node that
+   * is marked analyzed may still need to be rewritten (in particular, an
+   * explicit cast of a literal.)
    *
    * throws AnalysisException if any errors found.
    * @see ParseNode#analyze(Analyzer)
