@@ -167,10 +167,27 @@ public abstract class AbstractExpression {
 
     public void analyze(SelectStmt stmt, Analyzer analyzer) throws AnalysisException {
       saveSource(original_);
+      // disallow subqueries in the GROUP BY clause
+      if (original_.contains(Predicates.instanceOf(Subquery.class))) {
+        throw new AnalysisException(
+            "Subqueries are not supported in the GROUP BY clause.");
+      }
       expr_ = stmt.resolveReferenceExpr(original_,
           "GROUP BY", analyzer, true);
+      if (expr_.contains(Expr.isAggregatePredicate())) {
+        // reference the original expr in the error msg
+        throw new AnalysisException(
+            "GROUP BY expression must not contain aggregate functions: "
+                + sourceSql_);
+      }
+      if (expr_.contains(AnalyticExpr.class)) {
+        // reference the original expr in the error msg
+        throw new AnalysisException(
+            "GROUP BY expression must not contain analytic expressions: "
+                + sourceSql_);
+      }
     }
-    
+
     @Override
     public Expr getExpr() { return expr_; }
 
@@ -223,13 +240,6 @@ public abstract class AbstractExpression {
     public void analyze(SelectStmt stmt, Analyzer analyzer) throws AnalysisException {
       for (GroupByExpression expr : groupBy_)
         expr.analyze(stmt, analyzer);
-    }
-
-    public List<Expr> getGroupingExprs() {
-      List<Expr> exprs = new ArrayList<>();
-      for (GroupByExpression expr : groupBy_)
-        exprs.add(expr.original_);
-      return exprs;
     }
 
     public List<Expr> getExprs() {

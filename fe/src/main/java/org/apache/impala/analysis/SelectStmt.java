@@ -167,7 +167,6 @@ public class SelectStmt extends QueryStmt {
   private class SelectAnalyzer {
 
     private final Analyzer analyzer_;
-    private List<Expr> groupingExprsCopy_;
     private List<FunctionCallExpr> aggExprs_;
     private ExprSubstitutionMap ndvSmap_;
     private ExprSubstitutionMap countAllMap_;
@@ -609,42 +608,12 @@ public class SelectStmt extends QueryStmt {
           }
         }
       }
-
-      // disallow subqueries in the GROUP BY clause
-      if (hasGroupByClause()) {
-        for (Expr expr: groupByClause_.getGroupingExprs()) {
-          if (expr.contains(Predicates.instanceOf(Subquery.class))) {
-            throw new AnalysisException(
-                "Subqueries are not supported in the GROUP BY clause.");
-          }
-        }
-      }
     }
 
     private void analyzeGroupingExprs() throws AnalysisException {
       // analyze grouping exprs
-      if (! hasGroupByClause()) {
-        groupingExprsCopy_ = Lists.newArrayList();
-        return;
-      }
+      if (! hasGroupByClause()) return;
       groupByClause_.analyze(SelectStmt.this, analyzer_);
-      groupingExprsCopy_ = groupByClause_.getExprs();
-
-      for (int i = 0; i < groupingExprsCopy_.size(); ++i) {
-        groupingExprsCopy_.get(i).analyze(analyzer_);
-        if (groupingExprsCopy_.get(i).contains(Expr.isAggregatePredicate())) {
-          // reference the original expr in the error msg
-          throw new AnalysisException(
-              "GROUP BY expression must not contain aggregate functions: "
-                  + groupingExprsCopy_.get(i).toSql());
-        }
-        if (groupingExprsCopy_.get(i).contains(AnalyticExpr.class)) {
-          // reference the original expr in the error msg
-          throw new AnalysisException(
-              "GROUP BY expression must not contain analytic expressions: "
-                  + groupingExprsCopy_.get(i).toSql());
-        }
-      }
     }
 
     private void collectAggExprs() {
@@ -708,14 +677,18 @@ public class SelectStmt extends QueryStmt {
       aggExprs_.clear();
       TreeNode.collect(substitutedAggs, Expr.isAggregatePredicate(), aggExprs_);
 
-      List<Expr> groupingExprs = groupingExprsCopy_;
+      List<Expr> groupingExprs;
       if (selectList_.isDistinct()) {
         // Create multiAggInfo for SELECT DISTINCT:
         // - all select list items turn into grouping exprs
         // - there are no aggregate exprs
-        Preconditions.checkState(groupingExprsCopy_.isEmpty());
+        Preconditions.checkState(!hasGroupByClause());
         Preconditions.checkState(aggExprs_.isEmpty());
         groupingExprs = Expr.cloneList(resultExprs_);
+      } else if (hasGroupByClause()){
+        groupingExprs = groupByClause_.getExprs();
+      } else {
+        groupingExprs = new ArrayList<>();
       }
       Expr.removeDuplicates(aggExprs_);
       Expr.removeDuplicates(groupingExprs);
@@ -1033,16 +1006,7 @@ public class SelectStmt extends QueryStmt {
     }
     // Group By clause
     if (hasGroupByClause()) {
-      strBuilder.append(" GROUP BY ");
-      // Handle both analyzed (multiAggInfo_ != null) and unanalyzed cases.
-      // Unanalyzed case us used to generate SQL such as for views.
-      // See ToSqlUtils.getCreateViewSql().
-      List<Expr> groupingExprs = multiAggInfo_ == null
-          ? groupByClause_.getGroupingExprs() : multiAggInfo_.getGroupingExprs();
-      for (int i = 0; i < groupingExprs.size(); ++i) {
-        strBuilder.append(groupingExprs.get(i).toSql(options));
-        strBuilder.append((i+1 != groupingExprs.size()) ? ", " : "");
-      }
+      strBuilder.append(groupByClause_.toSql(options));
     }
     // Having clause
     if (hasHavingClause()) {
