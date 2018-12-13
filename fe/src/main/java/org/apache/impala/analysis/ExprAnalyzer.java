@@ -123,11 +123,15 @@ public class ExprAnalyzer {
    * @see ParseNode#analyze(Analyzer)
    */
   public Expr analyze(Expr expr) throws AnalysisException {
+    return analyze(expr, false);
+  }
+
+  public Expr analyze(Expr expr, boolean preserveType) throws AnalysisException {
     // Always to at least the constant folding check.
     if (expr.isAnalyzed()) {
-      return foldConstants(expr);
+      return foldConstants(expr, preserveType);
     }
-    // Check the expr depth limit. Do not print the toSql() to not overflow the stack.
+    // Check the expr depth limit. Do not print the toSql() avoid stack overflow.
     analyzer_.incrementCallDepth();
     if (analyzer_.getCallDepth() > Expr.EXPR_DEPTH_LIMIT) {
       throw new AnalysisException(String.format("Exceeded the maximum depth of an " +
@@ -147,14 +151,29 @@ public class ExprAnalyzer {
     for (;;) {
       // Analyze
       for (int i = 0; i < expr.getChildCount(); i++) {
-        expr.setChild(i, analyze(expr.getChild(i)));
+        expr.setChild(i, analyze(expr.getChild(i), preserveType));
       }
       expr.analyzeNode(analyzer_);
 
-      // Analysis can revise children
-      // TODO: optimize by returning true/false from above
+      // Analysis can revise children, which may constant-fold those children. First,
+      // determine if this expression must preserve type which is true if either the
+      // parent or any child wants to preserve type. Then, analyze the child with the
+      // resulting type preservation decision.
+      //
+      // 2 + 3 --> 5:TINYINT
+      // tinyint_col + 4 --> SMALLINT
+      //
+      // For pure-literal expressions, use the natural type of the result.
+      // Pure-literal expression are those without explicit casts. Due to prior
+      // folding events, we only need to check one level of children.
+      if (!preserveType) {
+        for (int i = 0; i < expr.getChildCount(); i++) {
+          preserveType = expr.getChild(i).hasExplicitType();
+          if (preserveType) break;
+        }
+      }
       for (int i = 0; i < expr.getChildCount(); i++) {
-        expr.setChild(i, analyze(expr.getChild(i)));
+        expr.setChild(i, analyze(expr.getChild(i), preserveType));
       }
 
       // Rewrite
@@ -168,7 +187,7 @@ public class ExprAnalyzer {
     expr.computeCost();
     expr.analysisDone();
     // Fold constants last; requires the node be marked as analyzed.
-    return foldConstants(expr);
+    return foldConstants(expr, preserveType);
   }
 
   /**
@@ -179,14 +198,18 @@ public class ExprAnalyzer {
    * 1 + 1 + 1 --> 3
    * toupper('abc') --> 'ABC'
    * cast('2016-11-09' as timestamp) --> TIMESTAMP '2016-11-09 00:00:00'
-   * @throws AnalysisException
    */
-  private Expr foldConstants(Expr expr) throws AnalysisException {
+  private Expr foldConstants(Expr expr, boolean preserveType) throws AnalysisException {
+    // Constant folding is an optional rewrite
     if (rewriteMode_ != RewriteMode.OPTIONAL ||
+        // Only required rewrites are enabled and this is a pure literal fold
+        //(rewriteMode_ == RewriteMode.REQUIRED && !preserveType) ||
+        // But can't fold non-constant expressions (relies on the constant
+        // flag being cached in Expr.analysisDone())
         !expr.isConstant() ||
+        // If this is already a literal, there is nothing to fold
         Expr.IS_LITERAL.apply(expr)) return expr;
 
-    boolean hasExplicitType = expr.hasExplicitType();
     if (expr instanceof CastExpr) {
       CastExpr castExpr = (CastExpr) expr;
 
@@ -198,20 +221,11 @@ public class ExprAnalyzer {
         // Trying using a typed null literal
         return new NullLiteral(castExpr.getType());
       }
-    } else {
-
-      // For pure-literal expressions, use the natural type of the
-      // result. Pure-literal expression are those without explicit casts.
-      // Due to prior folding events, we only need to check one level of
-      // children.
-      for (int i = 0; i < expr.getChildCount(); i++) {
-        hasExplicitType = expr.getChild(i).hasExplicitType();
-        if (hasExplicitType) break;
-      }
+      preserveType |= castExpr.hasExplicitType();
     }
 
     Expr result;
-    if (hasExplicitType) {
+    if (preserveType) {
       // Must preserve the expression's type. Examples:
       // CAST(1 AS INT) --> must be of type INT (natural type is TINYINT)
       // CAST(1 AS INT) + CAST(2 AS SMALLINT) --> 3:BIGINT (normal INT

@@ -231,19 +231,18 @@ public class LiteralExprTest extends FrontendTestBase {
   }
 
   /**
-   * Test extreme literal cases to ensure the value passes
-   * through the analyzer correctly.
+   * Survey cast cases. Exhaustive testing done elsewhere.
    */
   @Test
   public void testLiteralCast() {
-    // Explicit cast
     {
-      Expr expr = analyze("CAST(1 AS TINYINT) + 1", true, true);
+      // Explicit cast
+      Expr expr = analyze("select CAST(1 AS TINYINT) + 1", true, true);
       assertEquals(Type.SMALLINT, expr.getType());
     }
-    // No cast, use natural type
     {
-      Expr expr = analyze("1 + 1", true, true);
+      // No cast, use natural type
+      Expr expr = analyze("select 1 + 1", true, true);
       assertEquals(Type.TINYINT, expr.getType());
     }
     for (int i = 0; i < 3; i++) {

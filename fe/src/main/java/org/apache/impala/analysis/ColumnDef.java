@@ -250,7 +250,7 @@ public class ColumnDef {
         throw new AnalysisException(String.format("Only constant values are allowed " +
             "for default values: %s", defaultValue_.toSql()));
       }
-      LiteralExpr defaultValLiteral = LiteralExpr.typedEval(defaultValue_,
+      LiteralExpr defaultValLiteral = LiteralExpr.untypedEval(defaultValue_,
           analyzer.getQueryCtx());
       if (defaultValLiteral == null) {
         throw new AnalysisException(String.format("Only constant values are allowed " +

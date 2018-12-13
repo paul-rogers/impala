@@ -155,7 +155,7 @@ public class RangePartition extends StmtNode {
   private LiteralExpr analyzeBoundaryValue(Expr value, ColumnDef pkColumn,
       Analyzer analyzer) throws AnalysisException {
     try {
-      value.analyze(analyzer);
+      analyzer.analyzeInPlace(value);
     } catch (AnalysisException e) {
       throw new AnalysisException(String.format("Only constant values are allowed " +
           "for range-partition bounds: %s", value.toSql()), e);
@@ -164,7 +164,7 @@ public class RangePartition extends StmtNode {
       throw new AnalysisException(String.format("Only constant values are allowed " +
           "for range-partition bounds: %s", value.toSql()));
     }
-    LiteralExpr literal = LiteralExpr.typedEval(value, analyzer.getQueryCtx());
+    LiteralExpr literal = LiteralExpr.untypedEval(value, analyzer.getQueryCtx());
     if (literal == null) {
       throw new AnalysisException(String.format("Only constant values are allowed " +
           "for range-partition bounds: %s", value.toSql()));

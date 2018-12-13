@@ -518,17 +518,19 @@ abstract public class Expr extends TreeNode<Expr> implements ParseNode, Cloneabl
    *
    * This method controls that process. It normally returns false, meaning that
    * constant folding is free to choose the natural type. It returns true if
-   * the type has been explicitly set:
+   * the type has been explicitly set, which always occurs except:
    *
-   * - Via a cast node itself,
-   * - On a numeric literal that is the result of constant-folding a cast.
+   * - Via an implicit cast (only considered for an implicit cast of a
+   *   literal)
+   * - On a numeric literal that is not the result of constant-folding an
+   *   explicit type. (That is, a numeric literal by itself in the original
+   *   SQL.)
    *
    * @return true if the result of a constant-folding operation on this node
    * must preserve the node's type, false if the resulting literal can take
    * the natural type
    */
-
-  public boolean hasExplicitType() { return false; }
+  public boolean hasExplicitType() { return true; }
 
   /**
    * Collects the returns types of the child nodes in an array.
