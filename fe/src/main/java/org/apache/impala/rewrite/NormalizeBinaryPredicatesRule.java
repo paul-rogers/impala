@@ -20,6 +20,7 @@ package org.apache.impala.rewrite;
 import org.apache.impala.analysis.Analyzer;
 import org.apache.impala.analysis.BinaryPredicate;
 import org.apache.impala.analysis.Expr;
+import org.apache.impala.analysis.ExprAnalyzer.RewriteMode;
 
 /**
  * Normalizes binary predicates of the form <expr> <op> <slot> so that the slot is
@@ -39,20 +40,6 @@ public class NormalizeBinaryPredicatesRule implements ExprRewriteRule {
   @Override
   public Expr apply(Expr expr, Analyzer analyzer) {
     if (!(expr instanceof BinaryPredicate)) return expr;
-
-    if (isExprOpSlotRef(expr) || isConstantOpExpr(expr)) {
-      BinaryPredicate.Operator op = ((BinaryPredicate) expr).getOp();
-      return new BinaryPredicate(op.converse(), expr.getChild(1), expr.getChild(0));
-    }
-    return expr;
-  }
-
-  boolean isConstantOpExpr(Expr expr) {
-    return expr.getChild(0).isConstant() && !expr.getChild(1).isConstant();
-  }
-
-  boolean isExprOpSlotRef(Expr expr) {
-    return expr.getChild(0).unwrapSlotRef(false) == null
-        && expr.getChild(1).unwrapSlotRef(false) != null;
+    return ((BinaryPredicate) expr).rewrite(RewriteMode.OPTIONAL);
   }
 }

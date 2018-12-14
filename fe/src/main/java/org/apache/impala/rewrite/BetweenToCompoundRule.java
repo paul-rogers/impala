@@ -19,10 +19,8 @@ package org.apache.impala.rewrite;
 
 import org.apache.impala.analysis.Analyzer;
 import org.apache.impala.analysis.BetweenPredicate;
-import org.apache.impala.analysis.BinaryPredicate;
-import org.apache.impala.analysis.CompoundPredicate;
 import org.apache.impala.analysis.Expr;
-import org.apache.impala.analysis.Predicate;
+import org.apache.impala.analysis.ExprAnalyzer.RewriteMode;
 
 public class BetweenToCompoundRule implements ExprRewriteRule {
   public static ExprRewriteRule INSTANCE = new BetweenToCompoundRule();
@@ -30,24 +28,7 @@ public class BetweenToCompoundRule implements ExprRewriteRule {
   @Override
   public Expr apply(Expr expr, Analyzer analyzer) {
     if (!(expr instanceof BetweenPredicate)) return expr;
-    BetweenPredicate bp = (BetweenPredicate) expr;
-    Expr result = null;
-    if (bp.isNotBetween()) {
-      // Rewrite into disjunction.
-      Predicate lower = new BinaryPredicate(BinaryPredicate.Operator.LT,
-          bp.getChild(0), bp.getChild(1));
-      Predicate upper = new BinaryPredicate(BinaryPredicate.Operator.GT,
-          bp.getChild(0), bp.getChild(2));
-      result = new CompoundPredicate(CompoundPredicate.Operator.OR, lower, upper);
-    } else {
-      // Rewrite into conjunction.
-      Predicate lower = new BinaryPredicate(BinaryPredicate.Operator.GE,
-          bp.getChild(0), bp.getChild(1));
-      Predicate upper = new BinaryPredicate(BinaryPredicate.Operator.LE,
-          bp.getChild(0), bp.getChild(2));
-      result = new CompoundPredicate(CompoundPredicate.Operator.AND, lower, upper);
-    }
-    return result;
+    return ((BetweenPredicate) expr).rewrite(RewriteMode.OPTIONAL);
   }
 
   private BetweenToCompoundRule() {}

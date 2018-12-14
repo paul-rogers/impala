@@ -178,7 +178,7 @@ public class ExprAnalyzer {
 
       // Rewrite
       if (rewriteMode_ == RewriteMode.NONE) break;
-      Expr result = expr.rewrite(this);
+      Expr result = expr.rewrite(rewriteMode_);
       if (result == expr) break;
       expr = result;
       rewriteCount_++;

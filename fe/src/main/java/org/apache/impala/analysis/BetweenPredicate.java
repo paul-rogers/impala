@@ -17,6 +17,7 @@
 
 package org.apache.impala.analysis;
 
+import org.apache.impala.analysis.ExprAnalyzer.RewriteMode;
 import org.apache.impala.catalog.ScalarType;
 import org.apache.impala.catalog.Type;
 import org.apache.impala.common.AnalysisException;
@@ -104,7 +105,8 @@ public class BetweenPredicate extends Predicate {
    * BetweenPredicates must be rewritten to be executable.
    */
   @Override
-  public Expr rewrite(ExprAnalyzer exprAnalyzer) {
+  public Expr rewrite(RewriteMode rewriteMode) {
+    if (rewriteMode != RewriteMode.OPTIONAL) return this;
     if (isNotBetween()) {
       // Rewrite into disjunction.
       Predicate lower = new BinaryPredicate(BinaryPredicate.Operator.LT,

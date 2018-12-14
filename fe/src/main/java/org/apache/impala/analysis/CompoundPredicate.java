@@ -19,6 +19,7 @@ package org.apache.impala.analysis;
 
 import java.util.List;
 
+import org.apache.impala.analysis.ExprAnalyzer.RewriteMode;
 import org.apache.impala.catalog.Db;
 import org.apache.impala.catalog.Function.CompareMode;
 import org.apache.impala.catalog.ScalarFunction;
@@ -163,6 +164,25 @@ public class CompoundPredicate extends Predicate {
   @Override
   protected float computeEvalCost() {
     return hasChildCosts() ? getChildCosts() + COMPOUND_PREDICATE_COST : UNKNOWN_COST;
+  }
+
+  /**
+   * Normalizes CompoundPredicates by ensuring that if either child of AND or OR is a
+   * BoolLiteral, then the left (i.e. first) child is a BoolLiteral.
+   *
+   * Examples:
+   * id = 0 && true -> true && id = 0
+   */
+  @Override
+  public Expr rewrite(RewriteMode rewriteMode) {
+    if (rewriteMode != RewriteMode.OPTIONAL) return this;
+    if (getOp() == CompoundPredicate.Operator.NOT) return this;
+
+    if (!(getChild(0) instanceof BoolLiteral)
+        && getChild(1) instanceof BoolLiteral) {
+      return new CompoundPredicate(getOp(), getChild(1), getChild(0));
+    }
+    return this;
   }
 
   /**

@@ -27,6 +27,7 @@ import java.util.Set;
 
 import org.apache.impala.analysis.BinaryPredicate.Operator;
 import org.apache.impala.analysis.ExprAnalyzer.ColumnResolver;
+import org.apache.impala.analysis.ExprAnalyzer.RewriteMode;
 import org.apache.impala.catalog.BuiltinsDb;
 import org.apache.impala.catalog.Function;
 import org.apache.impala.catalog.Function.CompareMode;
@@ -428,9 +429,7 @@ abstract public class Expr extends TreeNode<Expr> implements ParseNode, Cloneabl
    */
   protected void analyzeNode(Analyzer analyzer) throws AnalysisException { }
 
-  protected Expr rewrite(ExprAnalyzer exprAnalyzer) throws AnalysisException {
-    return this;
-  }
+  protected Expr rewrite(RewriteMode rewriteMode) throws AnalysisException { return this; }
 
   /**
    * Called from ExprAnalyzer to compute costs after type propagation and rewrites.

@@ -27,6 +27,7 @@ import java.util.List;
 import org.apache.hbase.thirdparty.com.google.common.collect.Sets;
 import org.apache.impala.analysis.AnalysisContext.AnalysisResult;
 import org.apache.impala.analysis.BinaryPredicate.Operator;
+import org.apache.impala.analysis.ExprAnalyzer.RewriteMode;
 import org.apache.impala.analysis.StmtMetadataLoader.StmtTableCache;
 import org.apache.impala.catalog.ScalarType;
 import org.apache.impala.catalog.Type;
@@ -44,7 +45,6 @@ import org.apache.impala.rewrite.NormalizeExprsRule;
 import org.apache.impala.rewrite.RemoveRedundantStringCast;
 import org.apache.impala.rewrite.SimplifyConditionalsRule;
 import org.apache.impala.rewrite.SimplifyDistinctFromRule;
-import org.apache.impala.util.treevis.AstPrinter;
 import org.junit.Assert;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -177,7 +177,7 @@ public class ExprRewriteRulesTest extends FrontendTestBase {
   }
 
   private Expr parseSelectExpr(String exprSql) {
-    String stmtSql = "select " + exprSql + " from functional.alltypes";
+    String stmtSql = "select " + exprSql + " from functional.alltypessmall";
     return ((SelectStmt) ParsesOk(stmtSql)).getSelectList().getItems().get(0).getExpr();
   }
 
@@ -196,14 +196,31 @@ public class ExprRewriteRulesTest extends FrontendTestBase {
   }
 
   private Expr verifyRewrite(String exprSql, String expectedSql) throws ImpalaException {
-    String stmtSql = "select " + exprSql + " from functional.alltypessmall";
-    AnalysisContext ctx = createAnalysisCtx();
-    ctx.getQueryCtx().client_request.query_options.setEnable_expr_rewrites(true);
-    AnalysisResult analysisResult = parseAndAnalyze(stmtSql, ctx);
-    SelectStmt stmt = (SelectStmt) analysisResult.getStmt();
-    Expr expr = stmt.getSelectList().getItems().get(0).getExpr();
+    // Temporary hack to avoid old rewriter
+    Expr expr = analyzeWithRewrite(exprSql);
+
+//    String stmtSql = "select " + exprSql + " from functional.alltypessmall";
+//    AnalysisContext ctx = createAnalysisCtx();
+//    ctx.getQueryCtx().client_request.query_options.setEnable_expr_rewrites(false);
+//    AnalysisResult analysisResult = parseAndAnalyze(stmtSql, ctx);
+//    SelectStmt stmt = (SelectStmt) analysisResult.getStmt();
+//    Expr expr = stmt.getSelectList().getItems().get(0).getExpr();
     assertEquals(expectedSql == null ? exprSql : expectedSql, expr.toSql());
     return expr;
+  }
+
+  private void verifySingleRewrite(String exprSql, Class<? extends Expr> nodeClass,
+      String expectedSql) throws ImpalaException {
+    Expr expr = analyzeWithoutRewrite(exprSql);
+    assertTrue(nodeClass.isInstance(expr));
+    expr = expr.rewrite(RewriteMode.OPTIONAL);
+    assertEquals(expectedSql == null ? exprSql : expectedSql, expr.toSql());
+  }
+
+  private void verifyRewriteType(String exprSql, Type expectedType, String expectedSql)
+      throws ImpalaException {
+    Expr expr = verifyRewrite(exprSql, expectedSql);
+    assertEquals(expectedType, expr.getType());
   }
 
   /**
@@ -261,24 +278,25 @@ public class ExprRewriteRulesTest extends FrontendTestBase {
     assertSame(highBound, right.getChild(1));
   }
 
-  @Ignore("not yet")
   @Test
   public void testBetweenToCompoundRule() throws ImpalaException {
 
     // Basic BETWEEN predicates.
-    verifyRewrite("int_col between float_col and double_col",
+    verifySingleRewrite("int_col between float_col and double_col",
+        BetweenPredicate.class,
         "int_col >= float_col AND int_col <= double_col");
-    verifyRewrite("int_col not between float_col and double_col",
+    verifySingleRewrite("int_col not between float_col and double_col",
+        BetweenPredicate.class,
         "(int_col < float_col OR int_col > double_col)");
-    verifyRewrite("50.0 between null and 5000",
-        "50.0 >= NULL AND 50.0 <= 5000");
+    verifySingleRewrite("50.0 between null and 5000",
+        BetweenPredicate.class, "50.0 >= NULL AND 50.0 <= 5000");
     // Basic NOT BETWEEN predicates.
-    verifyRewrite("int_col between 10 and 20",
-        "int_col >= 10 AND int_col <= 20");
-    verifyRewrite("int_col not between 10 and 20",
-        "(int_col < 10 OR int_col > 20)");
-    verifyRewrite("50.0 not between null and 5000",
-        "(50.0 < NULL OR 50.0 > 5000)");
+    verifySingleRewrite("int_col between 10 and 20",
+        BetweenPredicate.class, "int_col >= 10 AND int_col <= 20");
+    verifySingleRewrite("int_col not between 10 and 20",
+        BetweenPredicate.class, "(int_col < 10 OR int_col > 20)");
+    verifySingleRewrite("50.0 not between null and 5000",
+        BetweenPredicate.class, "(50.0 < NULL OR 50.0 > 5000)");
 
     // Rewrites don't change perceived precedence
     verifyRewrite(
@@ -443,11 +461,6 @@ public class ExprRewriteRulesTest extends FrontendTestBase {
     }
   }
 
-  private void verifyRewriteType(String exprSql, Type expectedType, String expectedSql)
-      throws ImpalaException {
-    Expr expr = verifyRewrite(exprSql, expectedSql);
-    assertEquals(expectedType, expr.getType());
-  }
   /**
    * Only contains very basic tests for a few interesting cases. More thorough
    * testing is done in expr-test.cc.
@@ -491,7 +504,7 @@ public class ExprRewriteRulesTest extends FrontendTestBase {
   }
 
   @Test
-  public void TestSimplifyConditionalsRule() throws ImpalaException {
+  public void testSimplifyIf() throws ImpalaException {
     ExprRewriteRule rule = SimplifyConditionalsRule.INSTANCE;
 
     // IF
@@ -499,6 +512,16 @@ public class ExprRewriteRulesTest extends FrontendTestBase {
     RewritesOk("if(false, id, id+1)", rule, "id + 1");
     RewritesOk("if(null, id, id+1)", rule, "id + 1");
     RewritesOk("if(id = 0, true, false)", rule, null);
+
+    // IMPALA-5125: Exprs containing aggregates should not be rewritten if the rewrite
+    // eliminates all aggregates.
+    RewritesOk("if(true, 0, sum(id))", rule, null);
+    RewritesOk("if(false, max(id), min(id))", rule, "min(id)");
+  }
+
+  @Test
+  public void testSimplifyIfNull() throws ImpalaException {
+    ExprRewriteRule rule = SimplifyConditionalsRule.INSTANCE;
 
     // IFNULL and its aliases
     for (String f : ImmutableList.of("ifnull", "isnull", "nvl")) {
@@ -513,6 +536,16 @@ public class ExprRewriteRulesTest extends FrontendTestBase {
       RewritesOk(f + "(NULL + 1, id)", rule, null);
     }
 
+    // IMPALA-5125: Exprs containing aggregates should not be rewritten if the rewrite
+    // eliminates all aggregates.
+    RewritesOk("ifnull(null, max(id))", rule, "max(id)");
+    RewritesOk("ifnull(1, max(id))", rule, null);
+  }
+
+  @Test
+  public void testSimplifyCompoundPredicate() throws ImpalaException {
+    ExprRewriteRule rule = SimplifyConditionalsRule.INSTANCE;
+
     // CompoundPredicate
     RewritesOk("false || id = 0", rule, "id = 0");
     RewritesOk("true || id = 0", rule, "TRUE");
@@ -522,6 +555,14 @@ public class ExprRewriteRulesTest extends FrontendTestBase {
     RewritesOk("null && id = 0", rule, null);
     RewritesOk("null || id = 0", rule, null);
 
+    // IMPALA-5125: Exprs containing aggregates should not be rewritten if the rewrite
+    // eliminates all aggregates.
+    RewritesOk("true || sum(id) = 0", rule, null);
+  }
+
+  @Test
+  public void testSimplifyCaseWithValue() throws ImpalaException {
+    ExprRewriteRule rule = SimplifyConditionalsRule.INSTANCE;
     List<ExprRewriteRule> rules = Lists.newArrayList();
     rules.add(FoldConstantsRule.INSTANCE);
     rules.add(rule);
@@ -546,6 +587,14 @@ public class ExprRewriteRulesTest extends FrontendTestBase {
     RewritesOk("case 0 when null then id else 1 end", rule, "1");
     // All non-constant, don't rewrite.
     RewritesOk("case id when 1 then 1 when 2 then 2 else 3 end", rule, null);
+  }
+
+  @Test
+  public void testSimplifyCaseWithoutValue() throws ImpalaException {
+    ExprRewriteRule rule = SimplifyConditionalsRule.INSTANCE;
+    List<ExprRewriteRule> rules = Lists.newArrayList();
+    rules.add(FoldConstantsRule.INSTANCE);
+    rules.add(rule);
 
     // CASE without caseExpr
     // Single TRUE case with no predecing non-constant case.
@@ -570,6 +619,20 @@ public class ExprRewriteRulesTest extends FrontendTestBase {
     // All non-constant, don't rewrite.
     RewritesOk("case when id = 0 then 0 when id = 1 then 1 end", rule, null);
 
+    // IMPALA-5125: Exprs containing aggregates should not be rewritten if the rewrite
+    // eliminates all aggregates.
+    RewritesOk("case when true then 0 when false then sum(id) end", rule, null);
+    RewritesOk(
+        "case when true then count(id) when false then sum(id) end", rule, "count(id)");
+  }
+
+  @Test
+  public void testSimplifyDecode() throws ImpalaException {
+    ExprRewriteRule rule = SimplifyConditionalsRule.INSTANCE;
+    List<ExprRewriteRule> rules = Lists.newArrayList();
+    rules.add(FoldConstantsRule.INSTANCE);
+    rules.add(rule);
+
     // DECODE
     // Single TRUE case with no preceding non-constant case.
     RewritesOk("decode(1, 0, id, 1, id + 1, 2, id + 2)", rules, "id + 1");
@@ -591,17 +654,14 @@ public class ExprRewriteRulesTest extends FrontendTestBase {
     RewritesOk("decode(id, null, 0, 1)", rules, null);
     // All non-constant, don't rewrite.
     RewritesOk("decode(id, 1, 1, 2, 2)", rules, null);
+  }
 
-    // IMPALA-5125: Exprs containing aggregates should not be rewritten if the rewrite
-    // eliminates all aggregates.
-    RewritesOk("if(true, 0, sum(id))", rule, null);
-    RewritesOk("if(false, max(id), min(id))", rule, "min(id)");
-    RewritesOk("true || sum(id) = 0", rule, null);
-    RewritesOk("ifnull(null, max(id))", rule, "max(id)");
-    RewritesOk("ifnull(1, max(id))", rule, null);
-    RewritesOk("case when true then 0 when false then sum(id) end", rule, null);
-    RewritesOk(
-        "case when true then count(id) when false then sum(id) end", rule, "count(id)");
+  @Test
+  public void testSimplifyCoalesce() throws ImpalaException {
+    ExprRewriteRule rule = SimplifyConditionalsRule.INSTANCE;
+    List<ExprRewriteRule> rules = Lists.newArrayList();
+    rules.add(FoldConstantsRule.INSTANCE);
+    rules.add(rule);
 
     // IMPALA-5016: Simplify COALESCE function
     // Test skipping leading nulls.
@@ -680,16 +740,19 @@ public class ExprRewriteRulesTest extends FrontendTestBase {
   }
 
   @Test
-  public void TestNormalizeExprsRule() throws ImpalaException {
-    ExprRewriteRule rule = NormalizeExprsRule.INSTANCE;
-
-    // CompoundPredicate
-    RewritesOk("id = 0 OR false", rule, "FALSE OR id = 0");
-    RewritesOk("null AND true", rule, "TRUE AND NULL");
+  public void testNormalizeExprs() throws ImpalaException {
+    verifySingleRewrite("id = 0 OR false", CompoundPredicate.class, "FALSE OR id = 0");
+    verifySingleRewrite("null AND true", CompoundPredicate.class, "TRUE AND NULL");
     // The following already have a BoolLiteral left child and don't get rewritten.
-    RewritesOk("true and id = 0", rule, null);
-    RewritesOk("false or id = 1", rule, null);
-    RewritesOk("false or true", rule, null);
+    verifySingleRewrite("true and id = 0", CompoundPredicate.class, "TRUE AND id = 0");
+    verifySingleRewrite("false or id = 1", CompoundPredicate.class, "FALSE OR id = 1");
+    verifySingleRewrite("false or true", CompoundPredicate.class, "FALSE OR TRUE");
+
+    verifyRewrite("0 = id OR false", "FALSE OR id = 0");
+    verifyRewrite("null AND true", "NULL");
+    verifyRewrite("true and id = 0", "TRUE AND id = 0");
+    verifyRewrite("false or id = 1", "FALSE OR id = 1");
+    verifyRewrite("false or true", "TRUE");
   }
 
   @Ignore("not yet")
@@ -757,35 +820,66 @@ public class ExprRewriteRulesTest extends FrontendTestBase {
     assertEquals(Type.DOUBLE, rightValue.getType()); // Bug: should be TINYINT
   }
 
-  @Ignore("not yet")
   @Test
   public void testNormalizeBinaryPredicates() throws ImpalaException {
+    verifySingleRewrite("0 = id", BinaryPredicate.class, "id = 0");
+    verifySingleRewrite("cast(0 as double) = id", BinaryPredicate.class,
+        "id = CAST(0 AS DOUBLE)");
+    verifySingleRewrite("1 + 1 = cast(id as int)", BinaryPredicate.class,
+        "CAST(id AS INT) = 1 + 1");
+    verifySingleRewrite("5 = id + 2", BinaryPredicate.class, "id + 2 = 5");
+    verifySingleRewrite("5 + 3 = id", BinaryPredicate.class, "id = 5 + 3");
+    verifySingleRewrite("tinyint_col + smallint_col = int_col",
+        BinaryPredicate.class, "int_col = tinyint_col + smallint_col");
+    // Two levels of cast
+    verifySingleRewrite("cast(cast(0 as smallint) as double) < cast(cast(id as int) as double)",
+        BinaryPredicate.class, "CAST(CAST(id AS INT) AS DOUBLE) > CAST(CAST(0 AS SMALLINT) AS DOUBLE)");
+    // Col ref is inside an expression
+    verifySingleRewrite("5 + 3 = id + 2", BinaryPredicate.class, "id + 2 = 5 + 3");
+    // Bare slot ref goes on left, even if other side is a slot ref expression
+    verifySingleRewrite("id + 6 = int_col", BinaryPredicate.class, "int_col = id + 6");
+    verifySingleRewrite("sum(id) = sum(int_col) + 1", BinaryPredicate.class, null);
+    verifySingleRewrite("sum(int_col) + 1 = sum(id)", BinaryPredicate.class, null);
+
+    // Verify that these don't get rewritten.
+    verifySingleRewrite("5 = 6", BinaryPredicate.class, null);
+    verifySingleRewrite("id = 5", BinaryPredicate.class, null);
+    verifySingleRewrite("cast(id as int) = int_col", BinaryPredicate.class,
+        "CAST(id AS INT) = int_col");
+    verifySingleRewrite("int_col = cast(id as int)", BinaryPredicate.class,
+        "int_col = CAST(id AS INT)");
+    verifySingleRewrite("int_col = tinyint_col", BinaryPredicate.class, null);
+    verifySingleRewrite("tinyint_col = int_col", BinaryPredicate.class, null);
+    verifySingleRewrite("2 + 6 = 8", BinaryPredicate.class, null);
+    verifySingleRewrite("8 = 2 + 6", BinaryPredicate.class, null);
+    verifySingleRewrite("int_col = id + 6", BinaryPredicate.class, null);
+
     verifyRewrite("0 = id", "id = 0");
-    verifyRewrite("cast(0 as double) = id", "id = CAST(0 AS DOUBLE)");
-    verifyRewrite("1 + 1 = cast(id as int)", "CAST(id AS INT) = 1 + 1");
+    verifyRewrite("cast(0 as double) = id", "id = 0");
+    verifyRewrite("1 + 1 = cast(id as int)", "CAST(id AS INT) = 2");
     verifyRewrite("5 = id + 2", "id + 2 = 5");
-    verifyRewrite("5 + 3 = id", "id = 5 + 3");
+    verifyRewrite("5 + 3 = id", "id = 8");
     verifyRewrite("tinyint_col + smallint_col = int_col",
         "int_col = tinyint_col + smallint_col");
     // Two levels of cast
     verifyRewrite("cast(cast(0 as smallint) as double) < cast(cast(id as int) as double)",
-        "CAST(CAST(id AS INT) AS DOUBLE) > CAST(CAST(0 AS SMALLINT) AS DOUBLE)");
+        "CAST(CAST(id AS INT) AS DOUBLE) > 0");
     // Col ref is inside an expression
-    verifyRewrite("5 + 3 = id + 2", "id + 2 = 5 + 3");
+    verifyRewrite("5 + 3 = id + 2", "id + 2 = 8");
     // Bare slot ref goes on left, even if other side is a slot ref expression
     verifyRewrite("id + 6 = int_col", "int_col = id + 6");
     verifyRewrite("sum(id) = sum(int_col) + 1", null);
     verifyRewrite("sum(int_col) + 1 = sum(id)", null);
 
     // Verify that these don't get rewritten.
-    verifyRewrite("5 = 6", null);
+    verifyRewrite("5 = 6", "FALSE");
     verifyRewrite("id = 5", null);
     verifyRewrite("cast(id as int) = int_col", "CAST(id AS INT) = int_col");
     verifyRewrite("int_col = cast(id as int)", "int_col = CAST(id AS INT)");
     verifyRewrite("int_col = tinyint_col", null);
     verifyRewrite("tinyint_col = int_col", null);
-    verifyRewrite("2 + 6 = 8", null);
-    verifyRewrite("8 = 2 + 6", null);
+    verifyRewrite("2 + 6 = 8", "TRUE");
+    verifyRewrite("8 = 2 + 6", "TRUE");
     verifyRewrite("int_col = id + 6", null);
   }
 
