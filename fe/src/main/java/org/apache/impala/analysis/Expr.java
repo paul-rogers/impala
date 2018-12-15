@@ -102,7 +102,7 @@ abstract public class Expr extends TreeNode<Expr> implements ParseNode, Cloneabl
   public final static int DEFAULT_AVG_STRING_LENGTH = 5;
 
   // returns true if an Expr is a non-analytic aggregate.
-  private final static com.google.common.base.Predicate<Expr> isAggregatePredicate_ =
+  private final static com.google.common.base.Predicate<Expr> IS_AGGREGATE =
       new com.google.common.base.Predicate<Expr>() {
         @Override
         public boolean apply(Expr arg) {
@@ -166,7 +166,7 @@ abstract public class Expr extends TreeNode<Expr> implements ParseNode, Cloneabl
       new com.google.common.base.Predicate<Expr>() {
         @Override
         public boolean apply(Expr arg) {
-          return isAggregatePredicate_.apply(arg) &&
+          return IS_AGGREGATE.apply(arg) &&
               !((FunctionCallExpr)arg).getFnName().isBuiltin();
         }
       };
@@ -840,11 +840,11 @@ abstract public class Expr extends TreeNode<Expr> implements ParseNode, Cloneabl
   }
 
   public static com.google.common.base.Predicate<Expr> isAggregatePredicate() {
-    return isAggregatePredicate_;
+    return IS_AGGREGATE;
   }
 
   public boolean isAggregate() {
-    return isAggregatePredicate_.apply(this);
+    return IS_AGGREGATE.apply(this);
   }
 
   public List<String> childrenToSql(ToSqlOptions options) {

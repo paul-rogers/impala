@@ -123,123 +123,172 @@ public class ExprAnalyzer {
    * @see ParseNode#analyze(Analyzer)
    */
   public Expr analyze(Expr expr) throws AnalysisException {
-    return analyze(expr, false);
+    NodeAnalyzer nodeAnalyzer = new NodeAnalyzer(this, expr);
+    nodeAnalyzer.analyze();
+    return nodeAnalyzer.expr_;
   }
 
-  public Expr analyze(Expr expr, boolean preserveType) throws AnalysisException {
-    // Always to at least the constant folding check.
-    if (expr.isAnalyzed()) {
-      return foldConstants(expr, preserveType);
-    }
-    // Check the expr depth limit. Do not print the toSql() avoid stack overflow.
-    analyzer_.incrementCallDepth();
-    if (analyzer_.getCallDepth() > Expr.EXPR_DEPTH_LIMIT) {
-      throw new AnalysisException(String.format("Exceeded the maximum depth of an " +
-          "expression tree: %d", Expr.EXPR_DEPTH_LIMIT));
-    }
-    // Check the expr child limit.
-    if (expr.getChildCount() > Expr.EXPR_CHILDREN_LIMIT) {
-      String sql = expr.toSql();
-      String sqlSubstr = sql.substring(0, Math.min(80, sql.length()));
-      throw new AnalysisException(String.format("Exceeded the maximum number of child " +
-          "expressions: %d\nExpression has %s children:\n%s...",
-          Expr.EXPR_CHILDREN_LIMIT, expr.getChildCount(), sqlSubstr));
+  private static class NodeAnalyzer {
+    ExprAnalyzer exprAnalyzer_;
+    Expr expr_;
+    boolean preserveType_;
+
+    public NodeAnalyzer(ExprAnalyzer exprAnalyzer, Expr node) {
+      exprAnalyzer_ = exprAnalyzer;
+      expr_ = node;
     }
 
-    // Resolve is for leaves; OK not to have checked children
-    expr = expr.resolve(colResolver_);
-    for (;;) {
+    public NodeAnalyzer(NodeAnalyzer parent, Expr node) {
+      exprAnalyzer_ = parent.exprAnalyzer_;
+      preserveType_ = parent.preserveType_;
+      expr_ = node;
+    }
+
+    public void analyze() throws AnalysisException {
+      // Always do at least the constant folding check.
+      if (expr_.isAnalyzed()) {
+        foldConstants();
+        return;
+      }
+      check();
+
+      // Resolve is for leaves; OK not to have checked children
+      expr_ = expr_.resolve(exprAnalyzer_.colResolver_);
       // Analyze
-      for (int i = 0; i < expr.getChildCount(); i++) {
-        expr.setChild(i, analyze(expr.getChild(i), preserveType));
-      }
-      expr.analyzeNode(analyzer_);
-
-      // Analysis can revise children, which may constant-fold those children. First,
-      // determine if this expression must preserve type which is true if either the
-      // parent or any child wants to preserve type. Then, analyze the child with the
-      // resulting type preservation decision.
-      //
-      // 2 + 3 --> 5:TINYINT
-      // tinyint_col + 4 --> SMALLINT
-      //
-      // For pure-literal expressions, use the natural type of the result.
-      // Pure-literal expression are those without explicit casts. Due to prior
-      // folding events, we only need to check one level of children.
-      if (!preserveType) {
-        for (int i = 0; i < expr.getChildCount(); i++) {
-          preserveType = expr.getChild(i).hasExplicitType();
-          if (preserveType) break;
-        }
-      }
-      for (int i = 0; i < expr.getChildCount(); i++) {
-        expr.setChild(i, analyze(expr.getChild(i), preserveType));
-      }
-
+      analyzeNode(expr_);
       // Rewrite
-      if (rewriteMode_ == RewriteMode.NONE) break;
-      Expr result = expr.rewrite(rewriteMode_);
-      if (result == expr) break;
-      expr = result;
-      rewriteCount_++;
+      rewrite();
+      // Finalize
+      exprAnalyzer_.analyzer_.decrementCallDepth();
+      // Rewrite may have returned a child already analyzed
+      if (expr_.isAnalyzed()) return;
+      expr_.computeCost();
+      expr_.analysisDone();
+      // Fold constants last; requires the node be marked as analyzed.
+      foldConstants();
     }
-    analyzer_.decrementCallDepth();
-    expr.computeCost();
-    expr.analysisDone();
-    // Fold constants last; requires the node be marked as analyzed.
-    return foldConstants(expr, preserveType);
-  }
 
-  /**
-   * Replace a constant Expr with its equivalent LiteralExpr by evaluating the
-   * Expr in the BE. Exprs that are already LiteralExprs are not changed.
-   *
-   * Examples:
-   * 1 + 1 + 1 --> 3
-   * toupper('abc') --> 'ABC'
-   * cast('2016-11-09' as timestamp) --> TIMESTAMP '2016-11-09 00:00:00'
-   */
-  private Expr foldConstants(Expr expr, boolean preserveType) throws AnalysisException {
-    // Constant folding is an optional rewrite
-    if (rewriteMode_ != RewriteMode.OPTIONAL ||
-        // Only required rewrites are enabled and this is a pure literal fold
-        //(rewriteMode_ == RewriteMode.REQUIRED && !preserveType) ||
-        // But can't fold non-constant expressions (relies on the constant
-        // flag being cached in Expr.analysisDone())
-        !expr.isConstant() ||
-        // If this is already a literal, there is nothing to fold
-        Expr.IS_LITERAL.apply(expr)) return expr;
-
-    if (expr instanceof CastExpr) {
-      CastExpr castExpr = (CastExpr) expr;
-
-      // Do not constant fold cast(null as dataType) because we cannot preserve the
-      // cast-to-types and that can lead to query failures, e.g., CTAS
-      // Testing change:
-      // Convert CAST(NULL AS <type>) to a null literal of the given type
-      if (Expr.IS_NULL_LITERAL.apply(castExpr.getChild(0))) {
-        // Trying using a typed null literal
-        return new NullLiteral(castExpr.getType());
+    private void check() throws AnalysisException {
+      // Check the expr depth limit. Do not print the toSql() avoid stack overflow.
+      Analyzer analyzer = exprAnalyzer_.analyzer_;
+      analyzer.incrementCallDepth();
+      if (analyzer.getCallDepth() > Expr.EXPR_DEPTH_LIMIT) {
+        throw new AnalysisException(String.format("Exceeded the maximum depth of an " +
+            "expression tree: %d", Expr.EXPR_DEPTH_LIMIT));
       }
-      preserveType |= castExpr.hasExplicitType();
+      // Check the expr child limit.
+      if (expr_.getChildCount() > Expr.EXPR_CHILDREN_LIMIT) {
+        String sql = expr_.toSql();
+        String sqlSubstr = sql.substring(0, Math.min(80, sql.length()));
+        throw new AnalysisException(String.format("Exceeded the maximum number of child " +
+            "expressions: %d\nExpression has %s children:\n%s...",
+            Expr.EXPR_CHILDREN_LIMIT, expr_.getChildCount(), sqlSubstr));
+      }
     }
 
-    Expr result;
-    if (preserveType) {
-      // Must preserve the expression's type. Examples:
-      // CAST(1 AS INT) --> must be of type INT (natural type is TINYINT)
-      // CAST(1 AS INT) + CAST(2 AS SMALLINT) --> 3:BIGINT (normal INT
-      //     addition result type
-      // CAST(1 AS TINYINT) + CAST(1 AS TINYINT) --> 2:SMALLINT
-      // CAST(1 AS TINYINT) + 1 --> 2:SMALLINT
-      result = LiteralExpr.typedEval(expr, analyzer_.getQueryCtx());
-    } else {
-      // No cast, eval to the natural type
-      // 1 + 1 --> 2:TINYINT
-      result = LiteralExpr.untypedEval(expr, analyzer_.getQueryCtx());
+    private void analyzeNode(Expr node) throws AnalysisException {
+      int pass = 1;
+      for (;;) {
+        for (int i = 0; i < node.getChildCount(); i++) {
+          NodeAnalyzer childAnalyzer = new NodeAnalyzer(this, node.getChild(i));
+          childAnalyzer.analyze();
+          node.setChild(i, childAnalyzer.expr_);
+        }
+        if (pass == 2) break;
+        node.analyzeNode(exprAnalyzer_.analyzer_);
+
+        // Analysis can revise children, which may constant-fold those children. First,
+        // determine if this expression must preserve type because either the
+        // parent or any child wants to preserve type. Then, analyze the child with the
+        // resulting type preservation decision.
+        //
+        // 2 + 3 --> 5:TINYINT
+        // tinyint_col + 4 --> SMALLINT
+        //
+        // For pure-literal expressions, use the natural type of the result.
+        // Pure-literal expression are those without explicit casts. Due to prior
+        // folding events, we only need to check one level of children.
+        if (!preserveType_) {
+          for (int i = 0; i < node.getChildCount(); i++) {
+            preserveType_ = node.getChild(i).hasExplicitType();
+            if (preserveType_) break;
+          }
+        }
+        pass = 2;
+      }
     }
 
-    return result == null ? expr : result;
+    private void rewrite() throws AnalysisException {
+      if (exprAnalyzer_.rewriteMode_ == RewriteMode.NONE) return;
+      for (;;) {
+        Expr result = expr_.rewrite(exprAnalyzer_.rewriteMode_);
+        if (result == expr_) break;
+        analyzeNode(result);
+
+        // IMPALA-5125: We can't eliminate aggregates as this may change the meaning of the
+        // query, for example:
+        // 'select if (true, 0, sum(id)) from alltypes' != 'select 0 from alltypes'
+        if (expr_.contains(Expr.isAggregatePredicate()) &&
+            !result.contains(Expr.isAggregatePredicate())) {
+          break;
+        }
+        expr_ = result;
+        exprAnalyzer_.rewriteCount_++;
+      }
+    }
+
+   /**
+     * Replace a constant Expr with its equivalent LiteralExpr by evaluating the
+     * Expr in the BE. Exprs that are already LiteralExprs are not changed.
+     *
+     * Examples:
+     * 1 + 1 + 1 --> 3
+     * toupper('abc') --> 'ABC'
+     * cast('2016-11-09' as timestamp) --> TIMESTAMP '2016-11-09 00:00:00'
+     */
+    private void foldConstants() throws AnalysisException {
+      // Constant folding is an optional rewrite
+      if (exprAnalyzer_.rewriteMode_ != RewriteMode.OPTIONAL) return;
+      // Only required rewrites are enabled and this is a pure literal fold
+      //(rewriteMode_ == RewriteMode.REQUIRED && !preserveType) ||
+      // But can't fold non-constant expressions (relies on the constant
+      // flag being cached in Expr.analysisDone())
+      if (!expr_.isConstant()) return;
+      // If this is already a literal, there is nothing to fold
+      if (Expr.IS_LITERAL.apply(expr_)) return;
+
+      if (expr_ instanceof CastExpr) {
+        CastExpr castExpr = (CastExpr) expr_;
+
+        // Do not constant fold cast(null as dataType) because we cannot preserve the
+        // cast-to-types and that can lead to query failures, e.g., CTAS
+        // Testing change:
+        // Convert CAST(NULL AS <type>) to a null literal of the given type
+        if (Expr.IS_NULL_LITERAL.apply(castExpr.getChild(0))) {
+          // Trying using a typed null literal
+          expr_ = new NullLiteral(castExpr.getType());
+          return;
+        }
+        preserveType_ |= castExpr.hasExplicitType();
+      }
+
+      Expr result;
+      if (preserveType_) {
+        // Must preserve the expression's type. Examples:
+        // CAST(1 AS INT) --> must be of type INT (natural type is TINYINT)
+        // CAST(1 AS INT) + CAST(2 AS SMALLINT) --> 3:BIGINT (normal INT
+        //     addition result type
+        // CAST(1 AS TINYINT) + CAST(1 AS TINYINT) --> 2:SMALLINT
+        // CAST(1 AS TINYINT) + 1 --> 2:SMALLINT
+        result = LiteralExpr.typedEval(expr_, exprAnalyzer_.analyzer_.getQueryCtx());
+      } else {
+        // No cast, eval to the natural type
+        // 1 + 1 --> 2:TINYINT
+        result = LiteralExpr.untypedEval(expr_, exprAnalyzer_.analyzer_.getQueryCtx());
+      }
+
+      if (result != null) expr_ = result;
+    }
   }
 
   public void analyzeWithoutRewrite(Expr expr) throws AnalysisException {

@@ -55,16 +55,13 @@ import com.google.common.collect.Lists;
 public class SimplifyConditionalsRule implements ExprRewriteRule {
   public static ExprRewriteRule INSTANCE = new SimplifyConditionalsRule();
 
-  private static List<String> IFNULL_ALIASES = ImmutableList.of(
-      "ifnull", "isnull", "nvl");
-
   @Override
   public Expr apply(Expr expr, Analyzer analyzer) throws AnalysisException {
     if (!expr.isAnalyzed()) return expr;
 
     Expr simplified;
     if (expr instanceof FunctionCallExpr) {
-      simplified = simplifyFunctionCallExpr((FunctionCallExpr) expr);
+      simplified = ((FunctionCallExpr) expr).simplifyConditionals();
     } else if (expr instanceof CompoundPredicate) {
       simplified = simplifyCompoundPredicate((CompoundPredicate) expr);
     } else if (expr instanceof CaseExpr) {
@@ -84,78 +81,6 @@ public class SimplifyConditionalsRule implements ExprRewriteRule {
       }
     }
     return simplified;
-  }
-
-  /**
-   * Simplifies IF by returning the corresponding child if the condition has a constant
-   * TRUE, FALSE, or NULL (equivalent to FALSE) value.
-   */
-  private Expr simplifyIfFunctionCallExpr(FunctionCallExpr expr) {
-    Preconditions.checkState(expr.getChildren().size() == 3);
-    Expr head = expr.getChild(0);
-    if (Expr.IS_TRUE_LITERAL.apply(head)) {
-      // IF(TRUE)
-      return expr.getChild(1);
-    } else if (Expr.IS_FALSE_LITERAL.apply(head)) {
-      // IF(FALSE)
-      return expr.getChild(2);
-    } else if (Expr.IS_NULL_LITERAL.apply(head)) {
-      // IF(NULL)
-      return expr.getChild(2);
-    }
-    return expr;
-  }
-
-  /**
-   * Simplifies IFNULL if the condition is a literal, using the
-   * following transformations:
-   *   IFNULL(NULL, x) -> x
-   *   IFNULL(a, x) -> a, if a is a non-null literal
-   */
-  private Expr simplifyIfNullFunctionCallExpr(FunctionCallExpr expr) {
-    Preconditions.checkState(expr.getChildren().size() == 2);
-    Expr child0 = expr.getChild(0);
-    if (Expr.IS_NULL_LITERAL.apply(child0)) return expr.getChild(1);
-    if (Expr.IS_LITERAL.apply(child0)) return child0;
-    return expr;
-  }
-
-  /**
-   * Simplify COALESCE by skipping leading nulls and applying the following transformations:
-   * COALESCE(null, a, b) -> COALESCE(a, b);
-   * COALESCE(<literal>, a, b) -> <literal>, when literal is not NullLiteral;
-   */
-  private Expr simplifyCoalesceFunctionCallExpr(FunctionCallExpr expr) {
-    int numChildren = expr.getChildren().size();
-    Expr result = NullLiteral.create(expr.getType());
-    for (int i = 0; i < numChildren; ++i) {
-      Expr childExpr = expr.getChildren().get(i);
-      // Skip leading nulls.
-      if (Expr.IS_NULL_VALUE.apply(childExpr)) continue;
-      if ((i == numChildren - 1) || Expr.IS_LITERAL.apply(childExpr)) {
-        result = childExpr;
-      } else if (i == 0) {
-        result = expr;
-      } else {
-        List<Expr> newChildren = Lists.newArrayList(expr.getChildren().subList(i, numChildren));
-        result = new FunctionCallExpr(expr.getFnName(), newChildren);
-      }
-      break;
-    }
-    return result;
-  }
-
-  private Expr simplifyFunctionCallExpr(FunctionCallExpr expr) {
-    String fnName = expr.getFnName().getFunction();
-
-    if (fnName.equals("if")) {
-      return simplifyIfFunctionCallExpr(expr);
-    } else if (fnName.equals("coalesce")) {
-      return simplifyCoalesceFunctionCallExpr(expr);
-    } else if (IFNULL_ALIASES.contains(fnName)) {
-      return simplifyIfNullFunctionCallExpr(expr);
-    }
-    return expr;
   }
 
   /**

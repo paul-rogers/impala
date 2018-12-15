@@ -19,6 +19,7 @@ package org.apache.impala.analysis;
 
 import java.util.List;
 
+import org.apache.impala.analysis.ExprAnalyzer.RewriteMode;
 import org.apache.impala.authorization.Privilege;
 import org.apache.impala.catalog.AggregateFunction;
 import org.apache.impala.catalog.BuiltinsDb;
@@ -40,6 +41,7 @@ import org.apache.impala.thrift.TQueryOptions;
 import com.google.common.base.Joiner;
 import com.google.common.base.Objects;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 
 public class FunctionCallExpr extends Expr {
@@ -622,6 +624,87 @@ public class FunctionCallExpr extends Expr {
     if (type_.isWildcardChar() || type_.isWildcardVarchar()) {
       type_ = ScalarType.STRING;
     }
+  }
+
+  @Override
+  protected Expr rewrite(RewriteMode rewriteMode) throws AnalysisException {
+    if (rewriteMode != RewriteMode.OPTIONAL) return this;
+    return simplifyConditionals();
+  }
+
+  private static List<String> IFNULL_ALIASES = ImmutableList.of(
+      "ifnull", "isnull", "nvl");
+
+  // Visible to allow calls from the legacy expr rewriter
+  public Expr simplifyConditionals() {
+    String fnName = getFnName().getFunction();
+    if (fnName.equals("if")) {
+      return simplifyIfFunctionCallExpr();
+    } else if (fnName.equals("coalesce")) {
+      return simplifyCoalesceFunctionCallExpr();
+    } else if (IFNULL_ALIASES.contains(fnName)) {
+      return simplifyIfNullFunctionCallExpr();
+    }
+    return this;
+  }
+
+  /**
+   * Simplifies IF by returning the corresponding child if the condition has a constant
+   * TRUE, FALSE, or NULL (equivalent to FALSE) value.
+   */
+  private Expr simplifyIfFunctionCallExpr() {
+    Preconditions.checkState(getChildCount() == 3);
+    Expr head = getChild(0);
+    if (Expr.IS_TRUE_LITERAL.apply(head)) {
+      // IF(TRUE)
+      return getChild(1);
+    } else if (Expr.IS_FALSE_LITERAL.apply(head)) {
+      // IF(FALSE)
+      return getChild(2);
+    } else if (Expr.IS_NULL_LITERAL.apply(head)) {
+      // IF(NULL)
+      return getChild(2);
+    }
+    return this;
+  }
+
+  /**
+   * Simplifies IFNULL if the condition is a literal, using the
+   * following transformations:
+   *   IFNULL(NULL, x) -> x
+   *   IFNULL(a, x) -> a, if a is a non-null literal
+   */
+  private Expr simplifyIfNullFunctionCallExpr() {
+    Preconditions.checkState(getChildCount() == 2);
+    Expr child0 = getChild(0);
+    if (Expr.IS_NULL_LITERAL.apply(child0)) return getChild(1);
+    if (Expr.IS_LITERAL.apply(child0)) return child0;
+    return this;
+  }
+
+  /**
+   * Simplify COALESCE by skipping leading nulls and applying the following transformations:
+   * COALESCE(null, a, b) -> COALESCE(a, b);
+   * COALESCE(<literal>, a, b) -> <literal>, when literal is not NullLiteral;
+   */
+  private Expr simplifyCoalesceFunctionCallExpr() {
+    int numChildren = getChildCount();
+    Expr result = NullLiteral.create(getType());
+    for (int i = 0; i < numChildren; ++i) {
+      Expr childExpr = getChild(i);
+      // Skip leading nulls.
+      if (Expr.IS_NULL_VALUE.apply(childExpr)) continue;
+      if ((i == numChildren - 1) || Expr.IS_LITERAL.apply(childExpr)) {
+        result = childExpr;
+      } else if (i == 0) {
+        result = this;
+      } else {
+        List<Expr> newChildren = Lists.newArrayList(getChildren().subList(i, numChildren));
+        result = new FunctionCallExpr(getFnName(), newChildren);
+      }
+      break;
+    }
+    return result;
   }
 
   @Override
