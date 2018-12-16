@@ -981,25 +981,22 @@ public class ExprRewriteRulesTest extends FrontendTestBase {
 
   @Test
   public void TestSimplifyDistinctFromRule() throws ImpalaException {
-    ExprRewriteRule rule = SimplifyDistinctFromRule.INSTANCE;
+    Class<? extends Expr> nodeClass = BinaryPredicate.class;
 
     // Can be simplified
-    RewritesOk("bool_col IS DISTINCT FROM bool_col", rule, "FALSE");
-    RewritesOk("bool_col IS NOT DISTINCT FROM bool_col", rule, "TRUE");
-    RewritesOk("bool_col <=> bool_col", rule, "TRUE");
+    verifySingleRewrite("bool_col IS DISTINCT FROM bool_col", nodeClass, "FALSE");
+    verifySingleRewrite("bool_col IS NOT DISTINCT FROM bool_col", nodeClass, "TRUE");
+    verifySingleRewrite("bool_col <=> bool_col", nodeClass, "TRUE");
 
     // Verify nothing happens
-    RewritesOk("bool_col IS NOT DISTINCT FROM int_col", rule, null);
-    RewritesOk("bool_col IS DISTINCT FROM int_col", rule, null);
+    verifySingleRewrite("bool_col IS NOT DISTINCT FROM int_col", nodeClass, null);
+    verifySingleRewrite("bool_col IS DISTINCT FROM int_col", nodeClass, null);
 
     // IF with distinct and distinct from
-    List<ExprRewriteRule> rules = Lists.newArrayList(
-        SimplifyConditionalsRule.INSTANCE,
-        SimplifyDistinctFromRule.INSTANCE);
-    RewritesOk("if(bool_col is distinct from bool_col, 1, 2)", rules, "2");
-    RewritesOk("if(bool_col is not distinct from bool_col, 1, 2)", rules, "1");
-    RewritesOk("if(bool_col <=> bool_col, 1, 2)", rules, "1");
-    RewritesOk("if(bool_col <=> NULL, 1, 2)", rules, null);
+    verifyRewrite("if(bool_col is distinct from bool_col, 1, 2)", "2");
+    verifyRewrite("if(bool_col is not distinct from bool_col, 1, 2)", "1");
+    verifyRewrite("if(bool_col <=> bool_col, 1, 2)", "1");
+    verifyRewrite("if(bool_col <=> NULL, 1, 2)", null);
   }
 
   @Test

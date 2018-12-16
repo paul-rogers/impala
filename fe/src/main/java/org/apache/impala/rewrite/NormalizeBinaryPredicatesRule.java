@@ -40,6 +40,7 @@ public class NormalizeBinaryPredicatesRule implements ExprRewriteRule {
   @Override
   public Expr apply(Expr expr, Analyzer analyzer) {
     if (!(expr instanceof BinaryPredicate)) return expr;
-    return ((BinaryPredicate) expr).rewrite(analyzer.exprAnalyzer());
+    Expr result = ((BinaryPredicate) expr).normalize();
+    return result == null ? expr : result;
   }
 }
