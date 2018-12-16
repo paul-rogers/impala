@@ -17,6 +17,7 @@
 
 package org.apache.impala.analysis;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.impala.analysis.ExprAnalyzer.RewriteMode;
@@ -181,6 +182,9 @@ public class CompoundPredicate extends Predicate {
     if (result == null) {
       result = simplify();
     }
+    if (result == null) {
+      result = extractCommonConjuncts();
+    }
     return result == null ? this : result;
   }
 
@@ -237,6 +241,88 @@ public class CompoundPredicate extends Predicate {
       }
     }
     return null;
+  }
+
+  // Arbitrary limit the number of Expr.equals() comparisons in the O(N^2) loop below.
+  // Used to avoid pathologically expensive invocations of this rule.
+  // TODO: Implement Expr.hashCode() and move to a hash-based solution for the core
+  // Expr.equals() comparison loop below.
+  private static final int MAX_EQUALS_COMPARISONS = 30 * 30;
+
+  /**
+   * This rule extracts common conjuncts from multiple disjunctions when it is applied
+   * recursively bottom-up to a tree of CompoundPredicates.
+   * It can be applied to pre-analysis expr trees and therefore does not reanalyze
+   * the transformation output itself.
+   *
+   * Examples:
+   * (a AND b AND c) OR (b AND d) ==> b AND ((a AND c) OR (d))
+   * (a AND b) OR (a AND b) ==> a AND b
+   * (a AND b AND c) OR (c) ==> c
+   */
+  public Expr extractCommonConjuncts() {
+    if (getOp() != CompoundPredicate.Operator.OR) return null;
+
+    // Get children's conjuncts and check
+    List<Expr> child0Conjuncts = getChild(0).getConjuncts();
+    List<Expr> child1Conjuncts = getChild(1).getConjuncts();
+    Preconditions.checkState(!child0Conjuncts.isEmpty() && !child1Conjuncts.isEmpty());
+    // Impose cost bound.
+    if (child0Conjuncts.size() * child1Conjuncts.size() > MAX_EQUALS_COMPARISONS) {
+      return null;
+    }
+
+    // Find common conjuncts.
+    List<Expr> commonConjuncts = new ArrayList<>();
+    for (Expr conjunct: child0Conjuncts) {
+      if (child1Conjuncts.contains(conjunct)) {
+        // The conjunct may have parenthesis but there's no need to preserve them.
+        // Removing them makes the toSql() easier to read.
+        conjunct.setPrintSqlInParens(false);
+        commonConjuncts.add(conjunct);
+      }
+    }
+    if (commonConjuncts.isEmpty()) return null;
+
+    // Remove common conjuncts.
+    child0Conjuncts.removeAll(commonConjuncts);
+    child1Conjuncts.removeAll(commonConjuncts);
+
+    // Check special case where one child contains all conjuncts of the other.
+    // (a AND b) OR (a AND b) ==> a AND b
+    // (a AND b AND c) OR (c) ==> c
+    if (child0Conjuncts.isEmpty() || child1Conjuncts.isEmpty()) {
+      Preconditions.checkState(!commonConjuncts.isEmpty());
+      Expr result = CompoundPredicate.createConjunctivePredicate(commonConjuncts);
+      return result;
+    }
+
+    // Re-assemble disjunctive predicate.
+    Expr child0Disjunct = CompoundPredicate.createConjunctivePredicate(child0Conjuncts);
+    child0Disjunct.setPrintSqlInParens(getChild(0).getPrintSqlInParens());
+    Expr child1Disjunct = CompoundPredicate.createConjunctivePredicate(child1Conjuncts);
+    child1Disjunct.setPrintSqlInParens(getChild(1).getPrintSqlInParens());
+    List<Expr> newDisjuncts = Lists.newArrayList(child0Disjunct, child1Disjunct);
+    Expr newDisjunction = CompoundPredicate.createDisjunctivePredicate(newDisjuncts);
+    newDisjunction.setPrintSqlInParens(true);
+    Expr result = CompoundPredicate.createConjunction(newDisjunction,
+        CompoundPredicate.createConjunctivePredicate(commonConjuncts));
+    return result;
+  }
+
+  @Override
+  public List<Expr> getConjuncts() {
+    if (getOp() != CompoundPredicate.Operator.AND) return super.getConjuncts();
+    // TODO: we have to convert CompoundPredicate.AND to two expr trees for
+    // conjuncts because NULLs are handled differently for CompoundPredicate.AND
+    // and conjunct evaluation.  This is not optimal for jitted exprs because it
+    // will result in two functions instead of one. Create a new CompoundPredicate
+    // Operator (i.e. CONJUNCT_AND) with the right NULL semantics and use that
+    // instead
+    List<Expr> list = Lists.newArrayList();
+    list.addAll(getChild(0).getConjuncts());
+    list.addAll(getChild(1).getConjuncts());
+    return list;
   }
 
   /**

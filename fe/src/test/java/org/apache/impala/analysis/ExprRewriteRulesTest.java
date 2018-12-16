@@ -198,6 +198,7 @@ public class ExprRewriteRulesTest extends FrontendTestBase {
       assertNull("Expected rewrite", expectedSql);
       assertSame(expr, result);
     } else {
+      if (expectedSql == null) System.out.println(result.toSql());
       assertNotNull("Expected no rewrite", expectedSql);
       assertEquals(expectedSql, result.toSql());
     }
@@ -344,91 +345,94 @@ public class ExprRewriteRulesTest extends FrontendTestBase {
 
   @Test
   public void testExtractCommonConjunctsRule() throws ImpalaException {
-    ExprRewriteRule rule = ExtractCommonConjunctRule.INSTANCE;
+    Class<? extends Expr> nodeClass = CompoundPredicate.class;
 
     // One common conjunct: int_col < 10
-    RewritesOk(
+    verifySingleRewrite(
         "(int_col < 10 and bigint_col < 10) or " +
-        "(string_col = '10' and int_col < 10)", rule,
+        "(string_col = '10' and int_col < 10)", nodeClass,
         "int_col < 10 AND ((bigint_col < 10) OR (string_col = '10'))");
     // One common conjunct in multiple disjuncts: int_col < 10
-    RewritesOk(
+    verifyRewrite(
         "(int_col < 10 and bigint_col < 10) or " +
         "(string_col = '10' and int_col < 10) or " +
         "(id < 20 and int_col < 10) or " +
-        "(int_col < 10 and float_col > 3.14)", rule,
+        "(int_col < 10 and float_col > 3.14)",
         "int_col < 10 AND " +
         "((bigint_col < 10) OR (string_col = '10') OR " +
         "(id < 20) OR (float_col > 3.14))");
     // Same as above but with a bushy OR tree.
-    RewritesOk(
+    verifyRewrite(
         "((int_col < 10 and bigint_col < 10) or " +
         " (string_col = '10' and int_col < 10)) or " +
         "((id < 20 and int_col < 10) or " +
-        " (int_col < 10 and float_col > 3.14))", rule,
+        " (int_col < 10 and float_col > 3.14))",
         "int_col < 10 AND " +
         "((bigint_col < 10) OR (string_col = '10') OR " +
         "(id < 20) OR (float_col > 3.14))");
     // Multiple common conjuncts: int_col < 10, bool_col is null
-    RewritesOk(
+    verifySingleRewrite(
         "(int_col < 10 and bigint_col < 10 and bool_col is null) or " +
-        "(bool_col is null and string_col = '10' and int_col < 10)", rule,
+        "(bool_col is null and string_col = '10' and int_col < 10)", nodeClass,
         "int_col < 10 AND bool_col IS NULL AND " +
         "((bigint_col < 10) OR (string_col = '10'))");
     // Negated common conjunct: !(int_col=5 or tinyint_col > 9)
-    RewritesOk(
+    verifySingleRewrite(
         "(!(int_col=5 or tinyint_col > 9) and double_col = 7) or " +
-        "(!(int_col=5 or tinyint_col > 9) and double_col = 8)", rule,
+        "(!(int_col=5 or tinyint_col > 9) and double_col = 8)", nodeClass,
         "NOT (int_col = 5 OR tinyint_col > 9) AND " +
         "((double_col = 7) OR (double_col = 8))");
 
     // Test common BetweenPredicate: int_col between 10 and 30
-    RewritesOk(
+    verifyRewrite(
         "(int_col between 10 and 30 and bigint_col < 10) or " +
         "(string_col = '10' and int_col between 10 and 30) or " +
         "(id < 20 and int_col between 10 and 30) or " +
-        "(int_col between 10 and 30 and float_col > 3.14)", rule,
+        "(int_col between 10 and 30 and float_col > 3.14)",
         "int_col >= 10 AND int_col <= 30 AND " +
         "((bigint_col < 10) OR (string_col = '10') OR " +
         "(id < 20) OR (float_col > 3.14))");
     // Test common NOT BetweenPredicate: int_col not between 10 and 30
-    RewritesOk(
+    verifyRewrite(
         "(int_col not between 10 and 30 and bigint_col < 10) or " +
         "(string_col = '10' and int_col not between 10 and 30) or " +
         "(id < 20 and int_col not between 10 and 30) or " +
-        "(int_col not between 10 and 30 and float_col > 3.14)", rule,
+        "(int_col not between 10 and 30 and float_col > 3.14)",
         "int_col < 10 OR int_col > 30 AND " +
         "((bigint_col < 10) OR (string_col = '10') OR " +
         "(id < 20) OR (float_col > 3.14))");
     // Test mixed BetweenPredicates are not common.
-    RewritesOk(
+    verifyRewrite(
         "(int_col not between 10 and 30 and bigint_col < 10) or " +
         "(string_col = '10' and int_col between 10 and 30) or " +
         "(id < 20 and int_col not between 10 and 30) or " +
-        "(int_col between 10 and 30 and float_col > 3.14)", rule,
-        null);
+        "(int_col between 10 and 30 and float_col > 3.14)",
+        "((int_col < 10 OR int_col > 30) AND bigint_col < 10) OR "+
+        "(string_col = '10' AND int_col >= 10 AND int_col <= 30) OR " +
+        "(id < 20 AND (int_col < 10 OR int_col > 30)) OR " +
+        "(int_col >= 10 AND int_col <= 30 AND float_col > 3.14)");
 
     // All conjuncts are common.
-    RewritesOk(
+    verifyRewrite(
         "(int_col < 10 and id between 5 and 6) or " +
         "(id between 5 and 6 and int_col < 10) or " +
-        "(int_col < 10 and id between 5 and 6)", rule,
+        "(int_col < 10 and id between 5 and 6)",
         "int_col < 10 AND id >= 5 AND id <= 6");
     // Complex disjuncts are redundant.
-    RewritesOk(
+    verifyRewrite(
         "(int_col < 10) or " +
         "(int_col < 10 and bigint_col < 10 and bool_col is null) or " +
         "(int_col < 10) or " +
-        "(bool_col is null and int_col < 10)", rule,
+        "(bool_col is null and int_col < 10)",
         "int_col < 10");
 
     // Due to the shape of the original OR tree we are left with redundant
     // disjuncts after the extraction.
-    RewritesOk(
+    verifyRewrite(
         "(int_col < 10 and bigint_col < 10) or " +
         "(string_col = '10' and int_col < 10) or " +
         "(id < 20 and int_col < 10) or " +
-        "(int_col < 10 and id < 20)", rule,
+        "(int_col < 10 and id < 20)",
         "int_col < 10 AND " +
         "((bigint_col < 10) OR (string_col = '10') OR (id < 20) OR (id < 20))");
   }
