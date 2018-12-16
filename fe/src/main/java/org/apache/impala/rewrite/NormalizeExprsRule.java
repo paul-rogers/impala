@@ -20,7 +20,6 @@ package org.apache.impala.rewrite;
 import org.apache.impala.analysis.Analyzer;
 import org.apache.impala.analysis.CompoundPredicate;
 import org.apache.impala.analysis.Expr;
-import org.apache.impala.analysis.ExprAnalyzer.RewriteMode;
 
 /**
  * Normalizes CompoundPredicates by ensuring that if either child of AND or OR is a
@@ -38,7 +37,8 @@ public class NormalizeExprsRule implements ExprRewriteRule {
 
     // TODO: add normalization for other expr types.
     if (expr instanceof CompoundPredicate) {
-      return ((CompoundPredicate) expr).rewrite(RewriteMode.OPTIONAL);
+      Expr result = ((CompoundPredicate) expr).normalize();
+      if (result != null) expr = result;
     }
     return expr;
   }

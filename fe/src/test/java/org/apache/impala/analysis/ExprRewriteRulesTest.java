@@ -552,20 +552,24 @@ public class ExprRewriteRulesTest extends FrontendTestBase {
 
   @Test
   public void testSimplifyCompoundPredicate() throws ImpalaException {
-    ExprRewriteRule rule = SimplifyConditionalsRule.INSTANCE;
+    Class<? extends Expr> nodeClass = CompoundPredicate.class;
 
-    // CompoundPredicate
-    RewritesOk("false || id = 0", rule, "id = 0");
-    RewritesOk("true || id = 0", rule, "TRUE");
-    RewritesOk("false && id = 0", rule, "FALSE");
-    RewritesOk("true && id = 0", rule, "id = 0");
+    verifySingleRewrite("false || id = 0", nodeClass, "id = 0");
+    verifySingleRewrite("true || id = 0", nodeClass, "TRUE");
+    verifySingleRewrite("false && id = 0", nodeClass, "FALSE");
+    verifySingleRewrite("true && id = 0", nodeClass, "id = 0");
     // NULL with a non-constant other child doesn't get rewritten.
-    RewritesOk("null && id = 0", rule, null);
-    RewritesOk("null || id = 0", rule, null);
+    verifySingleRewrite("null && id = 0", nodeClass, null);
+    verifySingleRewrite("null || id = 0", nodeClass, null);
+    // Normalization happens first
+    verifySingleRewrite("id = 0 || false", nodeClass, "FALSE OR id = 0");
 
     // IMPALA-5125: Exprs containing aggregates should not be rewritten if the rewrite
     // eliminates all aggregates.
-    RewritesOk("true || sum(id) = 0", rule, null);
+    verifyRewrite("true || sum(id) = 0", null);
+    verifyRewrite("not true", "FALSE");
+    verifyRewrite("not false", "TRUE");
+    verifyRewrite("id = 0 || false", "id = 0");
   }
 
   @Test

@@ -98,27 +98,8 @@ public class SimplifyConditionalsRule implements ExprRewriteRule {
    * NOT is covered by FoldConstantRule.
    */
   private Expr simplifyCompoundPredicate(CompoundPredicate expr) {
-    Expr leftChild = expr.getChild(0);
-    if (!(leftChild instanceof BoolLiteral)) return expr;
-
-    if (expr.getOp() == CompoundPredicate.Operator.AND) {
-      if (Expr.IS_TRUE_LITERAL.apply(leftChild)) {
-        // TRUE AND 'expr', so return 'expr'.
-        return expr.getChild(1);
-      } else {
-        // FALSE AND 'expr', so return FALSE.
-        return leftChild;
-      }
-    } else if (expr.getOp() == CompoundPredicate.Operator.OR) {
-      if (Expr.IS_TRUE_LITERAL.apply(leftChild)) {
-        // TRUE OR 'expr', so return TRUE.
-        return leftChild;
-      } else {
-        // FALSE OR 'expr', so return 'expr'.
-        return expr.getChild(1);
-      }
-    }
-    return expr;
+    Expr result = expr.simplify();
+    return result == null ? expr : result;
   }
 
   /**

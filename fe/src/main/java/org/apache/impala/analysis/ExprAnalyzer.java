@@ -277,6 +277,8 @@ public class ExprAnalyzer {
         state = (expr == beforeRewrite) ? state = State.DONE : State.CHECK_REWRITE;
         break;
       case CHECK_REWRITE:
+        // Rewrite may have returned a child already analyzed and rewritten
+        state = expr.isAnalyzed() ? state = State.DONE : State.REWRITE;
         expr.analyzeNode(analyzer_);
         finish(expr); // Checks below require completed analysis
         if (!rewriteIsValid(beforeRewrite, expr)) {
@@ -288,8 +290,6 @@ public class ExprAnalyzer {
           // id = 0 AND TRUE --> TRUE AND id = 0
           // TRUE AND id = 0 --> id = 0
           rewriteCount_++;
-          // Rewrite may have returned a child already analyzed and rewritten
-          state = expr.isAnalyzed() ? state = State.DONE : State.REWRITE;
         }
         break;
       default:

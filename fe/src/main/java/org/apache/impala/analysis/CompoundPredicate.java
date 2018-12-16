@@ -167,22 +167,76 @@ public class CompoundPredicate extends Predicate {
   }
 
   /**
+   * Rewrites in two steps:
+   * - First pass: normalize (see below). This step is aggregate-safe
+   *   (does not remove aggregates).
+   * - Second pass: simplify (see below). This can remove aggregates and
+   *   may be rejected by the rewrite engine.
+   */
+  @Override
+  public Expr rewrite(RewriteMode rewriteMode) {
+    if (rewriteMode != RewriteMode.OPTIONAL) return this;
+
+    Expr result = normalize();
+    if (result == null) {
+      result = simplify();
+    }
+    return result == null ? this : result;
+  }
+
+  /**
    * Normalizes CompoundPredicates by ensuring that if either child of AND or OR is a
    * BoolLiteral, then the left (i.e. first) child is a BoolLiteral.
    *
    * Examples:
    * id = 0 && true -> true && id = 0
    */
-  @Override
-  public Expr rewrite(RewriteMode rewriteMode) {
-    if (rewriteMode != RewriteMode.OPTIONAL) return this;
-    if (getOp() == CompoundPredicate.Operator.NOT) return this;
-
+  public Expr normalize() {
+    if (getOp() == CompoundPredicate.Operator.NOT) return null;
     if (!(getChild(0) instanceof BoolLiteral)
         && getChild(1) instanceof BoolLiteral) {
       return new CompoundPredicate(getOp(), getChild(1), getChild(0));
     }
-    return this;
+    return null;
+  }
+
+  /**
+   * Simplifies a compound predicates with at least one BoolLiteral child, which
+   * NormalizeExprsRule ensures will be the left child,  according to the following rules:
+   *
+   * true AND 'expr' -> 'expr'
+   * false AND 'expr' -> false
+   * true OR 'expr' -> true
+   * false OR 'expr' -> 'expr'
+   *
+   * Unlike other rules here such as IF, we cannot in general simplify CompoundPredicates
+   * with a NullLiteral child (unless the other child is a BoolLiteral), eg. null and
+   * 'expr' is false if 'expr' is false but null if 'expr' is true.
+   *
+   * NOT is covered by constant folding.
+   */
+  public Expr simplify() {
+    Expr leftChild = getChild(0);
+    if (!(leftChild instanceof BoolLiteral)) return null;
+
+    if (getOp() == CompoundPredicate.Operator.AND) {
+      if (Expr.IS_TRUE_LITERAL.apply(leftChild)) {
+        // TRUE AND 'expr', so return 'expr'.
+        return getChild(1);
+      } else {
+        // FALSE AND 'expr', so return FALSE.
+        return leftChild;
+      }
+    } else if (getOp() == CompoundPredicate.Operator.OR) {
+      if (Expr.IS_TRUE_LITERAL.apply(leftChild)) {
+        // TRUE OR 'expr', so return TRUE.
+        return leftChild;
+      } else {
+        // FALSE OR 'expr', so return 'expr'.
+        return getChild(1);
+      }
+    }
+    return null;
   }
 
   /**
