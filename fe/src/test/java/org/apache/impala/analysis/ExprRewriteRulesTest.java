@@ -18,6 +18,8 @@
 package org.apache.impala.analysis;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -199,13 +201,14 @@ public class ExprRewriteRulesTest extends FrontendTestBase {
     Expr expr = parseSelectExpr(exprSql);
     Analyzer analyzer = prepareAnalyzer(true);
     Expr result = analyzer.analyzeAndRewrite(expr);
-    if (analyzer.exprAnalyzer().rewriteCount() == 0) {
-      assertTrue("Expected rewrite", expectedSql == null);
+    if (analyzer.exprAnalyzer().transformCount() == 0) {
+      assertNull("Expected rewrite", expectedSql);
+      assertSame(expr, result);
     } else {
-      assertTrue("Expected no rewrite", expectedSql != null);
+      assertNotNull("Expected no rewrite", expectedSql);
       assertEquals(expectedSql, result.toSql());
     }
-    return expr;
+    return result;
   }
 
   private void verifySingleRewrite(String exprSql, Class<? extends Expr> nodeClass,
@@ -214,9 +217,9 @@ public class ExprRewriteRulesTest extends FrontendTestBase {
     assertTrue(nodeClass.isInstance(expr));
     Expr result = expr.rewrite(RewriteMode.OPTIONAL);
     if (result == expr) {
-      assertTrue("Expected rewrite", expectedSql == null);
+      assertNull("Expected rewrite", expectedSql);
     } else {
-      assertTrue("Expected no rewrite", expectedSql != null);
+      assertNotNull("Expected no rewrite", expectedSql);
       assertEquals(expectedSql, result.toSql());
     }
   }
@@ -421,14 +424,13 @@ public class ExprRewriteRulesTest extends FrontendTestBase {
 
   @Test
   public void testFoldConstantsDeep() throws ImpalaException {
-    // Sanity check: no rewrite if rewrites disabled
     {
+      // Sanity check: no rewrite if rewrites disabled
       Expr expr = analyzeWithoutRewrite("1 + 1");
       assertEquals("1 + 1", expr.toSql());
     }
-
-    // Push null type into null literal
     {
+      // Push null type into null literal
       Expr expr = analyzeWithRewrite("CAST(NULL AS INT)");
       assertTrue(expr instanceof NullLiteral);
       assertTrue(expr.isAnalyzed());
@@ -436,9 +438,8 @@ public class ExprRewriteRulesTest extends FrontendTestBase {
       assertEquals(1.0, expr.getCost(), 0.01);
       assertEquals(1, expr.getNumDistinctValues());
     }
-
-    // Push type into numeric literal
     {
+      // Push type into numeric literal
       Expr expr = analyzeWithRewrite("CAST(10 AS INT)");
       assertTrue(expr instanceof NumericLiteral);
       assertTrue(expr.isAnalyzed());
@@ -446,9 +447,8 @@ public class ExprRewriteRulesTest extends FrontendTestBase {
       assertEquals(1.0, expr.getCost(), 0.01);
       assertEquals(1, expr.getNumDistinctValues());
     }
-
-    // Simple constant folding
     {
+      // Simple constant folding - untyped
       Expr expr = analyzeWithRewrite("1 + 1");
       assertTrue(expr instanceof NumericLiteral);
       assertTrue(expr.isAnalyzed());
@@ -457,6 +457,7 @@ public class ExprRewriteRulesTest extends FrontendTestBase {
       assertEquals(1, expr.getNumDistinctValues());
     }
     {
+      // Simple constant folding - typed
       Expr expr = analyzeWithRewrite("CAST(1 AS TINYINT) + 1");
       assertTrue(expr instanceof NumericLiteral);
       assertTrue(expr.isAnalyzed());
@@ -703,7 +704,7 @@ public class ExprRewriteRulesTest extends FrontendTestBase {
    * resulted in a NULL.
    */
   @Test
-  public void TestCoalesceDecimal() throws ImpalaException {
+  public void testCoalesceDecimal() throws ImpalaException {
     String query =
         "SELECT coalesce(1.8, CAST(0 AS DECIMAL(38,38))) AS c " +
         " FROM functional.alltypestiny";
@@ -750,15 +751,16 @@ public class ExprRewriteRulesTest extends FrontendTestBase {
   public void testNormalizeExprs() throws ImpalaException {
     verifySingleRewrite("id = 0 OR false", CompoundPredicate.class, "FALSE OR id = 0");
     verifySingleRewrite("null AND true", CompoundPredicate.class, "TRUE AND NULL");
-    // The following already have a BoolLiteral left child and don't get rewritten.
-    verifySingleRewrite("true and id = 0", CompoundPredicate.class, "TRUE AND id = 0");
-    verifySingleRewrite("false or id = 1", CompoundPredicate.class, "FALSE OR id = 1");
-    verifySingleRewrite("false or true", CompoundPredicate.class, "FALSE OR TRUE");
+    // The following already have a Boolean literal left child and don't get rewritten.
+    verifySingleRewrite("true and id = 0", CompoundPredicate.class, null);
+    verifySingleRewrite("false or id = 1", CompoundPredicate.class, null);
+    verifySingleRewrite("false or true", CompoundPredicate.class, null);
 
+    // Combine with other rules
     verifyRewrite("0 = id OR false", "FALSE OR id = 0");
     verifyRewrite("null AND true", "NULL");
-    verifyRewrite("true and id = 0", "TRUE AND id = 0");
-    verifyRewrite("false or id = 1", "FALSE OR id = 1");
+    verifyRewrite("true and id = 0", null);
+    verifyRewrite("false or id = 1", null);
     verifyRewrite("false or true", "TRUE");
   }
 
@@ -836,38 +838,39 @@ public class ExprRewriteRulesTest extends FrontendTestBase {
 
   @Test
   public void testNormalizeBinaryPredicates() throws ImpalaException {
-    verifySingleRewrite("0 = id", BinaryPredicate.class, "id = 0");
-    verifySingleRewrite("cast(0 as double) = id", BinaryPredicate.class,
+    Class<? extends Expr> nodeClass = BinaryPredicate.class;
+
+    verifySingleRewrite("0 = id", nodeClass, "id = 0");
+    verifySingleRewrite("cast(0 as double) = id", nodeClass,
         "id = CAST(0 AS DOUBLE)");
-    verifySingleRewrite("1 + 1 = cast(id as int)", BinaryPredicate.class,
+    verifySingleRewrite("1 + 1 = cast(id as int)", nodeClass,
         "CAST(id AS INT) = 1 + 1");
-    verifySingleRewrite("5 = id + 2", BinaryPredicate.class, "id + 2 = 5");
-    verifySingleRewrite("5 + 3 = id", BinaryPredicate.class, "id = 5 + 3");
+    verifySingleRewrite("5 = id + 2", nodeClass, "id + 2 = 5");
+    verifySingleRewrite("5 + 3 = id", nodeClass, "id = 5 + 3");
     verifySingleRewrite("tinyint_col + smallint_col = int_col",
-        BinaryPredicate.class, "int_col = tinyint_col + smallint_col");
+        nodeClass, "int_col = tinyint_col + smallint_col");
     // Two levels of cast
     verifySingleRewrite("cast(cast(0 as smallint) as double) < cast(cast(id as int) as double)",
-        BinaryPredicate.class, "CAST(CAST(id AS INT) AS DOUBLE) > CAST(CAST(0 AS SMALLINT) AS DOUBLE)");
+        nodeClass, "CAST(CAST(id AS INT) AS DOUBLE) > CAST(CAST(0 AS SMALLINT) AS DOUBLE)");
     // Col ref is inside an expression
-    verifySingleRewrite("5 + 3 = id + 2", BinaryPredicate.class, "id + 2 = 5 + 3");
+    verifySingleRewrite("5 + 3 = id + 2", nodeClass, "id + 2 = 5 + 3");
     // Bare slot ref goes on left, even if other side is a slot ref expression
-    verifySingleRewrite("id + 6 = int_col", BinaryPredicate.class, "int_col = id + 6");
-    verifySingleRewrite("sum(id) = sum(int_col) + 1", BinaryPredicate.class, null);
-    verifySingleRewrite("sum(int_col) + 1 = sum(id)", BinaryPredicate.class, null);
+    verifySingleRewrite("id + 6 = int_col", nodeClass, "int_col = id + 6");
+    verifySingleRewrite("sum(id) = sum(int_col) + 1", nodeClass, null);
+    verifySingleRewrite("sum(int_col) + 1 = sum(id)", nodeClass, null);
 
     // Verify that these don't get rewritten.
-    verifySingleRewrite("5 = 6", BinaryPredicate.class, null);
-    verifySingleRewrite("id = 5", BinaryPredicate.class, null);
-    verifySingleRewrite("cast(id as int) = int_col", BinaryPredicate.class,
-        "CAST(id AS INT) = int_col");
-    verifySingleRewrite("int_col = cast(id as int)", BinaryPredicate.class,
-        "int_col = CAST(id AS INT)");
-    verifySingleRewrite("int_col = tinyint_col", BinaryPredicate.class, null);
-    verifySingleRewrite("tinyint_col = int_col", BinaryPredicate.class, null);
-    verifySingleRewrite("2 + 6 = 8", BinaryPredicate.class, null);
-    verifySingleRewrite("8 = 2 + 6", BinaryPredicate.class, null);
-    verifySingleRewrite("int_col = id + 6", BinaryPredicate.class, null);
+    verifySingleRewrite("5 = 6", nodeClass, null);
+    verifySingleRewrite("id = 5", nodeClass, null);
+    verifySingleRewrite("cast(id as int) = int_col", nodeClass, null);
+    verifySingleRewrite("int_col = cast(id as int)", nodeClass, null);
+    verifySingleRewrite("int_col = tinyint_col", nodeClass, null);
+    verifySingleRewrite("tinyint_col = int_col", nodeClass, null);
+    verifySingleRewrite("2 + 6 = 8", nodeClass, null);
+    verifySingleRewrite("8 = 2 + 6", nodeClass, null);
+    verifySingleRewrite("int_col = id + 6", nodeClass, null);
 
+    // Full rewrite tests
     verifyRewrite("0 = id", "id = 0");
     verifyRewrite("cast(0 as double) = id", "id = 0");
     verifyRewrite("1 + 1 = cast(id as int)", "CAST(id AS INT) = 2");
@@ -888,8 +891,8 @@ public class ExprRewriteRulesTest extends FrontendTestBase {
     // Verify that these don't get rewritten.
     verifyRewrite("5 = 6", "FALSE");
     verifyRewrite("id = 5", null);
-    verifyRewrite("cast(id as int) = int_col", "CAST(id AS INT) = int_col");
-    verifyRewrite("int_col = cast(id as int)", "int_col = CAST(id AS INT)");
+    verifyRewrite("cast(id as int) = int_col", null);
+    verifyRewrite("int_col = cast(id as int)", null);
     verifyRewrite("int_col = tinyint_col", null);
     verifyRewrite("tinyint_col = int_col", null);
     verifyRewrite("2 + 6 = 8", "TRUE");

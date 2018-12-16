@@ -251,8 +251,6 @@ public class ExprAnalyzer {
       return foldConstants(expr, preserveType);
     }
     check(expr);
-    // Resolve is for leaves; OK not to have checked children
-    expr = expr.resolve(colResolver_);
     State state = State.ANALYZE;
     Expr beforeRewrite = null;
     while (state != State.DONE) {
@@ -262,6 +260,7 @@ public class ExprAnalyzer {
       }
       switch (state) {
       case ANALYZE:
+        expr = expr.resolve(colResolver_);
         preserveType |= checkPreserveType(expr);
         expr.analyzeNode(analyzer_);
         // Analysis can revise children, which may constant-fold those children, or
@@ -273,12 +272,9 @@ public class ExprAnalyzer {
         expr = beforeRewrite.rewrite(rewriteMode_);
         // Done if no rewrite. This works ONLY if rewrites replace nodes, not
         // rewrite them in place. As a result, all rewrites MUST create new nodes.
-        if (expr == beforeRewrite) state = State.DONE;
-        // Rewrite may have returned a child already analyzed
-        else if (expr.isAnalyzed()) state = State.DONE;
         // Otherwise, validate the rewrite after analyzing potentially
         // new children.
-        else state = State.CHECK_REWRITE;
+        state = (expr == beforeRewrite) ? state = State.DONE : State.CHECK_REWRITE;
         break;
       case CHECK_REWRITE:
         expr.analyzeNode(analyzer_);
@@ -292,7 +288,8 @@ public class ExprAnalyzer {
           // id = 0 AND TRUE --> TRUE AND id = 0
           // TRUE AND id = 0 --> id = 0
           rewriteCount_++;
-          state = State.REWRITE;
+          // Rewrite may have returned a child already analyzed and rewritten
+          state = expr.isAnalyzed() ? state = State.DONE : State.REWRITE;
         }
         break;
       default:
@@ -397,7 +394,6 @@ public class ExprAnalyzer {
         // If this is already a literal, there is nothing to fold
         Expr.IS_LITERAL.apply(expr)) return expr;
 
-    constantFoldCount_++;
     if (expr instanceof CastExpr) {
       CastExpr castExpr = (CastExpr) expr;
 
@@ -407,6 +403,7 @@ public class ExprAnalyzer {
       // Convert CAST(NULL AS <type>) to a null literal of the given type
       if (Expr.IS_NULL_LITERAL.apply(castExpr.getChild(0))) {
         // Trying using a typed null literal
+        constantFoldCount_++;
         return new NullLiteral(castExpr.getType());
       }
       preserveType |= castExpr.hasExplicitType();
@@ -427,7 +424,9 @@ public class ExprAnalyzer {
       result = LiteralExpr.untypedEval(expr, analyzer_.getQueryCtx());
     }
 
-    return result == null ? expr : result;
+    if (result == null) return expr;
+    constantFoldCount_++;
+    return result;
   }
 
   /**
@@ -451,4 +450,5 @@ public class ExprAnalyzer {
   public boolean performOptionalRewrites() { return rewriteMode_ == RewriteMode.OPTIONAL; }
   public int rewriteCount() { return rewriteCount_; }
   public int constantFoldCount() { return constantFoldCount_; }
+  public int transformCount() { return rewriteCount_ + constantFoldCount_; }
 }
