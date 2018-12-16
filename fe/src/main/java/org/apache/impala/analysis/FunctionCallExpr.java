@@ -626,10 +626,32 @@ public class FunctionCallExpr extends Expr {
     }
   }
 
+  /**
+   * Simplify conditional functions with constant conditions. It relies on
+   * constant folding to replace the constant conditions with a BoolLiteral or NullLiteral
+   * first, and on NormalizeExprsRule to normalize CompoundPredicates.
+   *
+   * Examples:
+   * if (true, 0, 1) -> 0
+   * id = 0 OR false -> id = 0
+   * false AND id = 1 -> false
+   * coalesce(1, 0) -> 1
+   *
+   * Unary functions like isfalse, isnotfalse, istrue, isnottrue, nullvalue,
+   * and nonnullvalue don't need special handling as the fold constants rule
+   * will handle them.  nullif and nvl2 are converted to an if in FunctionCallExpr,
+   * and therefore don't need handling here.
+   *
+   * Note that FunctionalCallExpr.createExpr() converts "nvl2" into "if",
+   * and "nullif" into "if".
+   */
   @Override
   protected Expr rewrite(ExprAnalyzer exprAnalyzer) throws AnalysisException {
     if (!exprAnalyzer.isEnabled(RewriteMode.OPTIONAL)) return this;
-    return simplifyConditionals();
+    Expr result = simplifyConditionals();
+    if (result != null) return result;
+    result = normalizeCountStar();
+    return result == null ? this : result;
   }
 
   private static List<String> IFNULL_ALIASES = ImmutableList.of(
@@ -645,7 +667,7 @@ public class FunctionCallExpr extends Expr {
     } else if (IFNULL_ALIASES.contains(fnName)) {
       return simplifyIfNullFunctionCallExpr();
     }
-    return this;
+    return null;
   }
 
   /**
@@ -665,7 +687,7 @@ public class FunctionCallExpr extends Expr {
       // IF(NULL)
       return getChild(2);
     }
-    return this;
+    return null;
   }
 
   /**
@@ -679,7 +701,7 @@ public class FunctionCallExpr extends Expr {
     Expr child0 = getChild(0);
     if (Expr.IS_NULL_LITERAL.apply(child0)) return getChild(1);
     if (Expr.IS_LITERAL.apply(child0)) return child0;
-    return this;
+    return null;
   }
 
   /**
@@ -704,7 +726,26 @@ public class FunctionCallExpr extends Expr {
       }
       break;
     }
-    return result;
+    return result == this ? null : result;
+  }
+
+  /**
+   * Replaces count(<literal>) with an equivalent count{*}.
+   *
+   * Examples:
+   * count(1)    --> count(*)
+   * count(2017) --> count(*)
+   * count(null) --> count(null)
+   */
+  public Expr normalizeCountStar() {
+    if (!getFnName().getFunction().equalsIgnoreCase("count")) return null;
+    if (getParams().isStar()) return null;
+    if (getParams().isDistinct()) return null;
+    if (getParams().exprs().size() != 1) return null;
+    Expr child = getChild(0);
+    if (!Expr.IS_LITERAL.apply(child)) return null;
+    if (Expr.IS_NULL_VALUE.apply(child)) return null;
+    return new FunctionCallExpr(new FunctionName("count"), FunctionParams.createStarParam());
   }
 
   @Override

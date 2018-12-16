@@ -24,132 +24,24 @@ import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-import java.util.List;
-
-import org.apache.hbase.thirdparty.com.google.common.collect.Sets;
 import org.apache.impala.analysis.BinaryPredicate.Operator;
 import org.apache.impala.analysis.ExprAnalyzer.RewriteMode;
 import org.apache.impala.analysis.StmtMetadataLoader.StmtTableCache;
 import org.apache.impala.catalog.ScalarType;
 import org.apache.impala.catalog.Type;
-import org.apache.impala.common.AnalysisException;
 import org.apache.impala.common.FrontendTestBase;
 import org.apache.impala.common.ImpalaException;
 import org.apache.impala.common.SqlCastException;
-import org.apache.impala.rewrite.ExprRewriteRule;
-import org.apache.impala.rewrite.ExprRewriter;
-import org.apache.impala.rewrite.FoldConstantsRule;
-import org.apache.impala.rewrite.NormalizeCountStarRule;
-import org.apache.impala.rewrite.RemoveRedundantStringCast;
-import org.apache.impala.rewrite.SimplifyConditionalsRule;
-import org.apache.impala.rewrite.SimplifyDistinctFromRule;
-import org.junit.Assert;
 import org.junit.Test;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 
 /**
  * Tests ExprRewriteRules.
  */
 public class ExprRewriteRulesTest extends FrontendTestBase {
-
-  /** Wraps an ExprRewriteRule to count how many times it's been applied. */
-  private static class CountingRewriteRuleWrapper implements ExprRewriteRule {
-    int rewrites;
-    ExprRewriteRule wrapped;
-
-    CountingRewriteRuleWrapper(ExprRewriteRule wrapped) {
-      this.wrapped = wrapped;
-    }
-
-    @Override
-    public Expr apply(Expr expr, Analyzer analyzer) throws AnalysisException {
-      Expr ret = wrapped.apply(expr, analyzer);
-      if (expr != ret) rewrites++;
-      return ret;
-    }
-  }
-
-  public Expr RewritesOk(String exprStr, ExprRewriteRule rule, String expectedExprStr)
-      throws ImpalaException {
-    return RewritesOk("functional.alltypessmall", exprStr, rule, expectedExprStr);
-  }
-
-  public Expr RewritesOk(String tableName, String exprStr, ExprRewriteRule rule, String expectedExprStr)
-      throws ImpalaException {
-    return RewritesOk(tableName, exprStr, Lists.newArrayList(rule), expectedExprStr);
-  }
-
-  public Expr RewritesOk(String exprStr, List<ExprRewriteRule> rules, String expectedExprStr)
-      throws ImpalaException {
-    return RewritesOk("functional.alltypessmall", exprStr, rules, expectedExprStr);
-  }
-
-  public Expr RewritesOk(String tableName, String exprStr, List<ExprRewriteRule> rules,
-      String expectedExprStr) throws ImpalaException {
-    String stmtStr = "select " + exprStr + " from " + tableName;
-    // Analyze without rewrites since that's what we want to test here.
-    SelectStmt stmt = (SelectStmt) ParsesOk(stmtStr);
-    AnalyzesOkNoRewrite(stmt);
-    Expr origExpr = stmt.getSelectList().getItems().get(0).getExpr();
-    Expr rewrittenExpr =
-        verifyExprEquivalence(origExpr, expectedExprStr, rules, stmt.getAnalyzer());
-    return rewrittenExpr;
-  }
-
-  public Expr RewritesOkWhereExpr(String exprStr, ExprRewriteRule rule, String expectedExprStr)
-      throws ImpalaException {
-    return RewritesOkWhereExpr("functional.alltypessmall", exprStr, rule, expectedExprStr);
-  }
-
-  public Expr RewritesOkWhereExpr(String tableName, String exprStr, ExprRewriteRule rule, String expectedExprStr)
-      throws ImpalaException {
-    return RewritesOkWhereExpr(tableName, exprStr, Lists.newArrayList(rule), expectedExprStr);
-  }
-
-  public Expr RewritesOkWhereExpr(String tableName, String exprStr, List<ExprRewriteRule> rules,
-      String expectedExprStr) throws ImpalaException {
-    String stmtStr = "select count(1)  from " + tableName + " where " + exprStr;
-    // Analyze without rewrites since that's what we want to test here.
-    SelectStmt stmt = (SelectStmt) ParsesOk(stmtStr);
-    AnalyzesOkNoRewrite(stmt);
-    Expr origExpr = stmt.getWhereClause();
-    Expr rewrittenExpr =
-        verifyExprEquivalence(origExpr, expectedExprStr, rules, stmt.getAnalyzer());
-    return rewrittenExpr;
-  }
-
-  private Expr verifyExprEquivalence(Expr origExpr, String expectedExprStr,
-      List<ExprRewriteRule> rules, Analyzer analyzer) throws AnalysisException {
-    String origSql = origExpr.toSql();
-
-    List<ExprRewriteRule> wrappedRules = Lists.newArrayList();
-    for (ExprRewriteRule r : rules) {
-      wrappedRules.add(new CountingRewriteRuleWrapper(r));
-    }
-    ExprRewriter rewriter = new ExprRewriter(wrappedRules);
-
-    Expr rewrittenExpr = rewriter.rewrite(origExpr, analyzer);
-    String rewrittenSql = rewrittenExpr.toSql();
-    boolean expectChange = expectedExprStr != null;
-    if (expectedExprStr != null) {
-      assertEquals(expectedExprStr, rewrittenSql);
-      // Asserts that all specified rules fired at least once. This makes sure that the
-      // rules being tested are, in fact, being executed. A common mistake is to write
-      // an expression that's re-written by the constant folder before getting to the
-      // rule that is intended for the test.
-      for (ExprRewriteRule r : wrappedRules) {
-        CountingRewriteRuleWrapper w = (CountingRewriteRuleWrapper) r;
-        Assert.assertTrue("Rule " + w.wrapped.toString() + " didn't fire.",
-          w.rewrites > 0);
-      }
-    } else {
-      assertEquals(origSql, rewrittenSql);
-    }
-    Assert.assertEquals(expectChange, rewriter.changed());
-    return rewrittenExpr;
-  }
 
   private Analyzer prepareAnalyzer(boolean enableRewrites) throws ImpalaException {
     AnalysisContext ctx = createAnalysisCtx();
@@ -171,7 +63,7 @@ public class ExprRewriteRulesTest extends FrontendTestBase {
   }
 
   private Expr parseSelectExpr(String exprSql) {
-    return parseSelectExpr("functional.alltypessmall", exprSql);
+    return parseSelectExpr("functional.alltypes", exprSql);
   }
 
   private Expr analyzeSelectExpr(Expr expr) throws ImpalaException {
@@ -203,6 +95,22 @@ public class ExprRewriteRulesTest extends FrontendTestBase {
     return result;
   }
 
+  private Expr verifyWhereRewrite(String exprSql, String expectedSql) throws ImpalaException {
+    String stmtSql = "select count(1) from functional.alltypes where " + exprSql;
+    Expr expr = ((SelectStmt) ParsesOk(stmtSql)).getWhereClause();
+    Analyzer analyzer = prepareAnalyzer(true);
+    Expr result = analyzer.analyzeAndRewrite(expr);
+    if (analyzer.exprAnalyzer().transformCount() == 0) {
+      assertNull("Expected rewrite", expectedSql);
+      assertSame(expr, result);
+    } else {
+      if (expectedSql == null) System.out.println(result.toSql());
+      assertNotNull("Expected no rewrite", expectedSql);
+      assertEquals(expectedSql, result.toSql());
+    }
+    return result;
+  }
+
   private void verifySingleRewrite(String tableName, String exprSql, Class<? extends Expr> nodeClass,
       String expectedSql) throws ImpalaException {
     Analyzer analyzer = prepareAnalyzer(false);
@@ -218,7 +126,7 @@ public class ExprRewriteRulesTest extends FrontendTestBase {
     }
   }
 
-  private void verifySingleRewrite(String exprSql, Class<? extends Expr> nodeClass,
+  private Expr verifySingleRewrite(String exprSql, Class<? extends Expr> nodeClass,
       String expectedSql) throws ImpalaException {
     Analyzer analyzer = prepareAnalyzer(false);
     Expr expr = analyzer.analyzeAndRewrite(
@@ -232,6 +140,7 @@ public class ExprRewriteRulesTest extends FrontendTestBase {
       assertNotNull("Expected no rewrite", expectedSql);
       assertEquals(expectedSql, result.toSql());
     }
+    return result;
   }
 
   private void verifyRewriteType(String exprSql, Type expectedType, String expectedSql)
@@ -750,30 +659,20 @@ public class ExprRewriteRulesTest extends FrontendTestBase {
 
   @Test
   public void testNormalizeExprs() throws ImpalaException {
-    verifySingleRewrite("id = 0 OR false", CompoundPredicate.class, "FALSE OR id = 0");
-    verifySingleRewrite("null AND true", CompoundPredicate.class, "TRUE AND NULL");
+    Class<? extends Expr> nodeClass = CompoundPredicate.class;
+
+    verifySingleRewrite("id = 0 OR false", nodeClass, "FALSE OR id = 0");
+    verifySingleRewrite("null AND true", nodeClass, "TRUE AND NULL");
     // The following already have a Boolean literal left child and don't get rewritten.
-    verifySingleRewrite("true and id = 0", CompoundPredicate.class, null);
-    verifySingleRewrite("false or id = 1", CompoundPredicate.class, null);
-    verifySingleRewrite("false or true", CompoundPredicate.class, null);
+    // But, the other simplification rules do kick in.
+    verifySingleRewrite("true and id = 0", nodeClass, "id = 0");
+    verifySingleRewrite("false or id = 1", nodeClass, "id = 1");
+    verifySingleRewrite("false or true", nodeClass, "TRUE");
 
     // Combine with other rules
-    verifyRewrite("0 = id OR false", "FALSE OR id = 0");
+    verifyRewrite("0 = id OR false", "id = 0");
     verifyRewrite("null AND true", "NULL");
-    verifyRewrite("true and id = 0", null);
-    verifyRewrite("false or id = 1", null);
     verifyRewrite("false or true", "TRUE");
-  }
-
-  private Expr rewriteTopOnly(String exprSql) throws ImpalaException {
-    Expr expr = parseSelectExpr(exprSql);
-    assertTrue(expr instanceof BinaryPredicate);
-
-    Analyzer analyzer = prepareAnalyzer(false);
-    Expr result = analyzer.analyzeAndRewrite(expr);
-    result = result.rewrite(analyzer.exprAnalyzer());
-    analyzer.analyzeInPlace(result);
-    return result;
   }
 
   @Test
@@ -792,15 +691,14 @@ public class ExprRewriteRulesTest extends FrontendTestBase {
     // Verify the details of a simple, typical rewrite case.
     // Other cases use the same code so not additional detail tests
     // are needed.
-    Expr result = rewriteTopOnly("cast(0 as double) < id");
-    assertEquals("id > CAST(0 AS DOUBLE)", result.toSql());
+    Expr result = verifyRewrite("cast(0 as double) < id", "id > 0");
 
     // Verify the binary predicate
     assertTrue(result instanceof BinaryPredicate);
     assertTrue(result.isAnalyzed());
     assertEquals(Type.BOOLEAN, result.getType());
     assertEquals(3, result.getNumDistinctValues());
-    assertEquals(5.0, result.getCost(), 0.001);
+    assertEquals(4.0, result.getCost(), 0.001);
     // TODO: Fix this, use industry standard guess
     assertEquals(-1, result.getSelectivity(), 0.01); // Enhancement
 
@@ -822,19 +720,10 @@ public class ExprRewriteRulesTest extends FrontendTestBase {
     // TODO: Fix this, use industry standard guess
     assertEquals(-1, leftValue.getSelectivity(), 0.01); // BUG: Should be 1/7300
 
-    // The right node, the explicit cast to DOUBLE
+    // The right node, 0 rewritten DOUBLE
     Expr right = result.getChild(1);
-    assertTrue(right instanceof CastExpr);
+    assertTrue(right instanceof NumericLiteral);
     assertEquals(Type.DOUBLE, right.getType());
-    assertEquals(1, right.getNumDistinctValues());
-    assertEquals(2.0, right.getCost(), 0.001);
-    // TODO: Fix this, use indistry standard guess
-    assertEquals(-1, right.getSelectivity(), 0.01);
-
-    // The child should be a numeric literal
-    Expr rightValue = right.getChild(0);
-    assertTrue(rightValue instanceof NumericLiteral);
-    assertEquals(Type.DOUBLE, rightValue.getType()); // Bug: should be TINYINT
   }
 
   @Test
@@ -902,7 +791,7 @@ public class ExprRewriteRulesTest extends FrontendTestBase {
   }
 
   @Test
-  public void TestEqualityDisjunctsToInRule() throws ImpalaException {
+  public void testEqualityDisjunctsToIn() throws ImpalaException {
     Class<? extends Expr> nodeClass = CompoundPredicate.class;
 
     verifySingleRewrite("int_col = 1 or int_col = 2", nodeClass, "int_col IN (1, 2)");
@@ -959,28 +848,31 @@ public class ExprRewriteRulesTest extends FrontendTestBase {
 
     // TODO if subqueries are supported in OR clause in future, add tests to cover the same.
     // TODO Fix the following
-//    RewritesOkWhereExpr(
+//    verifyWhereRewrite(
 //        "int_col = 1 and int_col in "
 //            + "(select smallint_col from functional.alltypessmall where smallint_col<10)",
-//        nodeClass, null);
+//        null);
   }
 
   @Test
-  public void TestNormalizeCountStarRule() throws ImpalaException {
-    ExprRewriteRule rule = NormalizeCountStarRule.INSTANCE;
+  public void testNormalizeCountStar() throws ImpalaException {
+    Class<? extends Expr> nodeClass = FunctionCallExpr.class;
 
-    RewritesOk("count(1)", rule, "count(*)");
-    RewritesOk("count(5)", rule, "count(*)");
+    verifySingleRewrite("count(1)", nodeClass, "count(*)");
+    verifySingleRewrite("count(5)", nodeClass, "count(*)");
 
     // Verify that these don't get rewritten.
-    RewritesOk("count(null)", rule, null);
-    RewritesOk("count(id)", rule, null);
-    RewritesOk("count(1 + 1)", rule, null);
-    RewritesOk("count(1 + null)", rule, null);
+    verifySingleRewrite("count(null)", nodeClass, null);
+    verifySingleRewrite("count(id)", nodeClass, null);
+    verifySingleRewrite("count(1 + 1)", nodeClass, null);
+    verifySingleRewrite("count(1 + null)", nodeClass, null);
+
+    // In conjunction with other function rewrites
+    verifyRewrite("if(true, count(1), 0)", "count(*)");
   }
 
   @Test
-  public void TestSimplifyDistinctFromRule() throws ImpalaException {
+  public void testSimplifyDistinctFrom() throws ImpalaException {
     Class<? extends Expr> nodeClass = BinaryPredicate.class;
 
     // Can be simplified
@@ -999,102 +891,12 @@ public class ExprRewriteRulesTest extends FrontendTestBase {
     verifyRewrite("if(bool_col <=> NULL, 1, 2)", null);
   }
 
-  @Test
-  public void TestRemoveRedundantStringCastRule() throws ImpalaException {
-    ExprRewriteRule removeRule = RemoveRedundantStringCast.INSTANCE;
-    ExprRewriteRule foldConstantRule = FoldConstantsRule.INSTANCE;
-    List<ExprRewriteRule> comboRules = Lists.newArrayList(removeRule, foldConstantRule);
-
-    // Can be simplified.
-    RewritesOk("cast(tinyint_col as string) = '100'", comboRules, "tinyint_col = 100");
-    RewritesOk("cast(smallint_col as string) = '1000'", comboRules,
-        "smallint_col = 1000");
-    RewritesOk("cast(int_col as string) = '123456'", comboRules, "int_col = 123456");
-    RewritesOk("cast(bigint_col as string) = '9223372036854775807'", comboRules,
-        "bigint_col = 9223372036854775807");
-    RewritesOk("cast(float_col as string) = '1000.5'", comboRules, "float_col = 1000.5");
-    RewritesOk("cast(double_col as string) = '1000.5'", comboRules,
-        "double_col = 1000.5");
-    RewritesOk("cast(timestamp_col as string) = '2009-01-01 00:01:00'", comboRules,
-        "timestamp_col = TIMESTAMP '2009-01-01 00:01:00'");
-    RewritesOk("functional.decimal_tiny", "cast(c1 as string) = '2.2222'", comboRules,
-        "c1 = 2.2222");
-
-    RewritesOk("cast(tinyint_col as string) = '-100'", comboRules, "tinyint_col = -100");
-    RewritesOk("cast(smallint_col as string) = '-1000'", comboRules,
-        "smallint_col = -1000");
-    RewritesOk("cast(int_col as string) = '-123456'", comboRules, "int_col = -123456");
-    RewritesOk("cast(bigint_col as string) = '-9223372036854775807'", comboRules,
-        "bigint_col = -9223372036854775807");
-    RewritesOk("cast(float_col as string) = '-1000.5'", comboRules,
-        "float_col = -1000.5");
-    RewritesOk("cast(double_col as string) = '-1000.5'", comboRules,
-        "double_col = -1000.5");
-    RewritesOk("functional.decimal_tiny", "cast(c1 as string) = '-2.2222'", comboRules,
-        "c1 = -2.2222");
-
-    // Works for VARCHAR/CHAR.
-    RewritesOk("cast(tinyint_col as char(3)) = '100'", comboRules, "tinyint_col = 100");
-    RewritesOk("cast(tinyint_col as varchar(3)) = '100'", comboRules,
-        "tinyint_col = 100");
-    RewritesOk("functional.chars_tiny", "cast(cs as string) = 'abc'",
-        comboRules, "cs = 'abc  '"); // column 'cs' is char(5), hence the trailing spaces.
-    RewritesOk("functional.chars_tiny", "cast(vc as string) = 'abc'",
-        comboRules, "vc = 'abc'");
-
-    // Works with complex expressions on both sides.
-    RewritesOk("cast(cast(int_col + 1 as double) as string) = '123456'", comboRules,
-        "CAST(int_col + 1 AS DOUBLE) = 123456");
-    RewritesOk("cast(int_col + 1 as string) = concat('123', '456')", comboRules,
-        "int_col + 1 = 123456");
-    RewritesOk("cast(int_col as string) = ltrim(concat('     123', '456'))", comboRules,
-        "int_col = 123456");
-    RewritesOk("cast(int_col as string) = strleft('123456789', 6)", comboRules,
-        "int_col = 123456");
-    RewritesOk("cast(tinyint_col as char(3)) = cast(100 as char(3))", comboRules,
-        "tinyint_col = 100");
-    RewritesOk("cast(tinyint_col as char(3)) = cast(100 as varchar(3))", comboRules,
-        "tinyint_col = 100");
-
-    // Verify nothing happens.
-    RewritesOk("cast(tinyint_col as string) = '0100'", comboRules, null);
-    RewritesOk("cast(tinyint_col as string) = '01000'", comboRules, null);
-    RewritesOk("cast(smallint_col as string) = '01000'", comboRules, null);
-    RewritesOk("cast(smallint_col as string) = '1000000000'", comboRules, null);
-    RewritesOk("cast(int_col as string) = '02147483647'", comboRules, null);
-    RewritesOk("cast(int_col as string) = '21474836470'", comboRules, null);
-    RewritesOk("cast(bigint_col as string) = '09223372036854775807'", comboRules, null);
-    RewritesOk("cast(bigint_col as string) = '92233720368547758070'", comboRules, null);
-    RewritesOk("cast(float_col as string) = '01000.5'", comboRules, null);
-    RewritesOk("cast(double_col as string) = '01000.5'", comboRules, null);
-    RewritesOk("functional.decimal_tiny", "cast(c1 as string) = '02.2222'", comboRules,
-        null);
-    RewritesOk("functional.decimal_tiny", "cast(c1 as string) = '2.22'",
-        comboRules, null);
-    RewritesOk("cast(timestamp_col as string) = '2009-15-01 00:01:00'", comboRules, null);
-    RewritesOk("cast(tinyint_col as char(4)) = '0100'", comboRules, null);
-    RewritesOk("cast(tinyint_col as varchar(4)) = '0100'", comboRules, null);
-    RewritesOk("cast(tinyint_col as char(2)) = '100'", comboRules, null);
-    RewritesOk("cast(tinyint_col as varchar(2)) = '100'", comboRules, null);
-
-    // 'NULL' is treated like any other string, so no conversion should take place.
-    RewritesOk("cast(tinyint_col as string) = 'NULL'", comboRules, null);
-    RewritesOk("cast(smallint_col as string) = 'NULL'", comboRules, null);
-    RewritesOk("cast(int_col as string) = 'NULL'", comboRules, null);
-    RewritesOk("cast(bigint_col as string) = 'NULL'", comboRules, null);
-    RewritesOk("cast(float_col as string) = 'NULL'", comboRules, null);
-    RewritesOk("cast(double_col as string) = 'NULL'", comboRules, null);
-    RewritesOk("functional.decimal_tiny", "cast(c1 as string) = 'NULL'",
-        comboRules, null);
-    RewritesOk("cast(timestamp_col as string) = 'NULL'", comboRules, null);
-  }
-
   /**
    * NULLIF gets converted to an IF, and has cases where
    * it can be further simplified via SimplifyDistinctFromRule.
    */
   @Test
-  public void TestNullif() throws ImpalaException {
+  public void testNullif() throws ImpalaException {
     // nullif: converted to if and simplified
     verifyRewrite("nullif(bool_col, bool_col)", "NULL");
 

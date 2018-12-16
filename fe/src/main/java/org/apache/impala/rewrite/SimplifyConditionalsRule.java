@@ -63,6 +63,7 @@ public class SimplifyConditionalsRule implements ExprRewriteRule {
     Expr simplified;
     if (expr instanceof FunctionCallExpr) {
       simplified = ((FunctionCallExpr) expr).simplifyConditionals();
+      simplified = simplified == null ? expr : simplified;
     } else if (expr instanceof CompoundPredicate) {
       simplified = simplifyCompoundPredicate((CompoundPredicate) expr);
     } else if (expr instanceof CaseExpr) {

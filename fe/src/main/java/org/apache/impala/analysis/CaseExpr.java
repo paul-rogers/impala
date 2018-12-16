@@ -361,8 +361,10 @@ public class CaseExpr extends Expr {
    * any of the 'when's have constant TRUE values, the leftmost one becomes the ELSE
    * clause and all following cases are removed.
    *
-   * Note that FunctionalCallExpr.createExpr() converts "nvl2" into "if",
-   * "decode" into "case", and "nullif" into "if".
+   * Example:
+   * case when false then 0 when true then 1 end -> 1
+   *
+   * Note that FunctionalCallExpr.createExpr() converts "decode" into "case".
    */
   @Override
   public Expr rewrite(ExprAnalyzer exprAnalyzer) throws AnalysisException {
