@@ -168,23 +168,34 @@ public class CompoundPredicate extends Predicate {
   }
 
   /**
-   * Rewrites in two steps:
+   * Rewrites in multiple steps:
    * - First pass: normalize (see below). This step is aggregate-safe
    *   (does not remove aggregates).
    * - Second pass: simplify (see below). This can remove aggregates and
    *   may be rejected by the rewrite engine.
+   * - Extracts common conjuncts
+   * - Coalesces disjunctive equality predicates to an IN predicate, and merges
+   *   compatible equality or IN predicates into an existing IN predicate.
+   *   Examples:
+   *   (C=1) OR (C=2) OR (C=3) OR (C=4) -> C IN(1, 2, 3, 4)
+   *   (X+Y = 5) OR (X+Y = 6) -> X+Y IN (5, 6)
+   *   (A = 1) OR (A IN (2, 3)) -> A IN (1, 2, 3)
+   *   (B IN (1, 2)) OR (B IN (3, 4)) -> B IN (1, 2, 3, 4)
    */
   @Override
   public Expr rewrite(ExprAnalyzer exprAnalyzer) {
     if (!exprAnalyzer.isEnabled(RewriteMode.OPTIONAL)) return this;
 
     Expr result = normalize();
-    if (result == null) {
-      result = simplify();
-    }
-    if (result == null) {
-      result = extractCommonConjuncts();
-    }
+    if (result != null) return result;
+    result = simplify();
+    if (result != null) return result;
+    result = extractCommonConjuncts();
+    if (result != null) return result;
+    // Convert equality disjuncts to IN
+    result = rewriteInAndOtherExpr();
+    if (result != null) return result;
+    result = rewriteEqEqPredicate();
     return result == null ? this : result;
   }
 
@@ -323,6 +334,68 @@ public class CompoundPredicate extends Predicate {
     list.addAll(getChild(0).getConjuncts());
     list.addAll(getChild(1).getConjuncts());
     return list;
+  }
+
+  /**
+   * Takes the children of an OR predicate and attempts to combine them into a single IN
+   * predicate. The transformation is applied if one of the children is an IN predicate
+   * and the other child is a compatible IN predicate or equality predicate. Returns the
+   * transformed expr or null if no transformation was possible.
+   */
+  public Expr rewriteInAndOtherExpr() {
+    if (getOp() != CompoundPredicate.Operator.OR) return null;
+    Expr child0 = getChild(0);
+    Expr child1 = getChild(1);
+    InPredicate inPred = null;
+    Expr otherPred = null;
+    if (child0 instanceof InPredicate) {
+      inPred = (InPredicate) child0;
+      otherPred = child1;
+    } else if (child1 instanceof InPredicate) {
+      inPred = (InPredicate) child1;
+      otherPred = child0;
+    }
+    if (inPred == null || inPred.isNotIn() || inPred.contains(Subquery.class) ||
+        !inPred.getChild(0).equals(otherPred.getChild(0))) {
+      return null;
+    }
+
+    // other predicate can be OR predicate or IN predicate
+    List<Expr> newInList = Lists.newArrayList(
+        inPred.getChildren().subList(1, inPred.getChildren().size()));
+    if (Expr.IS_EXPR_EQ_LITERAL_PREDICATE.apply(otherPred)) {
+      if (newInList.size() + 1 == Expr.EXPR_CHILDREN_LIMIT) return null;
+      newInList.add(otherPred.getChild(1));
+    } else if (otherPred instanceof InPredicate && !((InPredicate) otherPred).isNotIn()
+        && !otherPred.contains(Subquery.class)) {
+      if (newInList.size() + otherPred.getChildren().size() > Expr.EXPR_CHILDREN_LIMIT) {
+        return null;
+      }
+      newInList.addAll(
+          otherPred.getChildren().subList(1, otherPred.getChildren().size()));
+    } else {
+      return null;
+    }
+
+    return new InPredicate(inPred.getChild(0), newInList, false);
+  }
+
+  /**
+   * Takes the children of an OR predicate and attempts to combine them into a single IN predicate.
+   * The transformation is applied if both children are equality predicates with a literal on the
+   * right hand side.
+   * Returns the transformed expr or null if no transformation was possible.
+   */
+  public Expr rewriteEqEqPredicate() {
+    if (getOp() != CompoundPredicate.Operator.OR) return null;
+    Expr child0 = getChild(0);
+    Expr child1 = getChild(1);
+    if (!Expr.IS_EXPR_EQ_LITERAL_PREDICATE.apply(child0)) return null;
+    if (!Expr.IS_EXPR_EQ_LITERAL_PREDICATE.apply(child1)) return null;
+
+    if (!child0.getChild(0).equals(child1.getChild(0))) return null;
+    return new InPredicate(child0.getChild(0),
+        Lists.newArrayList(child0.getChild(1), child1.getChild(1)), false);
   }
 
   /**

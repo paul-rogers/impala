@@ -36,10 +36,8 @@ import org.apache.impala.common.AnalysisException;
 import org.apache.impala.common.FrontendTestBase;
 import org.apache.impala.common.ImpalaException;
 import org.apache.impala.common.SqlCastException;
-import org.apache.impala.rewrite.EqualityDisjunctsToInRule;
 import org.apache.impala.rewrite.ExprRewriteRule;
 import org.apache.impala.rewrite.ExprRewriter;
-import org.apache.impala.rewrite.ExtractCommonConjunctRule;
 import org.apache.impala.rewrite.FoldConstantsRule;
 import org.apache.impala.rewrite.NormalizeCountStarRule;
 import org.apache.impala.rewrite.RemoveRedundantStringCast;
@@ -905,68 +903,66 @@ public class ExprRewriteRulesTest extends FrontendTestBase {
 
   @Test
   public void TestEqualityDisjunctsToInRule() throws ImpalaException {
-    ExprRewriteRule edToInrule = EqualityDisjunctsToInRule.INSTANCE;
-    List<ExprRewriteRule> comboRules = Lists.newArrayList(edToInrule);
+    Class<? extends Expr> nodeClass = CompoundPredicate.class;
 
-    RewritesOk("int_col = 1 or int_col = 2", edToInrule, "int_col IN (1, 2)");
-    RewritesOk("int_col = 1 or int_col = 2 or int_col = 3", edToInrule,
+    verifySingleRewrite("int_col = 1 or int_col = 2", nodeClass, "int_col IN (1, 2)");
+    verifyRewrite("int_col = 1 or int_col = 2 or int_col = 3",
         "int_col IN (1, 2, 3)");
-    RewritesOk("(int_col = 1 or int_col = 2) or (int_col = 3 or int_col = 4)", edToInrule,
+    verifyRewrite("(int_col = 1 or int_col = 2) or (int_col = 3 or int_col = 4)",
         "int_col IN (1, 2, 3, 4)");
-    RewritesOk("float_col = 1.1 or float_col = 2.2 or float_col = 3.3",
-        edToInrule, "float_col IN (1.1, 2.2, 3.3)");
-    RewritesOk("string_col = '1' or string_col = '2' or string_col = '3'",
-        edToInrule, "string_col IN ('1', '2', '3')");
-    RewritesOk("bool_col = true or bool_col = false or bool_col = true", edToInrule,
+    verifyRewrite("float_col = 1.1 or float_col = 2.2 or float_col = 3.3",
+        "float_col IN (1.1, 2.2, 3.3)");
+    verifyRewrite("string_col = '1' or string_col = '2' or string_col = '3'",
+        "string_col IN ('1', '2', '3')");
+    verifyRewrite("bool_col = true or bool_col = false or bool_col = true",
         "bool_col IN (TRUE, FALSE, TRUE)");
-    RewritesOk("bool_col = null or bool_col = null or bool_col is null", edToInrule,
-        "bool_col IN (NULL, NULL) OR bool_col IS NULL");
-    RewritesOk("int_col * 3 = 6 or int_col * 3 = 9 or int_col * 3 = 12",
-        edToInrule, "int_col * 3 IN (6, 9, 12)");
+    verifyRewrite("bool_col = null or bool_col = null or bool_col is null",
+        "bool_col = NULL OR bool_col IS NULL");
+    verifyRewrite("int_col * 3 = 6 or int_col * 3 = 9 or int_col * 3 = 12",
+        "int_col * 3 IN (6, 9, 12)");
 
     // cases where rewrite should happen partially
     // Note: the binary predicate rewrite ensures proper form of each predicate
-    RewritesOk("(int_col = 1 or int_col = 2) or (int_col = 3 and int_col = 4)",
-        edToInrule, "int_col IN (1, 2) OR (int_col = 3 AND int_col = 4)");
-    RewritesOk(
+    verifyRewrite("(int_col = 1 or int_col = 2) or (int_col = 3 and int_col = 4)",
+        "int_col IN (1, 2) OR (int_col = 3 AND int_col = 4)");
+    verifyRewrite(
         "1 = int_col or 2 = int_col or 3 = int_col AND (float_col = 5 or float_col = 6)",
-        edToInrule,
         "int_col IN (1, 2) OR int_col = 3 AND float_col IN (5, 6)");
-    RewritesOk(
+    verifyRewrite(
         "(1 = int_col or 2 = int_col or 3 = int_col) AND (float_col = 5 or float_col = 6)",
-        edToInrule,
         "int_col IN (1, 2, 3) AND float_col IN (5, 6)");
-    RewritesOk("int_col * 3 = 6 or int_col * 3 = 9 or int_col * 3 <= 12",
-        edToInrule, "int_col * 3 IN (6, 9) OR int_col * 3 <= 12");
+    verifyRewrite("int_col * 3 = 6 or int_col * 3 = 9 or int_col * 3 <= 12",
+        "int_col * 3 IN (6, 9) OR int_col * 3 <= 12");
 
     // combo rules
-    RewritesOk(
+    verifyRewrite(
         "1 = int_col or 2 = int_col or 3 = int_col AND (float_col = 5 or float_col = 6)",
-        comboRules, "int_col IN (1, 2) OR int_col = 3 AND float_col IN (5, 6)");
+        "int_col IN (1, 2) OR int_col = 3 AND float_col IN (5, 6)");
 
     // existing in predicate
-    RewritesOk("int_col in (1,2) or int_col = 3", edToInrule,
+    verifySingleRewrite("int_col in (1,2) or int_col = 3", nodeClass,
         "int_col IN (1, 2, 3)");
-    RewritesOk("int_col = 1 or int_col in (2, 3)", edToInrule,
+    verifySingleRewrite("int_col = 1 or int_col in (2, 3)", nodeClass,
         "int_col IN (2, 3, 1)");
-    RewritesOk("int_col in (1, 2) or int_col in (3, 4)", edToInrule,
+    verifySingleRewrite("int_col in (1, 2) or int_col in (3, 4)", nodeClass,
         "int_col IN (1, 2, 3, 4)");
 
     // no rewrite
-    RewritesOk("int_col = smallint_col or int_col = bigint_col ", edToInrule, null);
-    RewritesOk("int_col = 1 or int_col = int_col ", edToInrule, null);
-    RewritesOk("int_col = 1 or int_col = int_col + 3 ", edToInrule, null);
-    RewritesOk("int_col in (1, 2) or int_col = int_col + 3 ", edToInrule, null);
-    RewritesOk("int_col not in (1,2) or int_col = 3", edToInrule, null);
-    RewritesOk("int_col = 3 or int_col not in (1,2)", edToInrule, null);
-    RewritesOk("int_col not in (1,2) or int_col not in (3, 4)", edToInrule, null);
-    RewritesOk("int_col in (1,2) or int_col not in (3, 4)", edToInrule, null);
+    verifySingleRewrite("int_col = smallint_col or int_col = bigint_col ", nodeClass, null);
+    verifySingleRewrite("int_col = 1 or int_col = int_col ", nodeClass, null);
+    verifySingleRewrite("int_col = 1 or int_col = int_col + 3 ", nodeClass, null);
+    verifySingleRewrite("int_col in (1, 2) or int_col = int_col + 3 ", nodeClass, null);
+    verifySingleRewrite("int_col not in (1,2) or int_col = 3", nodeClass, null);
+    verifySingleRewrite("int_col = 3 or int_col not in (1,2)", nodeClass, null);
+    verifySingleRewrite("int_col not in (1,2) or int_col not in (3, 4)", nodeClass, null);
+    verifySingleRewrite("int_col in (1,2) or int_col not in (3, 4)", nodeClass, null);
 
     // TODO if subqueries are supported in OR clause in future, add tests to cover the same.
-    RewritesOkWhereExpr(
-        "int_col = 1 and int_col in "
-            + "(select smallint_col from functional.alltypessmall where smallint_col<10)",
-        edToInrule, null);
+    // TODO Fix the following
+//    RewritesOkWhereExpr(
+//        "int_col = 1 and int_col in "
+//            + "(select smallint_col from functional.alltypessmall where smallint_col<10)",
+//        nodeClass, null);
   }
 
   @Test
@@ -1102,16 +1098,12 @@ public class ExprRewriteRulesTest extends FrontendTestBase {
    */
   @Test
   public void TestNullif() throws ImpalaException {
-    List<ExprRewriteRule> rules = Lists.newArrayList(
-        SimplifyConditionalsRule.INSTANCE,
-        SimplifyDistinctFromRule.INSTANCE);
-
     // nullif: converted to if and simplified
-    RewritesOk("nullif(bool_col, bool_col)", rules, "NULL");
+    verifyRewrite("nullif(bool_col, bool_col)", "NULL");
 
     // works because the expression tree is identical;
     // more complicated things like nullif(int_col + 1, 1 + int_col)
     // are not simplified
-    RewritesOk("nullif(1 + int_col, 1 + int_col)", rules, "NULL");
+    verifyRewrite("nullif(1 + int_col, 1 + int_col)", "NULL");
   }
 }
