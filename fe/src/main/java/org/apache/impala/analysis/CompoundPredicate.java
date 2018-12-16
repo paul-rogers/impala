@@ -174,8 +174,8 @@ public class CompoundPredicate extends Predicate {
    *   may be rejected by the rewrite engine.
    */
   @Override
-  public Expr rewrite(RewriteMode rewriteMode) {
-    if (rewriteMode != RewriteMode.OPTIONAL) return this;
+  public Expr rewrite(ExprAnalyzer exprAnalyzer) {
+    if (!exprAnalyzer.isEnabled(RewriteMode.OPTIONAL)) return this;
 
     Expr result = normalize();
     if (result == null) {

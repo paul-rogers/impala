@@ -429,7 +429,7 @@ abstract public class Expr extends TreeNode<Expr> implements ParseNode, Cloneabl
    */
   protected void analyzeNode(Analyzer analyzer) throws AnalysisException { }
 
-  protected Expr rewrite(RewriteMode rewriteMode) throws AnalysisException { return this; }
+  protected Expr rewrite(ExprAnalyzer exprAnalyzer) throws AnalysisException { return this; }
 
   /**
    * Called from ExprAnalyzer to compute costs after type propagation and rewrites.

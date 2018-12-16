@@ -227,8 +227,8 @@ public class BinaryPredicate extends Predicate {
     * pushdown and Parquet row group pruning based on min/max statistics.
     */
   @Override
-  public Expr rewrite(RewriteMode rewriteMode) {
-    if (rewriteMode != RewriteMode.OPTIONAL) return this;
+  public Expr rewrite(ExprAnalyzer exprAnalyzer) {
+    if (!exprAnalyzer.isEnabled(RewriteMode.OPTIONAL)) return this;
     // Null matching eq does not support converse()
     // TODO: is this intentional: should such exprs be rewritten?
     if ((isExprOpSlotRef() || isConstantOpExpr()) && op_ != Operator.NULL_MATCHING_EQ) {

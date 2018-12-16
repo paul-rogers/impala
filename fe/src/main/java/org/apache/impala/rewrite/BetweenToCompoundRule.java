@@ -28,7 +28,7 @@ public class BetweenToCompoundRule implements ExprRewriteRule {
   @Override
   public Expr apply(Expr expr, Analyzer analyzer) {
     if (!(expr instanceof BetweenPredicate)) return expr;
-    return ((BetweenPredicate) expr).rewrite(RewriteMode.OPTIONAL);
+    return ((BetweenPredicate) expr).rewrite(analyzer.exprAnalyzer());
   }
 
   private BetweenToCompoundRule() {}

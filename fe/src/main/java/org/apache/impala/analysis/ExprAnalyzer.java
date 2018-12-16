@@ -21,6 +21,7 @@ import org.apache.impala.analysis.Path.PathType;
 import org.apache.impala.catalog.TableLoadingException;
 import org.apache.impala.common.AnalysisException;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 
 /**
@@ -106,13 +107,18 @@ public class ExprAnalyzer {
   private int rewriteCount_;
   private int constantFoldCount_;
 
-  public ExprAnalyzer(Analyzer analyzer) {
+  @VisibleForTesting
+  public ExprAnalyzer(Analyzer analyzer, RewriteMode rewriteMode) {
     Preconditions.checkNotNull(analyzer);
     analyzer_ = analyzer;
     colResolver_ = new SlotResolver(analyzer_);
-    rewriteMode_ =
-        analyzer_.getQueryCtx().getClient_request().getQuery_options().enable_expr_rewrites
-        ? RewriteMode.OPTIONAL : RewriteMode.REQUIRED;
+    rewriteMode_ = rewriteMode;
+  }
+
+  public ExprAnalyzer(Analyzer analyzer) {
+    this(analyzer,
+        analyzer.getQueryCtx().getClient_request().getQuery_options().enable_expr_rewrites
+        ? RewriteMode.OPTIONAL : RewriteMode.REQUIRED);
   }
 
   /**
@@ -269,7 +275,7 @@ public class ExprAnalyzer {
         break;
       case REWRITE:
         beforeRewrite = expr;
-        expr = beforeRewrite.rewrite(rewriteMode_);
+        expr = beforeRewrite.rewrite(this);
         // Done if no rewrite. This works ONLY if rewrites replace nodes, not
         // rewrite them in place. As a result, all rewrites MUST create new nodes.
         // Otherwise, validate the rewrite after analyzing potentially
@@ -278,9 +284,13 @@ public class ExprAnalyzer {
         break;
       case CHECK_REWRITE:
         // Rewrite may have returned a child already analyzed and rewritten
-        state = expr.isAnalyzed() ? state = State.DONE : State.REWRITE;
-        expr.analyzeNode(analyzer_);
-        finish(expr); // Checks below require completed analysis
+        if (expr.isAnalyzed()) {
+          state = State.DONE;
+        } else {
+          state = State.REWRITE;
+          expr.analyzeNode(analyzer_);
+          finish(expr); // Checks below require completed analysis
+        }
         if (!rewriteIsValid(beforeRewrite, expr)) {
           // Not valid, reject rewrite and return
           expr = beforeRewrite;
@@ -442,6 +452,17 @@ public class ExprAnalyzer {
       Preconditions.checkState(result == expr);
     } finally {
       rewriteMode_ = oldMode;
+    }
+  }
+
+  public boolean isEnabled(RewriteMode mode) {
+    switch (mode) {
+    case OPTIONAL:
+      return rewriteMode_ == RewriteMode.OPTIONAL;
+    case REQUIRED:
+      return rewriteMode_ != RewriteMode.NONE;
+    default:
+      return false;
     }
   }
 

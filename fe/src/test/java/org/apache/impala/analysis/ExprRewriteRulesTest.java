@@ -27,7 +27,6 @@ import static org.junit.Assert.fail;
 import java.util.List;
 
 import org.apache.hbase.thirdparty.com.google.common.collect.Sets;
-import org.apache.impala.analysis.AnalysisContext.AnalysisResult;
 import org.apache.impala.analysis.BinaryPredicate.Operator;
 import org.apache.impala.analysis.ExprAnalyzer.RewriteMode;
 import org.apache.impala.analysis.StmtMetadataLoader.StmtTableCache;
@@ -43,12 +42,10 @@ import org.apache.impala.rewrite.ExprRewriter;
 import org.apache.impala.rewrite.ExtractCommonConjunctRule;
 import org.apache.impala.rewrite.FoldConstantsRule;
 import org.apache.impala.rewrite.NormalizeCountStarRule;
-import org.apache.impala.rewrite.NormalizeExprsRule;
 import org.apache.impala.rewrite.RemoveRedundantStringCast;
 import org.apache.impala.rewrite.SimplifyConditionalsRule;
 import org.apache.impala.rewrite.SimplifyDistinctFromRule;
 import org.junit.Assert;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import com.google.common.collect.ImmutableList;
@@ -101,14 +98,6 @@ public class ExprRewriteRulesTest extends FrontendTestBase {
     Expr rewrittenExpr =
         verifyExprEquivalence(origExpr, expectedExprStr, rules, stmt.getAnalyzer());
     return rewrittenExpr;
-  }
-
-  private Expr verifyLegacyRewrite(String exprSql, String expectedSql) {
-    String stmtSql = "select " + exprSql + " from functional.alltypessmall";
-    SelectStmt stmt = (SelectStmt) AnalyzesOk(stmtSql);
-    Expr expr = stmt.getSelectList().getItems().get(0).getExpr();
-    assertEquals(expectedSql == null ? exprSql : expectedSql, expr.toSql());
-    return expr;
   }
 
   public Expr RewritesOkWhereExpr(String exprStr, ExprRewriteRule rule, String expectedExprStr)
@@ -178,9 +167,13 @@ public class ExprRewriteRulesTest extends FrontendTestBase {
     return analyzer;
   }
 
-  private Expr parseSelectExpr(String exprSql) {
-    String stmtSql = "select " + exprSql + " from functional.alltypessmall";
+  private Expr parseSelectExpr(String tableName, String exprSql) {
+    String stmtSql = "select " + exprSql + " from " + tableName;
     return ((SelectStmt) ParsesOk(stmtSql)).getSelectList().getItems().get(0).getExpr();
+  }
+
+  private Expr parseSelectExpr(String exprSql) {
+    return parseSelectExpr("functional.alltypessmall", exprSql);
   }
 
   private Expr analyzeSelectExpr(Expr expr) throws ImpalaException {
@@ -211,11 +204,29 @@ public class ExprRewriteRulesTest extends FrontendTestBase {
     return result;
   }
 
+  private void verifySingleRewrite(String tableName, String exprSql, Class<? extends Expr> nodeClass,
+      String expectedSql) throws ImpalaException {
+    Analyzer analyzer = prepareAnalyzer(false);
+    Expr expr = analyzer.analyzeAndRewrite(
+        parseSelectExpr(tableName, exprSql));
+    assertTrue(nodeClass.isInstance(expr));
+    Expr result = expr.rewrite(analyzer.exprAnalyzer());
+    if (result == expr) {
+      assertNull("Expected rewrite", expectedSql);
+    } else {
+      assertNotNull("Expected no rewrite", expectedSql);
+      assertEquals(expectedSql, result.toSql());
+    }
+  }
+
   private void verifySingleRewrite(String exprSql, Class<? extends Expr> nodeClass,
       String expectedSql) throws ImpalaException {
-    Expr expr = analyzeWithoutRewrite(exprSql);
+    Analyzer analyzer = prepareAnalyzer(false);
+    Expr expr = analyzer.analyzeAndRewrite(
+        parseSelectExpr(exprSql));
     assertTrue(nodeClass.isInstance(expr));
-    Expr result = expr.rewrite(RewriteMode.OPTIONAL);
+    ExprAnalyzer exprAnalyzer = new ExprAnalyzer(analyzer, RewriteMode.OPTIONAL);
+    Expr result = expr.rewrite(exprAnalyzer);
     if (result == expr) {
       assertNull("Expected rewrite", expectedSql);
     } else {
@@ -574,130 +585,114 @@ public class ExprRewriteRulesTest extends FrontendTestBase {
 
   @Test
   public void testSimplifyCaseWithValue() throws ImpalaException {
-    ExprRewriteRule rule = SimplifyConditionalsRule.INSTANCE;
-    List<ExprRewriteRule> rules = Lists.newArrayList();
-    rules.add(FoldConstantsRule.INSTANCE);
-    rules.add(rule);
-    // CASE with caseExpr
+    Class<? extends Expr> nodeClass = CaseExpr.class;
+
     // Single TRUE case with no preceding non-constant cases.
-    RewritesOk("case 1 when 0 then id when 1 then id + 1 when 2 then id + 2 end", rule,
-        "id + 1");
+    verifySingleRewrite("case 1 when 0 then id when 1 then id + 1 when 2 then id + 2 end",
+        nodeClass, "id + 1");
     // SINGLE TRUE case with preceding non-constant case.
-    RewritesOk("case 1 when id then id when 1 then id + 1 end", rule,
+    verifySingleRewrite("case 1 when id then id when 1 then id + 1 end", nodeClass,
         "CASE 1 WHEN id THEN id ELSE id + 1 END");
     // Single FALSE case.
-    RewritesOk("case 0 when 1 then 1 when id then id + 1 end", rule,
+    verifySingleRewrite("case 0 when 1 then 1 when id then id + 1 end", nodeClass,
         "CASE 0 WHEN id THEN id + 1 END");
     // All FALSE, return ELSE.
-    RewritesOk("case 2 when 0 then id when 1 then id * 2 else 0 end", rule, "0");
+    verifySingleRewrite("case 2 when 0 then id when 1 then id * 2 else 0 end", nodeClass, "0");
     // All FALSE, return implicit NULL ELSE.
-    RewritesOk("case 3 when 0 then id when 1 then id + 1 end", rule, "NULL");
+    verifySingleRewrite("case 3 when 0 then id when 1 then id + 1 end", nodeClass, "NULL");
     // Multiple TRUE, first one becomes ELSE.
-    RewritesOk("case 1 when id then id when 2 - 1 then id + 1 when 1 then id + 2 end",
-        rules, "CASE 1 WHEN id THEN id ELSE id + 1 END");
+    verifyRewrite("case 1 when id then id when 2 - 1 then id + 1 when 1 then id + 2 end",
+        "CASE 1 WHEN id THEN id ELSE id + 1 END");
     // When NULL.
-    RewritesOk("case 0 when null then id else 1 end", rule, "1");
+    verifySingleRewrite("case 0 when null then id else 1 end", nodeClass, "1");
     // All non-constant, don't rewrite.
-    RewritesOk("case id when 1 then 1 when 2 then 2 else 3 end", rule, null);
+    verifySingleRewrite("case id when 1 then 1 when 2 then 2 else 3 end", nodeClass, null);
   }
 
   @Test
   public void testSimplifyCaseWithoutValue() throws ImpalaException {
-    ExprRewriteRule rule = SimplifyConditionalsRule.INSTANCE;
-    List<ExprRewriteRule> rules = Lists.newArrayList();
-    rules.add(FoldConstantsRule.INSTANCE);
-    rules.add(rule);
+    Class<? extends Expr> nodeClass = CaseExpr.class;
 
-    // CASE without caseExpr
     // Single TRUE case with no predecing non-constant case.
-    RewritesOk("case when FALSE then 0 when TRUE then 1 end", rule, "1");
+    verifySingleRewrite("case when FALSE then 0 when TRUE then 1 end", nodeClass, "1");
     // Single TRUE case with preceding non-constant case.
-    RewritesOk("case when id = 0 then 0 when true then 1 when id = 2 then 2 end", rule,
+    verifySingleRewrite("case when id = 0 then 0 when true then 1 when id = 2 then 2 end", nodeClass,
         "CASE WHEN id = 0 THEN 0 ELSE 1 END");
     // Single FALSE case.
-    RewritesOk("case when id = 0 then 0 when false then 1 when id = 2 then 2 end", rule,
+    verifySingleRewrite("case when id = 0 then 0 when false then 1 when id = 2 then 2 end", nodeClass,
         "CASE WHEN id = 0 THEN 0 WHEN id = 2 THEN 2 END");
     // All FALSE, return ELSE.
-    RewritesOk(
-        "case when false then 1 when false then 2 else id + 1 end", rule, "id + 1");
+    verifySingleRewrite(
+        "case when false then 1 when false then 2 else id + 1 end", nodeClass, "id + 1");
     // All FALSE, return implicit NULL ELSE.
-    RewritesOk("case when false then 0 end", rule, "NULL");
+    verifySingleRewrite("case when false then 0 end", nodeClass, "NULL");
     // Multiple TRUE, first one becomes ELSE.
-    RewritesOk("case when id = 1 then 0 when 2 = 1 + 1 then 1 when true then 2 end",
-        rules, "CASE WHEN id = 1 THEN 0 ELSE 1 END");
+    verifyRewrite("case when id = 1 then 0 when 2 = 1 + 1 then 1 when true then 2 end",
+        "CASE WHEN id = 1 THEN 0 ELSE 1 END");
     // When NULL.
-    RewritesOk("case when id = 0 then 0 when null then 1 else 2 end", rule,
+    verifySingleRewrite("case when id = 0 then 0 when null then 1 else 2 end", nodeClass,
         "CASE WHEN id = 0 THEN 0 ELSE 2 END");
     // All non-constant, don't rewrite.
-    RewritesOk("case when id = 0 then 0 when id = 1 then 1 end", rule, null);
+    verifySingleRewrite("case when id = 0 then 0 when id = 1 then 1 end", nodeClass, null);
 
     // IMPALA-5125: Exprs containing aggregates should not be rewritten if the rewrite
     // eliminates all aggregates.
-    RewritesOk("case when true then 0 when false then sum(id) end", rule, null);
-    RewritesOk(
-        "case when true then count(id) when false then sum(id) end", rule, "count(id)");
+    verifyRewrite("case when true then 0 when false then sum(id) end", null);
+    verifyRewrite(
+        "case when true then count(id) when false then sum(id) end", "count(id)");
   }
 
   @Test
   public void testSimplifyDecode() throws ImpalaException {
-    ExprRewriteRule rule = SimplifyConditionalsRule.INSTANCE;
-    List<ExprRewriteRule> rules = Lists.newArrayList();
-    rules.add(FoldConstantsRule.INSTANCE);
-    rules.add(rule);
-
-    // DECODE
     // Single TRUE case with no preceding non-constant case.
-    RewritesOk("decode(1, 0, id, 1, id + 1, 2, id + 2)", rules, "id + 1");
+    verifyRewrite("decode(1, 0, id, 1, id + 1, 2, id + 2)", "id + 1");
     // Single TRUE case with predecing non-constant case.
-    RewritesOk("decode(1, id, id, 1, id + 1, 0)", rules,
+    verifyRewrite("decode(1, id, id, 1, id + 1, 0)",
         "CASE WHEN id = 1 THEN id ELSE id + 1 END");
     // Single FALSE case.
-    RewritesOk("decode(1, 0, id, tinyint_col, id + 1)", rules,
+    verifyRewrite("decode(1, 0, id, tinyint_col, id + 1)",
         "CASE WHEN tinyint_col = 1 THEN id + 1 END");
     // All FALSE, return ELSE.
-    RewritesOk("decode(1, 0, id, 2, 2, 3)", rules, "3");
+    verifyRewrite("decode(1, 0, id, 2, 2, 3)", "3");
     // All FALSE, return implicit NULL ELSE.
-    RewritesOk("decode(1, 1 + 1, id, 1 + 2, 3)", rules, "NULL");
+    verifyRewrite("decode(1, 1 + 1, id, 1 + 2, 3)", "NULL");
     // Multiple TRUE, first one becomes ELSE.
-    RewritesOk("decode(1, id, id, 1 + 1, 0, 1 * 1, 1, 2 - 1, 2)", rules,
+    verifyRewrite("decode(1, id, id, 1 + 1, 0, 1 * 1, 1, 2 - 1, 2)",
         "CASE WHEN id = 1 THEN id ELSE 1 END");
     // When NULL - DECODE allows the decodeExpr to equal NULL (see CaseExpr.java), so the
     // NULL case is not treated as a constant FALSE and removed.
-    RewritesOk("decode(id, null, 0, 1)", rules, null);
+    verifyRewrite("decode(id, null, 0, 1)", null);
     // All non-constant, don't rewrite.
-    RewritesOk("decode(id, 1, 1, 2, 2)", rules, null);
+    verifyRewrite("decode(id, 1, 1, 2, 2)", null);
   }
 
   @Test
   public void testSimplifyCoalesce() throws ImpalaException {
-    ExprRewriteRule rule = SimplifyConditionalsRule.INSTANCE;
-    List<ExprRewriteRule> rules = Lists.newArrayList();
-    rules.add(FoldConstantsRule.INSTANCE);
-    rules.add(rule);
+    Class<? extends Expr> nodeClass = FunctionCallExpr.class;
 
     // IMPALA-5016: Simplify COALESCE function
     // Test skipping leading nulls.
-    RewritesOk("coalesce(null, id, year)", rule, "coalesce(id, year)");
-    RewritesOk("coalesce(null, 1, id)", rule, "1");
-    RewritesOk("coalesce(null, null, id)", rule, "id");
+    verifySingleRewrite("coalesce(null, id, year)", nodeClass, "coalesce(id, year)");
+    verifySingleRewrite("coalesce(null, 1, id)", nodeClass, "1");
+    verifySingleRewrite("coalesce(null, null, id)", nodeClass, "id");
     // If the leading parameter is a non-NULL constant, rewrite to that constant.
-    RewritesOk("coalesce(1, id, year)", rule, "1");
+    verifySingleRewrite("coalesce(1, id, year)", nodeClass, "1");
     // If COALESCE has only one parameter, rewrite to the parameter.
-    RewritesOk("coalesce(id)", rule, "id");
+    verifySingleRewrite("coalesce(id)", nodeClass, "id");
     // If all parameters are NULL, rewrite to NULL.
-    RewritesOk("coalesce(null, null)", rule, "NULL");
+    verifySingleRewrite("coalesce(null, null)", nodeClass, "NULL");
     // Do not rewrite non-literal constant exprs, rely on constant folding.
-    RewritesOk("coalesce(null is null, id)", rule, null);
-    RewritesOk("coalesce(10 + null, id)", rule, null);
-    // Combine COALESCE rule with FoldConstantsRule.
-    RewritesOk("coalesce(1 + 2, id, year)", rules, "3");
-    RewritesOk("coalesce(null is null, bool_col)", rules, "TRUE");
-    RewritesOk("coalesce(10 + null, id, year)", rules, "coalesce(id, year)");
+    verifySingleRewrite("coalesce(null is null, id)", nodeClass, null);
+    verifySingleRewrite("coalesce(10 + null, id)", nodeClass, null);
+    // Combine COALESCE nodeClass with constant folding
+    verifyRewrite("coalesce(1 + 2, id, year)", "3");
+    verifyRewrite("coalesce(null is null, bool_col)", "TRUE");
+    verifyRewrite("coalesce(10 + null, id, year)", "coalesce(id, year)");
     // Don't rewrite based on nullability of slots. TODO (IMPALA-5753).
-    RewritesOk("coalesce(year, id)", rule, null);
-    RewritesOk("functional_kudu.alltypessmall", "coalesce(id, year)", rule, null);
+    verifySingleRewrite("coalesce(year, id)", nodeClass, null);
+    verifySingleRewrite("functional_kudu.alltypessmall", "coalesce(id, year)", nodeClass, null);
     // IMPALA-7419: coalesce that gets simplified and contains an aggregate
-    RewritesOk("coalesce(null, min(distinct tinyint_col), 42)", rule,
+    verifySingleRewrite("coalesce(null, min(distinct tinyint_col), 42)", nodeClass,
         "coalesce(min(tinyint_col), 42)");
   }
 
@@ -774,7 +769,7 @@ public class ExprRewriteRulesTest extends FrontendTestBase {
 
     Analyzer analyzer = prepareAnalyzer(false);
     Expr result = analyzer.analyzeAndRewrite(expr);
-    result = result.rewrite(RewriteMode.OPTIONAL);
+    result = result.rewrite(analyzer.exprAnalyzer());
     analyzer.analyzeInPlace(result);
     return result;
   }

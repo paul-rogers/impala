@@ -105,8 +105,8 @@ public class BetweenPredicate extends Predicate {
    * BetweenPredicates must be rewritten to be executable.
    */
   @Override
-  public Expr rewrite(RewriteMode rewriteMode) {
-    if (rewriteMode != RewriteMode.OPTIONAL) return this;
+  public Expr rewrite(ExprAnalyzer exprAnalyzer) {
+    if (!exprAnalyzer.isEnabled(RewriteMode.OPTIONAL)) return this;
     if (isNotBetween()) {
       // Rewrite into disjunction.
       Predicate lower = new BinaryPredicate(BinaryPredicate.Operator.LT,

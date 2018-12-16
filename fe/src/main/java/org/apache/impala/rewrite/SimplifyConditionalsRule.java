@@ -27,6 +27,7 @@ import org.apache.impala.analysis.CaseExpr;
 import org.apache.impala.analysis.CaseWhenClause;
 import org.apache.impala.analysis.CompoundPredicate;
 import org.apache.impala.analysis.Expr;
+import org.apache.impala.analysis.ExprAnalyzer.RewriteMode;
 import org.apache.impala.analysis.FunctionCallExpr;
 import org.apache.impala.analysis.NullLiteral;
 import org.apache.impala.common.AnalysisException;
@@ -86,6 +87,7 @@ public class SimplifyConditionalsRule implements ExprRewriteRule {
   /**
    * Simplifies compound predicates with at least one BoolLiteral child, which
    * NormalizeExprsRule ensures will be the left child,  according to the following rules:
+   *
    * true AND 'expr' -> 'expr'
    * false AND 'expr' -> false
    * true OR 'expr' -> true
@@ -113,69 +115,6 @@ public class SimplifyConditionalsRule implements ExprRewriteRule {
    */
   private Expr simplifyCaseExpr(CaseExpr expr, Analyzer analyzer)
       throws AnalysisException {
-    Expr caseExpr = expr.hasCaseExpr() ? expr.getChild(0) : null;
-    if (expr.hasCaseExpr() && !Expr.IS_LITERAL.apply(caseExpr)) return expr;
-
-    int numChildren = expr.getChildren().size();
-    int loopStart = expr.hasCaseExpr() ? 1 : 0;
-    // Check and return early if there's nothing that can be simplified.
-    boolean canSimplify = false;
-    for (int i = loopStart; i < numChildren - 1; i += 2) {
-      if (Expr.IS_LITERAL.apply(expr.getChild(i))) {
-        canSimplify = true;
-        break;
-      }
-    }
-    if (!canSimplify) return expr;
-
-    // Contains all 'when' clauses with non-constant conditions, used to construct the new
-    // CASE expr while removing any FALSE or NULL cases.
-    List<CaseWhenClause> newWhenClauses = new ArrayList<CaseWhenClause>();
-    // Set to THEN of first constant TRUE clause, if any.
-    Expr elseExpr = null;
-    for (int i = loopStart; i < numChildren - 1; i += 2) {
-      Expr child = expr.getChild(i);
-      if (Expr.IS_NULL_LITERAL.apply(child)) continue;
-
-      Expr whenExpr;
-      if (expr.hasCaseExpr()) {
-        if (Expr.IS_LITERAL.apply(child)) {
-          Expr pred = new BinaryPredicate(
-              BinaryPredicate.Operator.EQ, caseExpr, expr.getChild(i));
-          pred = analyzer.analyzeAndRewrite(pred);
-          whenExpr = analyzer.getConstantFolder().rewrite(pred, analyzer);
-        } else {
-          whenExpr = null;
-        }
-      } else {
-        whenExpr = child;
-      }
-
-      if (whenExpr instanceof BoolLiteral) {
-        if (((BoolLiteral) whenExpr).getValue()) {
-          if (newWhenClauses.size() == 0) {
-            // This WHEN is always TRUE, and any cases preceding it are constant
-            // FALSE/NULL, so just return its THEN.
-            return expr.getChild(i + 1).castTo(expr.getType());
-          } else {
-            // This WHEN is always TRUE, so the cases after it can never be reached.
-            elseExpr = expr.getChild(i + 1);
-            break;
-          }
-        } else {
-          // This WHEN is always FALSE, so it can be removed.
-        }
-      } else {
-        newWhenClauses.add(new CaseWhenClause(child, expr.getChild(i + 1)));
-      }
-    }
-
-    if (expr.hasElseExpr() && elseExpr == null) elseExpr = expr.getChild(numChildren - 1);
-    if (newWhenClauses.size() == 0) {
-      // All of the WHEN clauses were FALSE, return the ELSE.
-      if (elseExpr == null) return NullLiteral.create(expr.getType());
-      return elseExpr;
-    }
-    return new CaseExpr(caseExpr, newWhenClauses, elseExpr);
+    return expr.rewrite(analyzer.exprAnalyzer());
   }
 }

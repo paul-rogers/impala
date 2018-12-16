@@ -627,8 +627,8 @@ public class FunctionCallExpr extends Expr {
   }
 
   @Override
-  protected Expr rewrite(RewriteMode rewriteMode) throws AnalysisException {
-    if (rewriteMode != RewriteMode.OPTIONAL) return this;
+  protected Expr rewrite(ExprAnalyzer exprAnalyzer) throws AnalysisException {
+    if (!exprAnalyzer.isEnabled(RewriteMode.OPTIONAL)) return this;
     return simplifyConditionals();
   }
 
