@@ -306,7 +306,7 @@ public class FrontendTestBase {
     return AnalyzesOk(stmt, createAnalysisCtx(), expectedWarning);
   }
 
-  protected AnalysisContext createAnalysisCtx() {
+  public AnalysisContext createAnalysisCtx() {
     return createAnalysisCtx(Catalog.DEFAULT_DB);
   }
 

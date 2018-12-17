@@ -20,7 +20,6 @@ package org.apache.impala.rewrite;
 import org.apache.impala.analysis.Analyzer;
 import org.apache.impala.analysis.BinaryPredicate;
 import org.apache.impala.analysis.Expr;
-import org.apache.impala.analysis.ExprAnalyzer.RewriteMode;
 
 /**
  * Normalizes binary predicates of the form <expr> <op> <slot> so that the slot is

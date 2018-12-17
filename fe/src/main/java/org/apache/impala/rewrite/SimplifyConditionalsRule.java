@@ -17,24 +17,12 @@
 
 package org.apache.impala.rewrite;
 
-import java.util.ArrayList;
-import java.util.List;
-
 import org.apache.impala.analysis.Analyzer;
-import org.apache.impala.analysis.BinaryPredicate;
-import org.apache.impala.analysis.BoolLiteral;
 import org.apache.impala.analysis.CaseExpr;
-import org.apache.impala.analysis.CaseWhenClause;
 import org.apache.impala.analysis.CompoundPredicate;
 import org.apache.impala.analysis.Expr;
-import org.apache.impala.analysis.ExprAnalyzer.RewriteMode;
 import org.apache.impala.analysis.FunctionCallExpr;
-import org.apache.impala.analysis.NullLiteral;
 import org.apache.impala.common.AnalysisException;
-
-import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Lists;
 
 /***
  * This rule simplifies conditional functions with constant conditions. It relies on

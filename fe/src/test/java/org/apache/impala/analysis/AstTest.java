@@ -75,7 +75,9 @@ public class AstTest extends FrontendTestBase {
       // No expected plan was specified for section. Skip expected/actual comparison.
       if (!sectionExists) return;
 
-      StatementBase stmt = (StatementBase) test_.AnalyzesOk(query);
+      AnalysisContext ctx = test_.createAnalysisCtx();
+      ctx.getQueryCtx().client_request.query_options.setEnable_expr_rewrites(true);
+      StatementBase stmt = (StatementBase) test_.AnalyzesOk(query, ctx, null);
       JsonTreeFormatter formatter = new JsonTreeFormatter(
           ToJsonOptions.fullCompact().showSource(false));
       stmt.serialize(formatter.root());

@@ -20,7 +20,6 @@ package org.apache.impala.rewrite;
 import org.apache.impala.analysis.Analyzer;
 import org.apache.impala.analysis.BetweenPredicate;
 import org.apache.impala.analysis.Expr;
-import org.apache.impala.analysis.ExprAnalyzer.RewriteMode;
 
 public class BetweenToCompoundRule implements ExprRewriteRule {
   public static ExprRewriteRule INSTANCE = new BetweenToCompoundRule();

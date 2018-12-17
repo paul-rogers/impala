@@ -2422,7 +2422,7 @@ from tpch.lineitem inner join /* +shuffle */ tpch.orders on l_orderkey = o_order
 ---- PLAN
 Max Per-Host Resource Reservation: Memory=51.00MB Threads=3
 Per-Host Resource Estimates: Memory=446MB
-Analyzed query: SELECT * FROM tpch.lineitem INNER JOIN 
+Analyzed query: SELECT * FROM tpch.lineitem INNER JOIN
 -- +shuffle
 tpch.orders ON l_orderkey = o_orderkey
 
@@ -2462,7 +2462,7 @@ PLAN-ROOT SINK
 ---- DISTRIBUTEDPLAN
 Max Per-Host Resource Reservation: Memory=52.00MB Threads=6
 Per-Host Resource Estimates: Memory=300MB
-Analyzed query: SELECT * FROM tpch.lineitem INNER JOIN 
+Analyzed query: SELECT * FROM tpch.lineitem INNER JOIN
 -- +shuffle
 tpch.orders ON l_orderkey = o_orderkey
 
@@ -2523,7 +2523,7 @@ Per-Host Resources: mem-estimate=89.00MB mem-reservation=9.00MB thread-reservati
 ---- PARALLELPLANS
 Max Per-Host Resource Reservation: Memory=104.00MB Threads=7
 Per-Host Resource Estimates: Memory=481MB
-Analyzed query: SELECT * FROM tpch.lineitem INNER JOIN 
+Analyzed query: SELECT * FROM tpch.lineitem INNER JOIN
 -- +shuffle
 tpch.orders ON l_orderkey = o_orderkey
 
@@ -3675,9 +3675,9 @@ Analyzed query: SELECT c_name, c_custkey, o_orderkey, o_orderdate, o_totalprice,
 sum(l_quantity) FROM tpch.customer, tpch.orders, tpch.lineitem LEFT SEMI JOIN
 (SELECT l_orderkey FROM tpch.lineitem GROUP BY l_orderkey HAVING $ao$1 /*
 sum(l_quantity) */ > CAST(300 AS DECIMAL(5,0))) `$a$1` (`$c$1`) ON o_orderkey =
-`$a$1`.`$c$1` WHERE TRUE AND c_custkey = o_custkey AND o_orderkey = l_orderkey
-GROUP BY c_name, c_custkey, o_orderkey, o_orderdate, o_totalprice ORDER BY
-o_totalprice DESC, o_orderdate ASC LIMIT CAST(100 AS TINYINT)
+`$a$1`.`$c$1` WHERE c_custkey = o_custkey AND o_orderkey = l_orderkey GROUP BY
+c_name, c_custkey, o_orderkey, o_orderdate, o_totalprice ORDER BY o_totalprice
+DESC, o_orderdate ASC LIMIT CAST(100 AS TINYINT)
 
 F00:PLAN FRAGMENT [UNPARTITIONED] hosts=1 instances=1
 |  Per-Host Resources: mem-estimate=419.25MB mem-reservation=111.50MB thread-reservation=5 runtime-filters-memory=3.00MB
@@ -3776,9 +3776,9 @@ Analyzed query: SELECT c_name, c_custkey, o_orderkey, o_orderdate, o_totalprice,
 sum(l_quantity) FROM tpch.customer, tpch.orders, tpch.lineitem LEFT SEMI JOIN
 (SELECT l_orderkey FROM tpch.lineitem GROUP BY l_orderkey HAVING $ao$1 /*
 sum(l_quantity) */ > CAST(300 AS DECIMAL(5,0))) `$a$1` (`$c$1`) ON o_orderkey =
-`$a$1`.`$c$1` WHERE TRUE AND c_custkey = o_custkey AND o_orderkey = l_orderkey
-GROUP BY c_name, c_custkey, o_orderkey, o_orderdate, o_totalprice ORDER BY
-o_totalprice DESC, o_orderdate ASC LIMIT CAST(100 AS TINYINT)
+`$a$1`.`$c$1` WHERE c_custkey = o_custkey AND o_orderkey = l_orderkey GROUP BY
+c_name, c_custkey, o_orderkey, o_orderdate, o_totalprice ORDER BY o_totalprice
+DESC, o_orderdate ASC LIMIT CAST(100 AS TINYINT)
 
 F07:PLAN FRAGMENT [UNPARTITIONED] hosts=1 instances=1
 |  Per-Host Resources: mem-estimate=31.12KB mem-reservation=0B thread-reservation=1
@@ -3935,9 +3935,9 @@ Analyzed query: SELECT c_name, c_custkey, o_orderkey, o_orderdate, o_totalprice,
 sum(l_quantity) FROM tpch.customer, tpch.orders, tpch.lineitem LEFT SEMI JOIN
 (SELECT l_orderkey FROM tpch.lineitem GROUP BY l_orderkey HAVING $ao$1 /*
 sum(l_quantity) */ > CAST(300 AS DECIMAL(5,0))) `$a$1` (`$c$1`) ON o_orderkey =
-`$a$1`.`$c$1` WHERE TRUE AND c_custkey = o_custkey AND o_orderkey = l_orderkey
-GROUP BY c_name, c_custkey, o_orderkey, o_orderdate, o_totalprice ORDER BY
-o_totalprice DESC, o_orderdate ASC LIMIT CAST(100 AS TINYINT)
+`$a$1`.`$c$1` WHERE c_custkey = o_custkey AND o_orderkey = l_orderkey GROUP BY
+c_name, c_custkey, o_orderkey, o_orderdate, o_totalprice ORDER BY o_totalprice
+DESC, o_orderdate ASC LIMIT CAST(100 AS TINYINT)
 
 F07:PLAN FRAGMENT [UNPARTITIONED] hosts=1 instances=1
 |  Per-Host Resources: mem-estimate=59.24KB mem-reservation=0B thread-reservation=1
@@ -4953,11 +4953,11 @@ join (
 ---- PLAN
 Max Per-Host Resource Reservation: Memory=99.00MB Threads=5
 Per-Host Resource Estimates: Memory=180MB
-Analyzed query: SELECT 
+Analyzed query: SELECT
 -- +straight_join
-* FROM tpch_parquet.orders t1 INNER JOIN (SELECT 
+* FROM tpch_parquet.orders t1 INNER JOIN (SELECT
 -- +straight_join
-t2.o_orderkey k2, k3, k4 FROM tpch_parquet.orders t2 INNER JOIN (SELECT 
+t2.o_orderkey k2, k3, k4 FROM tpch_parquet.orders t2 INNER JOIN (SELECT
 -- +straight_join
 t3.o_orderkey k3, t4.o_orderkey k4 FROM tpch_parquet.orders t3 INNER JOIN
 tpch_parquet.orders t4 ON t3.o_orderkey = t4.o_orderkey) v2 ON v2.k3 =
@@ -5037,11 +5037,11 @@ PLAN-ROOT SINK
 ---- DISTRIBUTEDPLAN
 Max Per-Host Resource Reservation: Memory=100.50MB Threads=10
 Per-Host Resource Estimates: Memory=260MB
-Analyzed query: SELECT 
+Analyzed query: SELECT
 -- +straight_join
-* FROM tpch_parquet.orders t1 INNER JOIN (SELECT 
+* FROM tpch_parquet.orders t1 INNER JOIN (SELECT
 -- +straight_join
-t2.o_orderkey k2, k3, k4 FROM tpch_parquet.orders t2 INNER JOIN (SELECT 
+t2.o_orderkey k2, k3, k4 FROM tpch_parquet.orders t2 INNER JOIN (SELECT
 -- +straight_join
 t3.o_orderkey k3, t4.o_orderkey k4 FROM tpch_parquet.orders t3 INNER JOIN
 tpch_parquet.orders t4 ON t3.o_orderkey = t4.o_orderkey) v2 ON v2.k3 =
@@ -5156,11 +5156,11 @@ Per-Host Resources: mem-estimate=88.84MB mem-reservation=59.00MB thread-reservat
 ---- PARALLELPLANS
 Max Per-Host Resource Reservation: Memory=176.50MB Threads=11
 Per-Host Resource Estimates: Memory=454MB
-Analyzed query: SELECT 
+Analyzed query: SELECT
 -- +straight_join
-* FROM tpch_parquet.orders t1 INNER JOIN (SELECT 
+* FROM tpch_parquet.orders t1 INNER JOIN (SELECT
 -- +straight_join
-t2.o_orderkey k2, k3, k4 FROM tpch_parquet.orders t2 INNER JOIN (SELECT 
+t2.o_orderkey k2, k3, k4 FROM tpch_parquet.orders t2 INNER JOIN (SELECT
 -- +straight_join
 t3.o_orderkey k3, t4.o_orderkey k4 FROM tpch_parquet.orders t3 INNER JOIN
 tpch_parquet.orders t4 ON t3.o_orderkey = t4.o_orderkey) v2 ON v2.k3 =
@@ -5315,11 +5315,11 @@ join (
 ---- PLAN
 Max Per-Host Resource Reservation: Memory=176.00KB Threads=5
 Per-Host Resource Estimates: Memory=138MB
-Analyzed query: SELECT 
+Analyzed query: SELECT
 -- +straight_join
-* FROM tpch_parquet.nation t1 INNER JOIN (SELECT 
+* FROM tpch_parquet.nation t1 INNER JOIN (SELECT
 -- +straight_join
-t2.n_nationkey k2, k3, k4 FROM tpch_parquet.nation t2 INNER JOIN (SELECT 
+t2.n_nationkey k2, k3, k4 FROM tpch_parquet.nation t2 INNER JOIN (SELECT
 -- +straight_join
 t3.n_nationkey k3, t4.s_suppkey k4 FROM tpch_parquet.nation t3 INNER JOIN
 tpch_parquet.supplier t4) v2) v1
@@ -5386,11 +5386,11 @@ PLAN-ROOT SINK
 ---- DISTRIBUTEDPLAN
 Max Per-Host Resource Reservation: Memory=176.00KB Threads=9
 Per-Host Resource Estimates: Memory=161MB
-Analyzed query: SELECT 
+Analyzed query: SELECT
 -- +straight_join
-* FROM tpch_parquet.nation t1 INNER JOIN (SELECT 
+* FROM tpch_parquet.nation t1 INNER JOIN (SELECT
 -- +straight_join
-t2.n_nationkey k2, k3, k4 FROM tpch_parquet.nation t2 INNER JOIN (SELECT 
+t2.n_nationkey k2, k3, k4 FROM tpch_parquet.nation t2 INNER JOIN (SELECT
 -- +straight_join
 t3.n_nationkey k3, t4.s_suppkey k4 FROM tpch_parquet.nation t3 INNER JOIN
 tpch_parquet.supplier t4) v2) v1
@@ -5485,11 +5485,11 @@ Per-Host Resources: mem-estimate=97.55MB mem-reservation=32.00KB thread-reservat
 ---- PARALLELPLANS
 Max Per-Host Resource Reservation: Memory=352.00KB Threads=9
 Per-Host Resource Estimates: Memory=311MB
-Analyzed query: SELECT 
+Analyzed query: SELECT
 -- +straight_join
-* FROM tpch_parquet.nation t1 INNER JOIN (SELECT 
+* FROM tpch_parquet.nation t1 INNER JOIN (SELECT
 -- +straight_join
-t2.n_nationkey k2, k3, k4 FROM tpch_parquet.nation t2 INNER JOIN (SELECT 
+t2.n_nationkey k2, k3, k4 FROM tpch_parquet.nation t2 INNER JOIN (SELECT
 -- +straight_join
 t3.n_nationkey k3, t4.s_suppkey k4 FROM tpch_parquet.nation t3 INNER JOIN
 tpch_parquet.supplier t4) v2) v1

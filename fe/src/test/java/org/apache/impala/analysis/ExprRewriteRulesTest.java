@@ -111,11 +111,11 @@ public class ExprRewriteRulesTest extends FrontendTestBase {
     return result;
   }
 
-  private void verifySingleRewrite(String tableName, String exprSql, Class<? extends Expr> nodeClass,
+  private void verifySingleRewrite(String tableName, String exprSql,
+      Class<? extends Expr> nodeClass,
       String expectedSql) throws ImpalaException {
     Analyzer analyzer = prepareAnalyzer(false);
-    Expr expr = analyzer.analyzeAndRewrite(
-        parseSelectExpr(tableName, exprSql));
+    Expr expr = analyzer.analyzeAndRewrite(parseSelectExpr(tableName, exprSql));
     assertTrue(nodeClass.isInstance(expr));
     Expr result = expr.rewrite(analyzer.exprAnalyzer());
     if (result == expr) {
@@ -128,13 +128,13 @@ public class ExprRewriteRulesTest extends FrontendTestBase {
 
   private Expr verifySingleRewrite(String exprSql, Class<? extends Expr> nodeClass,
       String expectedSql) throws ImpalaException {
+    Expr original = parseSelectExpr(exprSql);
+    assertTrue(nodeClass.isInstance(original));
     Analyzer analyzer = prepareAnalyzer(false);
-    Expr expr = analyzer.analyzeAndRewrite(
-        parseSelectExpr(exprSql));
-    assertTrue(nodeClass.isInstance(expr));
+    Expr expr = analyzer.analyzeAndRewrite(original);
     ExprAnalyzer exprAnalyzer = new ExprAnalyzer(analyzer, RewriteMode.OPTIONAL);
     Expr result = expr.rewrite(exprAnalyzer);
-    if (result == expr) {
+    if (result == original) {
       assertNull("Expected rewrite", expectedSql);
     } else {
       assertNotNull("Expected no rewrite", expectedSql);
