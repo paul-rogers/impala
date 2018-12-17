@@ -23,7 +23,7 @@ import org.apache.impala.rewrite.ExprRewriter;
 import com.google.common.base.Predicates;
 
 /**
- * Represents the Having clause of a SELECT statement.
+ * Represents the HAVING clause of a SELECT statement.
  */
 public class HavingClause extends AbstractExpression {
   // Before rewrites: used to display source SQL
