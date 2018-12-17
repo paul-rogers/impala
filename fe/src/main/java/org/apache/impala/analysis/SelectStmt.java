@@ -22,9 +22,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
-import org.apache.impala.analysis.AbstractExpression.WhereExpression;
-import org.apache.impala.analysis.AbstractExpression.GroupByClause;
-import org.apache.impala.analysis.AbstractExpression.HavingExpression;
 import org.apache.impala.analysis.Path.PathType;
 import org.apache.impala.analysis.SelectListItem.SelectExpr;
 import org.apache.impala.analysis.SelectListItem.SelectWildcard;
@@ -62,9 +59,9 @@ public class SelectStmt extends QueryStmt {
   protected SelectList selectList_;
   protected final List<String> colLabels_; // lower case column labels
   protected final FromClause fromClause_;
-  protected WhereExpression whereClause_;
+  protected WhereClause whereClause_;
   protected GroupByClause groupByClause_;
-  protected HavingExpression havingClause_;
+  protected HavingClause havingClause_;
 
   // set if we have any kind of aggregation operation, include SELECT DISTINCT
   private MultiAggregateInfo multiAggInfo_;
@@ -91,9 +88,9 @@ public class SelectStmt extends QueryStmt {
     super(orderByElements, limitElement);
     selectList_ = selectList;
     fromClause_ = fromClause == null ? new FromClause() : fromClause;
-    whereClause_ = WhereExpression.wrap(wherePredicate);
+    whereClause_ = WhereClause.wrap(wherePredicate);
     groupByClause_ = GroupByClause.wrap(groupingExprs);
-    havingClause_ = HavingExpression.wrap(havingPredicate);
+    havingClause_ = HavingClause.wrap(havingPredicate);
     colLabels_ = Lists.newArrayList();
   }
 
@@ -114,7 +111,7 @@ public class SelectStmt extends QueryStmt {
   public boolean hasWhereClause() { return whereClause_ != null; }
   public boolean hasGroupByClause() { return groupByClause_ != null; }
   public Expr getWhereClause() { return AbstractExpression.unwrap(whereClause_); }
-  public void setWhereClause(Expr whereClause) { whereClause_ = WhereExpression.wrap(whereClause); }
+  public void setWhereClause(Expr whereClause) { whereClause_ = WhereClause.wrap(whereClause); }
   public MultiAggregateInfo getMultiAggInfo() { return multiAggInfo_; }
   public boolean hasMultiAggInfo() { return multiAggInfo_ != null; }
   public AnalyticInfo getAnalyticInfo() { return analyticInfo_; }
@@ -240,10 +237,6 @@ public class SelectStmt extends QueryStmt {
           // Analyze the resultExpr before generating a label to ensure enforcement
           // of expr child and depth limits (toColumn() label may call toSql()).
           selectExpr.analyze(analyzer_);
-          if (selectExpr.getExpr().contains(Predicates.instanceOf(Subquery.class))) {
-            throw new AnalysisException(
-                "Subqueries are not supported in the select list.");
-          }
           resultExprs_.add(selectExpr.getExpr());
           String label = selectExpr.toColumnLabel(i, analyzer_.useHiveColLabels());
           SlotRef aliasRef = new SlotRef(label, "$sl$" + i);
@@ -304,16 +297,6 @@ public class SelectStmt extends QueryStmt {
       if (!hasWhereClause()) return;
       whereClause_.analyze(analyzer_);
       Expr whereExpr = whereClause_.getExpr();
-      if (whereExpr.contains(Expr.isAggregatePredicate())) {
-        throw new AnalysisException(
-            "aggregate function not allowed in WHERE clause");
-      }
-      whereExpr.checkReturnsBool("WHERE clause", false);
-      Expr e = whereExpr.findFirstOf(AnalyticExpr.class);
-      if (e != null) {
-        throw new AnalysisException(
-            "WHERE clause must not contain analytic expressions: " + e.toSql());
-      }
       analyzer_.registerConjuncts(whereExpr, false);
     }
 
@@ -546,20 +529,8 @@ public class SelectStmt extends QueryStmt {
       // Analyze the HAVING clause first so we can check if it contains aggregates.
       // We need to analyze/register it even if we are not computing aggregates.
       if (!hasHavingClause()) return;
-      // can't contain subqueries
-      if (havingClause_.getPreExpansion().contains(Predicates.instanceOf(Subquery.class))) {
-        throw new AnalysisException(
-            "Subqueries are not supported in the HAVING clause.");
-      }
       // Resolve (top-level) aliases and analyzes
       havingClause_.analyze(SelectStmt.this, analyzer_);
-      // can't contain analytic exprs
-      Expr analyticExpr = havingClause_.getExpr().findFirstOf(AnalyticExpr.class);
-      if (analyticExpr != null) {
-        throw new AnalysisException(
-            "HAVING clause must not contain analytic expressions: "
-               + analyticExpr.toSql());
-      }
       havingClause_.getExpr().checkReturnsBool("HAVING clause", true);
     }
 

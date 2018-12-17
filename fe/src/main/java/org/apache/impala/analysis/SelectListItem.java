@@ -23,10 +23,18 @@ import org.apache.impala.common.AnalysisException;
 
 import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
+import com.google.common.base.Predicates;
 
 import static org.apache.impala.analysis.ToSqlOptions.DEFAULT;
-
+/**
+ * Select list items an either be a wildcard ("*") or a expression.
+ */
 public interface SelectListItem {
+
+  /**
+   * Select list item which is an expression. Exands to a single entry in the
+   * result set.
+   */
   public static class SelectExpr extends AbstractExpression implements SelectListItem {
     private Expr expr_;
     private String alias_;
@@ -61,6 +69,10 @@ public interface SelectListItem {
       // items for rewritten SELECT statements in the analyzer. Only worth keeping a
       // source copy for unanalyzed, "pristine" expressions.
       if (!expr_.isAnalyzed()) saveSource(expr_);
+      if (expr_.contains(Predicates.instanceOf(Subquery.class))) {
+        throw new AnalysisException(
+            "Subqueries are not supported in the select list.");
+      }
       expr_ = analyzer.analyzeAndRewrite(expr_);
     }
 
@@ -121,6 +133,10 @@ public interface SelectListItem {
     }
   }
 
+  /**
+   * Select list item which represents a wildcard. Expands to zero or more entries
+   * in the result set.
+   */
   public static class SelectWildcard implements SelectListItem {
     // for "[path.]*" (excludes trailing '*')
     private final List<String> rawPath_;
