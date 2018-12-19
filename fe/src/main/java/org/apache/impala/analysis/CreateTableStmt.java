@@ -30,6 +30,7 @@ import org.apache.impala.common.ImpalaRuntimeException;
 import org.apache.impala.thrift.TCreateTableParams;
 import org.apache.impala.thrift.THdfsFileFormat;
 import org.apache.impala.thrift.TTableName;
+import org.apache.impala.thrift.TTableStats;
 import org.apache.impala.util.AvroSchemaConverter;
 import org.apache.impala.util.AvroSchemaParser;
 import org.apache.impala.util.AvroSchemaUtils;
@@ -40,8 +41,8 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import com.google.common.collect.Lists;
-import com.google.common.primitives.Ints;
 import com.google.common.collect.Maps;
+import com.google.common.primitives.Ints;
 
 /**
  * Represents a CREATE TABLE statement.
@@ -121,6 +122,8 @@ public class CreateTableStmt extends StatementBase {
   public Map<String, String> getGeneratedKuduProperties() {
     return tableDef_.getGeneratedKuduProperties();
   }
+  @VisibleForTesting
+  public TTableStats makeStats() { return tableDef_.makeStats(); }
 
   // Only exposed for ToSqlUtils. Returns the list of primary keys declared by the user
   // at the table level. Note that primary keys may also be declared in column

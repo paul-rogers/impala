@@ -68,7 +68,6 @@ import org.apache.impala.rewrite.FoldConstantsRule;
 import org.apache.impala.rewrite.NormalizeBinaryPredicatesRule;
 import org.apache.impala.rewrite.NormalizeCountStarRule;
 import org.apache.impala.rewrite.NormalizeExprsRule;
-import org.apache.impala.rewrite.RemoveRedundantStringCast;
 import org.apache.impala.rewrite.SimplifyConditionalsRule;
 import org.apache.impala.rewrite.SimplifyDistinctFromRule;
 import org.apache.impala.service.FeSupport;
@@ -310,6 +309,8 @@ public class Analyzer {
     // Expr rewriter for normalizing and rewriting expressions.
     private final ExprRewriter exprRewriter_;
 
+    private FileSystemProxy fsProxy_;
+
     public GlobalState(StmtTableCache stmtTableCache, TQueryCtx queryCtx,
         AuthorizationConfig authzConfig) {
       this.stmtTableCache = stmtTableCache;
@@ -335,6 +336,11 @@ public class Analyzer {
         rules.add(SimplifyDistinctFromRule.INSTANCE);
       }
       exprRewriter_ = new ExprRewriter(rules);
+      fsProxy_ = new HdfsFileSystemProxy();
+    }
+
+    public void becomeMock() {
+      fsProxy_ = new MockFileSystemProxy();
     }
   };
 
@@ -382,6 +388,13 @@ public class Analyzer {
     ancestors_ = new ArrayList<>();
     globalState_ = new GlobalState(stmtTableCache, queryCtx, authzConfig);
     user_ = new User(TSessionStateUtil.getEffectiveUser(queryCtx.session));
+  }
+
+  public static Analyzer createMock(StmtTableCache stmtTableCache, TQueryCtx queryCtx,
+      AuthorizationConfig authzConfig) {
+    Analyzer analyzer = new Analyzer(stmtTableCache, queryCtx, authzConfig);
+    analyzer.globalState_.becomeMock();
+    return analyzer;
   }
 
   /**
@@ -2689,4 +2702,6 @@ public class Analyzer {
     return getAuthzConfig().isEnabled() ? getAuthzConfig().getServerName().intern() :
         null;
   }
+
+  public FileSystemProxy fsProxy() { return globalState_.fsProxy_; }
 }

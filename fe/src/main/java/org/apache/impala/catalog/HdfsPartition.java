@@ -607,6 +607,7 @@ public class HdfsPartition implements FeFsPartition, PrunablePartition {
   public void setNumRows(long numRows) { numRows_ = numRows; }
   @Override // FeFsPartition
   public long getNumRows() { return numRows_; }
+  @Override
   public boolean isMarkedCached() { return isMarkedCached_; }
   void markCached() { isMarkedCached_ = true; }
 
@@ -641,6 +642,7 @@ public class HdfsPartition implements FeFsPartition, PrunablePartition {
     return PartitionStatsUtil.getPartStatsOrWarn(this);
   }
 
+  @Override
   public byte[] getPartitionStatsCompressed() {
     return partitionStats_;
   }
@@ -730,6 +732,7 @@ public class HdfsPartition implements FeFsPartition, PrunablePartition {
     return encodedFileDescriptors_.size();
   }
 
+  @Override
   public boolean hasFileDescriptors() { return !encodedFileDescriptors_.isEmpty(); }
 
   // Struct-style class for caching all the information we need to reconstruct an
@@ -890,6 +893,17 @@ public class HdfsPartition implements FeFsPartition, PrunablePartition {
   @Override
   public String toString() {
     return Objects.toStringHelper(this)
+      .add("id", id_)
+      .add("db", table_.getDb().getName())
+      .add("table", table_.getName())
+      .add("numRows", numRows_)
+      .add("format", fileFormatDescriptor_.toString())
+      .add("location", location_ == null ? "null" : location_.toString())
+      .add("dirty", isDirty_)
+      .add("cached", isMarkedCached_)
+      .add("access", accessLevel_.name())
+      .add("params", hmsParameters_.toString())
+      .add("incr stats", hasIncrementalStats_)
       .add("fileDescriptors", getFileDescriptors())
       .toString();
   }

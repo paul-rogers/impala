@@ -36,6 +36,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+
 import org.apache.avro.Schema;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.BlockLocation;
@@ -163,14 +164,14 @@ public class HdfsTable extends Table implements FeFsTable {
   private String nullPartitionKeyValue_;
 
   // Avro schema of this table if this is an Avro table, otherwise null. Set in load().
-  private String avroSchema_ = null;
+  private String avroSchema_;
 
   // Set to true if any of the partitions have Avro data.
-  private boolean hasAvroData_ = false;
+  private boolean hasAvroData_ ;
 
   // True if this table's metadata is marked as cached. Does not necessarily mean the
   // data is cached or that all/any partitions are cached.
-  private boolean isMarkedCached_ = false;
+  private boolean isMarkedCached_;
 
   // Array of sorted maps storing the association between partition values and
   // partition ids. There is one sorted map per partition key. It is only populated if
@@ -210,7 +211,7 @@ public class HdfsTable extends Table implements FeFsTable {
   private final ListMap<TNetworkAddress> hostIndex_ = new ListMap<TNetworkAddress>();
 
   // True iff this table has incremental stats in any of its partitions.
-  private boolean hasIncrementalStats_ = false;
+  private boolean hasIncrementalStats_;
 
   private HdfsPartitionLocationCompressor partitionLocationCompressor_;
 
@@ -227,7 +228,7 @@ public class HdfsTable extends Table implements FeFsTable {
 
   // Flag to check if the table schema has been loaded. Used as a precondition
   // for setAvroSchema().
-  private boolean isSchemaLoaded_ = false;
+  private boolean isSchemaLoaded_;
 
   // Represents a set of storage-related statistics aggregated at the table or partition
   // level.
@@ -1161,6 +1162,9 @@ public class HdfsTable extends Table implements FeFsTable {
     prototypePartition_ = HdfsPartition.prototypePartition(this, hdfsStorageDescriptor);
   }
 
+  @VisibleForTesting
+  public HdfsPartition getPrototypePartition() { return prototypePartition_; }
+
   @Override
   public void load(boolean reuseMetadata, IMetaStoreClient client,
       org.apache.hadoop.hive.metastore.api.Table msTbl) throws TableLoadingException {
@@ -1849,6 +1853,7 @@ public class HdfsTable extends Table implements FeFsTable {
   /**
    * Returns the set of file formats that the partitions are stored in.
    */
+  @Override
   public Set<HdfsFileFormat> getFileFormats() {
     // In the case that we have no partitions added to the table yet, it's
     // important to add the "prototype" partition as a fallback.
@@ -2187,14 +2192,18 @@ public class HdfsTable extends Table implements FeFsTable {
   public static HdfsTable createCtasTarget(Db db,
       org.apache.hadoop.hive.metastore.api.Table msTbl) throws CatalogException {
     HdfsTable tmpTable = new HdfsTable(msTbl, db, msTbl.getTableName(), msTbl.getOwner());
+    tmpTable.initTempTable(msTbl);
+    return tmpTable;
+  }
+
+  public void initTempTable(org.apache.hadoop.hive.metastore.api.Table msTbl) throws CatalogException {
     HiveConf hiveConf = new HiveConf(HdfsTable.class);
     // set nullPartitionKeyValue from the hive conf.
-    tmpTable.nullPartitionKeyValue_ = hiveConf.get(
+    nullPartitionKeyValue_ = hiveConf.get(
         MetaStoreUtil.NULL_PARTITION_KEY_VALUE_CONF_KEY,
         MetaStoreUtil.DEFAULT_NULL_PARTITION_KEY_VALUE);
-    tmpTable.loadSchema(msTbl);
-    tmpTable.initializePartitionMetadata(msTbl);
-    tmpTable.setTableStats(msTbl);
-    return tmpTable;
+    loadSchema(msTbl);
+    initializePartitionMetadata(msTbl);
+    setTableStats(msTbl);
   }
 }

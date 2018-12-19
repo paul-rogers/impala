@@ -22,10 +22,11 @@ import java.util.List;
 import org.apache.impala.common.Pair;
 import org.apache.impala.thrift.THdfsPartitionLocation;
 import org.apache.impala.util.ListMap;
+
 import com.google.common.base.Preconditions;
 
 /**
- * Utility class for storing HdfsPartition locations in a comrpessed format.  Each
+ * Utility class for storing HdfsPartition locations in a compressed format.  Each
  * instance of this class is owned by a single HdfsTable instance.
  *
  * This class is not thread-safe by itself since it is only modified when the lock on an

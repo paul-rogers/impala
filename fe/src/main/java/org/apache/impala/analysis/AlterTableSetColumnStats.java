@@ -25,8 +25,9 @@ import org.apache.impala.common.AnalysisException;
 import org.apache.impala.thrift.TAlterTableParams;
 import org.apache.impala.thrift.TAlterTableType;
 import org.apache.impala.thrift.TAlterTableUpdateStatsParams;
+
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Joiner;
-import com.google.common.base.Preconditions;
 
 /**
 * Represents an ALTER TABLE [<dbName>.]<tableName> SET COLUMN STATS <colName>
@@ -42,6 +43,10 @@ public class AlterTableSetColumnStats extends AlterTableStmt {
   private final String colName_;
   private final Map<String, String> statsMap_;
 
+  // Permissive mode. Ignores unsettable fields which may be included in
+  // automatically generated statements.
+  private boolean isPermissive_;
+
   // Complete column stats reflecting this alteration. Existing stats values
   // are preserved. Result of analysis.
   private ColumnStats colStats_;
@@ -52,6 +57,9 @@ public class AlterTableSetColumnStats extends AlterTableStmt {
     colName_ = colName;
     statsMap_ = statsMap;
   }
+
+  @VisibleForTesting
+  public void setPermissiveMode() { isPermissive_ = true; }
 
   @Override
   public void analyze(Analyzer analyzer) throws AnalysisException {
@@ -101,8 +109,10 @@ public class AlterTableSetColumnStats extends AlterTableStmt {
       Column col, ColumnStats stats) throws AnalysisException {
     // Updating max/avg size is only allowed for variable length columns.
     if (col.getType().isFixedLengthType()
-        && (statsKey == ColumnStats.StatsKey.AVG_SIZE
-            || statsKey == ColumnStats.StatsKey.MAX_SIZE)) {
+        && (statsKey == ColumnStats.StatsKey.AVG_SIZE ||
+            statsKey == ColumnStats.StatsKey.MAX_SIZE)) {
+      // Benignly ignore requests to set the size to the current value.
+      if (isPermissive_) return;
       throw new AnalysisException(String.format(
           "Cannot update the '%s' stats of column '%s' with type '%s'.\n" +
           "Changing '%s' is only allowed for variable-length columns.",
@@ -112,12 +122,13 @@ public class AlterTableSetColumnStats extends AlterTableStmt {
     if (statsKey == ColumnStats.StatsKey.NUM_DISTINCT_VALUES ||
         statsKey == ColumnStats.StatsKey.NUM_NULLS ||
         statsKey == ColumnStats.StatsKey.MAX_SIZE) {
-      Long statsVal = null;
+      long statsVal;
       try {
         statsVal = Long.parseLong(statsValue);
       } catch (Exception e) {
+        statsVal = -2;
       }
-      if (statsVal == null || statsVal < -1) {
+      if (statsVal < -1) {
         throw new AnalysisException(String.format(
             "Invalid stats value '%s' for column stats key: %s\n" +
             "Expected a positive integer or -1 for unknown.",
@@ -125,13 +136,14 @@ public class AlterTableSetColumnStats extends AlterTableStmt {
       }
       stats.update(statsKey, statsVal);
     } else if (statsKey == ColumnStats.StatsKey.AVG_SIZE) {
-      Float statsVal = null;
+      float statsVal;
       try {
         statsVal = Float.parseFloat(statsValue);
       } catch (Exception e) {
+        statsVal = -2;
       }
-      if (statsVal == null || (statsVal < 0 && statsVal != -1) ||
-          statsVal.isNaN() || statsVal.isInfinite()) {
+      if ((statsVal < 0 && statsVal != -1) ||
+          Float.isNaN(statsVal) || Float.isInfinite(statsVal)) {
         throw new AnalysisException(String.format(
             "Invalid stats value '%s' for column stats key: %s\n" +
             "Expected a positive floating-point number or -1 for unknown.",
@@ -139,7 +151,7 @@ public class AlterTableSetColumnStats extends AlterTableStmt {
       }
       stats.update(statsKey, statsVal);
     } else {
-      Preconditions.checkState(false, "Unhandled StatsKey value: " + statsKey);
+      throw new AnalysisException("Unhandled StatsKey value: " + statsKey);
     }
   }
 

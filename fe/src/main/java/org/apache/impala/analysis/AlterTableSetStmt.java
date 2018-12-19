@@ -22,6 +22,8 @@ import org.apache.impala.catalog.FeHBaseTable;
 import org.apache.impala.catalog.FeTable;
 import org.apache.impala.common.AnalysisException;
 
+import com.google.common.annotations.VisibleForTesting;
+
 /**
  * Base class for all ALTER TABLE ... SET statements
  */
@@ -34,7 +36,8 @@ public class AlterTableSetStmt extends AlterTableStmt {
     if (partitionSet_ != null) partitionSet_.setTableName(tableName);
   }
 
-  PartitionSet getPartitionSet() { return partitionSet_; }
+  @VisibleForTesting
+  public PartitionSet getPartitionSet() { return partitionSet_; }
 
   @Override
   public void analyze(Analyzer analyzer) throws AnalysisException {

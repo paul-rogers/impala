@@ -29,6 +29,7 @@ import org.apache.impala.thrift.TExprNode;
 import org.apache.impala.thrift.TExprNodeType;
 import org.apache.impala.thrift.TSlotRef;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Joiner;
 import com.google.common.base.Objects;
 import com.google.common.base.Preconditions;
@@ -127,6 +128,9 @@ public class SlotRef extends Expr {
 
   @Override
   protected boolean isConstantImpl() { return false; }
+
+  @VisibleForTesting
+  public List<String> getRawPath() { return rawPath_; }
 
   public SlotDescriptor getDesc() {
     Preconditions.checkState(isAnalyzed());

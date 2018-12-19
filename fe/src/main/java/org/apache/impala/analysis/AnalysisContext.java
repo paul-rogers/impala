@@ -17,6 +17,8 @@
 
 package org.apache.impala.analysis;
 
+import static org.apache.impala.analysis.ToSqlOptions.REWRITTEN;
+
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -50,10 +52,8 @@ import org.slf4j.LoggerFactory;
 
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
-import com.google.common.collect.Lists;
 import com.google.common.collect.ImmutableList;
-
-import static org.apache.impala.analysis.ToSqlOptions.REWRITTEN;
+import com.google.common.collect.Lists;
 
 /**
  * Wrapper class for parsing, analyzing and rewriting a SQL stmt.
@@ -70,6 +70,8 @@ public class AnalysisContext {
 
   // Use Hive's scheme for auto-generating column labels. Only used for testing.
   private boolean useHiveColLabels_;
+
+  private boolean isMock_;
 
   public AnalysisContext(TQueryCtx queryCtx, AuthorizationConfig authzConfig,
       EventSequence timeline) {
@@ -89,6 +91,8 @@ public class AnalysisContext {
     Preconditions.checkState(RuntimeEnv.INSTANCE.isTestEnv());
     useHiveColLabels_ = b;
   }
+
+  public void becomeMock() { isMock_ = true; }
 
   static public class AnalysisResult {
     private StatementBase stmt_;
@@ -393,7 +397,9 @@ public class AnalysisContext {
   }
 
   public Analyzer createAnalyzer(StmtTableCache stmtTableCache) {
-    Analyzer result = new Analyzer(stmtTableCache, queryCtx_, authzConfig_);
+    Analyzer result;
+    if (isMock_) result = Analyzer.createMock(stmtTableCache, queryCtx_, authzConfig_);
+    else result = new Analyzer(stmtTableCache, queryCtx_, authzConfig_);
     result.setUseHiveColLabels(useHiveColLabels_);
     return result;
   }

@@ -20,7 +20,6 @@ package org.apache.impala.common;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.fail;
 
-import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -37,8 +36,6 @@ import org.apache.impala.analysis.ParseNode;
 import org.apache.impala.analysis.Parser;
 import org.apache.impala.analysis.Parser.ParseException;
 import org.apache.impala.analysis.QueryStmt;
-import org.apache.impala.analysis.SqlParser;
-import org.apache.impala.analysis.SqlScanner;
 import org.apache.impala.analysis.StatementBase;
 import org.apache.impala.analysis.StmtMetadataLoader;
 import org.apache.impala.analysis.StmtMetadataLoader.StmtTableCache;
@@ -63,6 +60,7 @@ import org.apache.impala.testutil.TestUtils;
 import org.apache.impala.thrift.TFunctionBinaryType;
 import org.apache.impala.thrift.TQueryCtx;
 import org.apache.impala.thrift.TQueryOptions;
+import org.apache.impala.thrift.TTableStats;
 import org.apache.impala.util.EventSequence;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -167,11 +165,17 @@ public class FrontendTestBase {
    */
   protected Table addTestTable(String createTableSql) {
     CreateTableStmt createTableStmt = (CreateTableStmt) AnalyzesOk(createTableSql);
+    return addTestTable(createTableSql, createTableStmt);
+  }
+
+  protected Table addTestTable(String createTableSql, CreateTableStmt createTableStmt) {
     Db db = catalog_.getDb(createTableStmt.getDb());
     Preconditions.checkNotNull(db, "Test tables must be created in an existing db.");
     org.apache.hadoop.hive.metastore.api.Table msTbl =
         CatalogOpExecutor.createMetaStoreTable(createTableStmt.toThrift());
     Table dummyTable = Table.fromMetastoreTable(db, msTbl);
+    TTableStats stats = createTableStmt.makeStats();
+    dummyTable.setTableStats(stats);
     if (dummyTable instanceof HdfsTable) {
       List<ColumnDef> columnDefs = Lists.newArrayList(
           createTableStmt.getPartitionColumnDefs());
@@ -184,6 +188,7 @@ public class FrontendTestBase {
       }
       try {
         HdfsTable hdfsTable = (HdfsTable) dummyTable;
+        hdfsTable.initTempTable(msTbl);
         hdfsTable.setPrototypePartition(msTbl.getSd());
       } catch (CatalogException e) {
         e.printStackTrace();
@@ -315,6 +320,7 @@ public class FrontendTestBase {
     EventSequence timeline = new EventSequence("Frontend Test Timeline");
     AnalysisContext analysisCtx = new AnalysisContext(queryCtx,
         AuthorizationConfig.createAuthDisabledConfig(), timeline);
+    analysisCtx.becomeMock();
     return analysisCtx;
   }
 

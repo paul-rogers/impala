@@ -37,6 +37,7 @@ import org.apache.impala.common.FileSystemUtil;
 import org.apache.impala.thrift.TAccessEvent;
 import org.apache.impala.thrift.TCatalogObjectType;
 import org.apache.impala.thrift.THdfsFileFormat;
+import org.apache.impala.thrift.TTableStats;
 import org.apache.impala.util.MetaStoreUtil;
 
 import com.google.common.base.Preconditions;
@@ -430,5 +431,14 @@ class TableDef {
           "value in the range [-128:127]: " + value);
     }
     return byteVal;
+  }
+
+  public TTableStats makeStats() {
+    TTableStats stats = new TTableStats();
+    String value = options_.tblProperties.get("numRows");
+    if (value != null) stats.setNum_rows(Long.parseLong(value));
+    value = options_.tblProperties.get("totalSize");
+    if (value != null) stats.setTotal_file_bytes(Long.parseLong(value));
+    return stats;
   }
 }

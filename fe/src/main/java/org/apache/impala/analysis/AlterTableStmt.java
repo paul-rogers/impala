@@ -26,6 +26,7 @@ import org.apache.impala.common.AnalysisException;
 import org.apache.impala.thrift.TAlterTableParams;
 import org.apache.impala.thrift.TTableName;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 
 /**
@@ -43,6 +44,8 @@ public abstract class AlterTableStmt extends StatementBase {
     table_ = null;
   }
 
+  @VisibleForTesting
+  public TableName getTableName() { return tableName_; }
   public String getTbl() { return tableName_.getTbl(); }
 
   /**

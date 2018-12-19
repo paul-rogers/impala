@@ -50,6 +50,7 @@ import org.apache.impala.thrift.TTableStats;
 import org.apache.impala.util.HdfsCachingUtil;
 import org.apache.log4j.Logger;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
@@ -135,6 +136,7 @@ public abstract class Table extends CatalogObjectImpl implements FeTable {
   }
 
   public ReentrantLock getLock() { return tableLock_; }
+  @Override
   public abstract TTableDescriptor toThriftDescriptor(
       int tableId, Set<Long> referencedPartitions);
 
@@ -164,6 +166,8 @@ public abstract class Table extends CatalogObjectImpl implements FeTable {
   }
 
   public Metrics getMetrics() { return metrics_; }
+  @VisibleForTesting
+  public TAccessLevel getAccessLevel() { return accessLevel_; }
 
   // Returns true if this table reference comes from the impalad catalog cache or if it
   // is loaded from the testing framework. Returns false if this table reference points
@@ -191,6 +195,11 @@ public abstract class Table extends CatalogObjectImpl implements FeTable {
   public void setTableStats(org.apache.hadoop.hive.metastore.api.Table msTbl) {
     tableStats_ = new TTableStats(FeCatalogUtils.getRowCount(msTbl.getParameters()));
     tableStats_.setTotal_file_bytes(FeCatalogUtils.getTotalSize(msTbl.getParameters()));
+  }
+
+  @VisibleForTesting
+  public void setTableStats(TTableStats stats) {
+    tableStats_ = stats;
   }
 
   public void addColumn(Column col) {

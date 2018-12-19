@@ -252,8 +252,12 @@ public class HdfsPartitionPruner {
     // Get the partition column position and retrieve the associated partition
     // value metadata.
     int partitionPos = slot.getDesc().getColumn().getPosition();
-    TreeMap<LiteralExpr, HashSet<Long>> partitionValueMap =
-        tbl_.getPartitionValueMap(partitionPos);
+    TreeMap<LiteralExpr, HashSet<Long>> partitionValueMap;
+    try {
+      partitionValueMap = tbl_.getPartitionValueMap(partitionPos);
+    } catch (IndexOutOfBoundsException e) {
+      return Sets.newHashSet();
+    }
     if (partitionValueMap.isEmpty()) return Sets.newHashSet();
 
     HashSet<Long> matchingIds = Sets.newHashSet();
