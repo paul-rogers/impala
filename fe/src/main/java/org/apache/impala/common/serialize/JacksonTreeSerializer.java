@@ -251,7 +251,7 @@ public class JacksonTreeSerializer extends AbstractTreeSerializer {
       popTo(level);
       try {
         jg_.writeFieldName(name);
-        isObject_[++depth_] = true;
+        isObject_[++depth_] = false;
         jg_.writeStartArray();
         return depth_;
       } catch (IOException e) {

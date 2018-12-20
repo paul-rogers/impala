@@ -25,10 +25,12 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.Callable;
@@ -62,6 +64,8 @@ import org.apache.impala.common.FileSystemUtil;
 import org.apache.impala.common.ImpalaException;
 import org.apache.impala.common.Pair;
 import org.apache.impala.common.Reference;
+import org.apache.impala.common.serialize.ArraySerializer;
+import org.apache.impala.common.serialize.ObjectSerializer;
 import org.apache.impala.compat.HdfsShim;
 import org.apache.impala.fb.FbFileBlock;
 import org.apache.impala.service.BackendConfig;
@@ -121,6 +125,105 @@ import com.google.common.collect.Sets;
  *
  */
 public class HdfsTable extends Table implements FeFsTable {
+
+  // Represents a set of storage-related statistics aggregated at the table or partition
+  // level.
+  public final static class FileMetadataStats {
+    // Nuber of files in a table/partition.
+    public long numFiles;
+    // Number of blocks in a table/partition.
+    public long numBlocks;
+    // Total size (in bytes) of all files in a table/partition.
+    public long totalFileBytes;
+
+    // Unsets the storage stats to indicate that their values are unknown.
+    public void unset() {
+      numFiles = -1;
+      numBlocks = -1;
+      totalFileBytes = -1;
+    }
+
+    // Initializes the values of the storage stats.
+    public void init() {
+      numFiles = 0;
+      numBlocks = 0;
+      totalFileBytes = 0;
+    }
+
+    public void set(FileMetadataStats stats) {
+      numFiles = stats.numFiles;
+      numBlocks = stats.numBlocks;
+      totalFileBytes = stats.totalFileBytes;
+    }
+  }
+
+  /**
+   * File/Block metadata loading stats for a single HDFS path.
+   */
+  public static class FileMetadataLoadStats {
+    // Path corresponding to this metadata load request.
+    private final Path hdfsPath;
+
+    // Number of files for which the metadata was loaded.
+    public int loadedFiles = 0;
+
+    // Number of hidden files excluded from file metadata loading. More details at
+    // isValidDataFile().
+    public int hiddenFiles = 0;
+
+    // Number of files skipped from file metadata loading because the files have not
+    // changed since the last load. More details at hasFileChanged().
+    public int skippedFiles = 0;
+
+    // Number of unknown disk IDs encountered while loading block
+    // metadata for this path.
+    public long unknownDiskIds = 0;
+
+    public FileMetadataLoadStats(Path path) { hdfsPath = path; }
+
+    public String debugString() {
+      Preconditions.checkNotNull(hdfsPath);
+      return String.format("Path: %s: Loaded files: %s Hidden files: %s " +
+          "Skipped files: %s Unknown diskIDs: %s", hdfsPath, loadedFiles, hiddenFiles,
+          skippedFiles, unknownDiskIds);
+    }
+  }
+
+  /**
+   * A callable implementation of file metadata loading request for a given
+   * HDFS path.
+   */
+  public class FileMetadataLoadRequest
+      implements Callable<FileMetadataLoadStats> {
+    private final Path hdfsPath_;
+    // All the partitions mapped to the above path
+    private final List<HdfsPartition> partitionList_;
+    // If set to true, reloads the file metadata only when the files in this path
+    // have changed since last load (more details in hasFileChanged()).
+    private final boolean reuseFileMd_;
+
+    public FileMetadataLoadRequest(
+        Path path, List<HdfsPartition> partitions, boolean reuseFileMd) {
+      hdfsPath_ = path;
+      partitionList_ = partitions;
+      reuseFileMd_ = reuseFileMd;
+    }
+
+    @Override
+    public FileMetadataLoadStats call() throws IOException {
+      FileMetadataLoadStats loadingStats =
+          reuseFileMd_ ? refreshFileMetadata(hdfsPath_, partitionList_) :
+          resetAndLoadFileMetadata(hdfsPath_, partitionList_);
+      return loadingStats;
+    }
+
+    public String debugString() {
+      String loadType = reuseFileMd_ ? "Refreshed" : "Loaded";
+      return String.format("%s file metadata for path: %s", loadType,
+          hdfsPath_.toString());
+    }
+  }
+
   // Name of default partition for unpartitioned tables
   private static final String DEFAULT_PARTITION_NAME = "";
 
@@ -156,6 +259,24 @@ public class HdfsTable extends Table implements FeFsTable {
   public static final String TOTAL_FILE_BYTES_METRIC = "total-file-size-bytes";
   public static final String MEMORY_ESTIMATE_METRIC = "memory-estimate-bytes";
   public static final String HAS_INCREMENTAL_STATS_METRIC = "has-incremental-stats";
+
+  // Empirical estimate (in bytes) of the incremental stats size per column per
+  // partition.
+  public static final long STATS_SIZE_PER_COLUMN_BYTES = 200;
+
+  private static final int MAX_HDFS_PARTITIONS_PARALLEL_LOAD =
+      BackendConfig.INSTANCE.maxHdfsPartsParallelLoad();
+
+  private static final int MAX_NON_HDFS_PARTITIONS_PARALLEL_LOAD =
+      BackendConfig.INSTANCE.maxNonHdfsPartsParallelLoad();
+
+  private final static Logger LOG = LoggerFactory.getLogger(HdfsTable.class);
+
+  // Caching this configuration object makes calls to getFileSystem much quicker
+  // (saves ~50ms on a standard plan)
+  // TODO(henry): confirm that this is thread safe - cursory inspection of the class
+  // and its usage in getFileSystem suggests it should be.
+  private static final Configuration CONF = new Configuration();
 
   // string to indicate NULL. set in load() from table properties
   private String nullColumnValue_;
@@ -198,10 +319,6 @@ public class HdfsTable extends Table implements FeFsTable {
   @VisibleForTesting
   HdfsPartition prototypePartition_;
 
-  // Empirical estimate (in bytes) of the incremental stats size per column per
-  // partition.
-  public static final long STATS_SIZE_PER_COLUMN_BYTES = 200;
-
   // Bi-directional map between an integer index and a unique datanode
   // TNetworkAddresses, each of which contains blocks of 1 or more
   // files in this table. The network addresses are stored using IP
@@ -230,37 +347,6 @@ public class HdfsTable extends Table implements FeFsTable {
   // for setAvroSchema().
   private boolean isSchemaLoaded_;
 
-  // Represents a set of storage-related statistics aggregated at the table or partition
-  // level.
-  public final static class FileMetadataStats {
-    // Nuber of files in a table/partition.
-    public long numFiles;
-    // Number of blocks in a table/partition.
-    public long numBlocks;
-    // Total size (in bytes) of all files in a table/partition.
-    public long totalFileBytes;
-
-    // Unsets the storage stats to indicate that their values are unknown.
-    public void unset() {
-      numFiles = -1;
-      numBlocks = -1;
-      totalFileBytes = -1;
-    }
-
-    // Initializes the values of the storage stats.
-    public void init() {
-      numFiles = 0;
-      numBlocks = 0;
-      totalFileBytes = 0;
-    }
-
-    public void set(FileMetadataStats stats) {
-      numFiles = stats.numFiles;
-      numBlocks = stats.numBlocks;
-      totalFileBytes = stats.totalFileBytes;
-    }
-  }
-
   // Table level storage-related statistics. Depending on whether the table is stored in
   // the catalog server or the impalad catalog cache, these statistics serve different
   // purposes and, hence, are managed differently.
@@ -273,84 +359,6 @@ public class HdfsTable extends Table implements FeFsTable {
   //   - Stats are reset whenever the table is loaded (due to a metadata operation) and
   //   are set when the table is serialized to Thrift.
   private final FileMetadataStats fileMetadataStats_ = new FileMetadataStats();
-
-  private final static Logger LOG = LoggerFactory.getLogger(HdfsTable.class);
-
-  // Caching this configuration object makes calls to getFileSystem much quicker
-  // (saves ~50ms on a standard plan)
-  // TODO(henry): confirm that this is thread safe - cursory inspection of the class
-  // and its usage in getFileSystem suggests it should be.
-  private static final Configuration CONF = new Configuration();
-
-  private static final int MAX_HDFS_PARTITIONS_PARALLEL_LOAD =
-      BackendConfig.INSTANCE.maxHdfsPartsParallelLoad();
-
-  private static final int MAX_NON_HDFS_PARTITIONS_PARALLEL_LOAD =
-      BackendConfig.INSTANCE.maxNonHdfsPartsParallelLoad();
-
-  // File/Block metadata loading stats for a single HDFS path.
-  public static class FileMetadataLoadStats {
-    // Path corresponding to this metadata load request.
-    private final Path hdfsPath;
-
-    // Number of files for which the metadata was loaded.
-    public int loadedFiles = 0;
-
-    // Number of hidden files excluded from file metadata loading. More details at
-    // isValidDataFile().
-    public int hiddenFiles = 0;
-
-    // Number of files skipped from file metadata loading because the files have not
-    // changed since the last load. More details at hasFileChanged().
-    public int skippedFiles = 0;
-
-    // Number of unknown disk IDs encountered while loading block
-    // metadata for this path.
-    public long unknownDiskIds = 0;
-
-    public FileMetadataLoadStats(Path path) { hdfsPath = path; }
-
-    public String debugString() {
-      Preconditions.checkNotNull(hdfsPath);
-      return String.format("Path: %s: Loaded files: %s Hidden files: %s " +
-          "Skipped files: %s Unknown diskIDs: %s", hdfsPath, loadedFiles, hiddenFiles,
-          skippedFiles, unknownDiskIds);
-    }
-  }
-
-  // A callable implementation of file metadata loading request for a given
-  // HDFS path.
-  public class FileMetadataLoadRequest
-      implements Callable<FileMetadataLoadStats> {
-    private final Path hdfsPath_;
-    // All the partitions mapped to the above path
-    private final List<HdfsPartition> partitionList_;
-    // If set to true, reloads the file metadata only when the files in this path
-    // have changed since last load (more details in hasFileChanged()).
-    private final boolean reuseFileMd_;
-
-    public FileMetadataLoadRequest(
-        Path path, List<HdfsPartition> partitions, boolean reuseFileMd) {
-      hdfsPath_ = path;
-      partitionList_ = partitions;
-      reuseFileMd_ = reuseFileMd;
-    }
-
-    @Override
-    public FileMetadataLoadStats call() throws IOException {
-      FileMetadataLoadStats loadingStats =
-          reuseFileMd_ ? refreshFileMetadata(hdfsPath_, partitionList_) :
-          resetAndLoadFileMetadata(hdfsPath_, partitionList_);
-      return loadingStats;
-    }
-
-    public String debugString() {
-      String loadType = reuseFileMd_ ? "Refreshed" : "Loaded";
-      return String.format("%s file metadata for path: %s", loadType,
-          hdfsPath_.toString());
-    }
-  }
-
   public HdfsTable(org.apache.hadoop.hive.metastore.api.Table msTbl,
       Db db, String name, String owner) {
     super(msTbl, db, name, owner);
@@ -2205,5 +2213,31 @@ public class HdfsTable extends Table implements FeFsTable {
     loadSchema(msTbl);
     initializePartitionMetadata(msTbl);
     setTableStats(msTbl);
+  }
+
+  @Override
+  protected void serialize(ObjectSerializer os) {
+    super.serialize(os);
+    if (nullColumnValue_ != null) os.field("null_value", nullColumnValue_);
+    os.field("base_dir", hdfsBaseDir_);
+    if (partitionMap_.isEmpty()) {
+      os.field("partitioned", false);
+    } else {
+      // Order partitions by key value(s) so list order is stable.
+      List<Pair<Long, String>> partitions = new ArrayList<>();
+       for (Entry<Long, HdfsPartition> entry : partitionMap_.entrySet()) {
+        partitions.add(new Pair<>(entry.getKey(), entry.getValue().getValuesAsString()));
+      }
+      Collections.sort(partitions, new Comparator<Pair<Long, String>>() {
+         @Override
+         public int compare(Pair<Long, String> p1, Pair<Long, String> p2) {
+           return p1.second.compareTo(p2.second);
+         }
+      });
+      ArraySerializer as = os.array("partitions");
+      for (Pair<Long, String> p : partitions) {
+        partitionMap_.get(p.first).serialize(as.object());
+      }
+    }
   }
 }

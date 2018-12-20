@@ -276,6 +276,68 @@ public class CatalogOpExecutor {
       msTbl.putToParameters(statsTaskParam.first, statsTaskParam.second);
     }
 
+
+    /**
+     * Create HMS column statistics for the given table based on the give map from column
+     * name to column stats. Missing or new columns as a result of concurrent table
+     * alterations are ignored.
+     */
+    @VisibleForTesting
+    public static ColumnStatistics createHiveColStats(
+        TAlterTableUpdateStatsParams params, Table table) {
+      Preconditions.checkState(params.isSetColumn_stats());
+      // Collection of column statistics objects to be returned.
+      ColumnStatistics colStats = new ColumnStatistics();
+      colStats.setStatsDesc(
+          new ColumnStatisticsDesc(true, table.getDb().getName(), table.getName()));
+      // Generate Hive column stats objects from the update stats params.
+      for (Map.Entry<String, TColumnStats> entry: params.getColumn_stats().entrySet()) {
+        String colName = entry.getKey();
+        Column tableCol = table.getColumn(entry.getKey());
+        // Ignore columns that were dropped in the meantime.
+        if (tableCol == null) continue;
+        // If we know the number of rows in the table, cap NDV of the column appropriately.
+        long ndvCap = params.isSetTable_stats() ? params.table_stats.num_rows : -1;
+        ColumnStatisticsData colStatsData = ColumnStats.createHiveColStatsData(
+                ndvCap, entry.getValue(), tableCol.getType());
+        if (colStatsData == null) continue;
+        if (LOG.isTraceEnabled()) {
+          LOG.trace(String.format("Updating column stats for %s: numDVs=%s numNulls=%s " +
+              "maxSize=%s avgSize=%s", colName, entry.getValue().getNum_distinct_values(),
+              entry.getValue().getNum_nulls(), entry.getValue().getMax_size(),
+              entry.getValue().getAvg_size()));
+        }
+        ColumnStatisticsObj colStatsObj = new ColumnStatisticsObj(colName,
+            tableCol.getType().toString().toLowerCase(), colStatsData);
+        colStats.addToStatsObj(colStatsObj);
+      }
+      return colStats;
+    }
+
+    /**
+     * Sets the given params in the metastore table as appropriate for a
+     * create view operation.
+     */
+    @VisibleForTesting
+    public static void setCreateViewAttributes(TCreateOrAlterViewParams params,
+        org.apache.hadoop.hive.metastore.api.Table view) {
+      view.setTableType(TableType.VIRTUAL_VIEW.toString());
+      view.setViewOriginalText(params.getOriginal_view_def());
+      view.setViewExpandedText(params.getExpanded_view_def());
+      view.setDbName(params.getView_name().getDb_name());
+      view.setTableName(params.getView_name().getTable_name());
+      view.setOwner(params.getOwner());
+      if (view.getParameters() == null) view.setParameters(new HashMap<String, String>());
+      if (params.isSetComment() && params.getComment() != null) {
+        view.getParameters().put("comment", params.getComment());
+      }
+      StorageDescriptor sd = new StorageDescriptor();
+      // Add all the columns to a new storage descriptor.
+      sd.setCols(buildFieldSchemaList(params.getColumns()));
+      // Set a dummy SerdeInfo for Hive.
+      sd.setSerdeInfo(new SerDeInfo());
+      view.setSd(sd);
+    }
   }
 
   private final CatalogServiceCatalog catalog_;
@@ -798,7 +860,7 @@ public class CatalogOpExecutor {
     ColumnStatistics colStats = null;
     numUpdatedColumns.setRef(Long.valueOf(0));
     if (params.isSetColumn_stats()) {
-      colStats = createHiveColStats(params, table);
+      colStats = CatalogMutator.createHiveColStats(params, table);
       if (colStats.getStatsObjSize() > 0) {
         try(MetaStoreClient msClient = catalog_.getMetaStoreClient()) {
           msClient.getHiveClient().updateTableColumnStatistics(colStats);
@@ -897,43 +959,6 @@ public class CatalogOpExecutor {
     }
     return modifiedParts;
   }
-
-  /**
-   * Create HMS column statistics for the given table based on the give map from column
-   * name to column stats. Missing or new columns as a result of concurrent table
-   * alterations are ignored.
-   */
-  private static ColumnStatistics createHiveColStats(
-      TAlterTableUpdateStatsParams params, Table table) {
-    Preconditions.checkState(params.isSetColumn_stats());
-    // Collection of column statistics objects to be returned.
-    ColumnStatistics colStats = new ColumnStatistics();
-    colStats.setStatsDesc(
-        new ColumnStatisticsDesc(true, table.getDb().getName(), table.getName()));
-    // Generate Hive column stats objects from the update stats params.
-    for (Map.Entry<String, TColumnStats> entry: params.getColumn_stats().entrySet()) {
-      String colName = entry.getKey();
-      Column tableCol = table.getColumn(entry.getKey());
-      // Ignore columns that were dropped in the meantime.
-      if (tableCol == null) continue;
-      // If we know the number of rows in the table, cap NDV of the column appropriately.
-      long ndvCap = params.isSetTable_stats() ? params.table_stats.num_rows : -1;
-      ColumnStatisticsData colStatsData = ColumnStats.createHiveColStatsData(
-              ndvCap, entry.getValue(), tableCol.getType());
-      if (colStatsData == null) continue;
-      if (LOG.isTraceEnabled()) {
-        LOG.trace(String.format("Updating column stats for %s: numDVs=%s numNulls=%s " +
-            "maxSize=%s avgSize=%s", colName, entry.getValue().getNum_distinct_values(),
-            entry.getValue().getNum_nulls(), entry.getValue().getMax_size(),
-            entry.getValue().getAvg_size()));
-      }
-      ColumnStatisticsObj colStatsObj = new ColumnStatisticsObj(colName,
-          tableCol.getType().toString().toLowerCase(), colStatsData);
-      colStats.addToStatsObj(colStatsObj);
-    }
-    return colStats;
-  }
-
   /**
    * Creates a new database in the metastore and adds the db name to the internal
    * metadata cache, marking its metadata to be lazily loaded on the next access.
@@ -1903,7 +1928,7 @@ public class CatalogOpExecutor {
     // Create new view.
     org.apache.hadoop.hive.metastore.api.Table view =
         new org.apache.hadoop.hive.metastore.api.Table();
-    setCreateViewAttributes(params, view);
+    CatalogMutator.setCreateViewAttributes(params, view);
     LOG.trace(String.format("Creating view %s", tableName));
     if (!createTable(view, params.if_not_exists, null, params.server_name, response)) {
       addSummary(response, "View already exists.");
@@ -1999,30 +2024,6 @@ public class CatalogOpExecutor {
     tbl.putToParameters(StatsSetupConst.ROW_COUNT, "-1");
     LOG.trace(String.format("Creating table %s LIKE %s", tblName, srcTblName));
     createTable(tbl, params.if_not_exists, null, params.server_name, response);
-  }
-
-  /**
-   * Sets the given params in the metastore table as appropriate for a
-   * create view operation.
-   */
-  private void setCreateViewAttributes(TCreateOrAlterViewParams params,
-      org.apache.hadoop.hive.metastore.api.Table view) {
-    view.setTableType(TableType.VIRTUAL_VIEW.toString());
-    view.setViewOriginalText(params.getOriginal_view_def());
-    view.setViewExpandedText(params.getExpanded_view_def());
-    view.setDbName(params.getView_name().getDb_name());
-    view.setTableName(params.getView_name().getTable_name());
-    view.setOwner(params.getOwner());
-    if (view.getParameters() == null) view.setParameters(new HashMap<String, String>());
-    if (params.isSetComment() && params.getComment() != null) {
-      view.getParameters().put("comment", params.getComment());
-    }
-    StorageDescriptor sd = new StorageDescriptor();
-    // Add all the columns to a new storage descriptor.
-    sd.setCols(buildFieldSchemaList(params.getColumns()));
-    // Set a dummy SerdeInfo for Hive.
-    sd.setSerdeInfo(new SerDeInfo());
-    view.setSd(sd);
   }
 
   /**
@@ -3758,7 +3759,7 @@ public class CatalogOpExecutor {
       TDdlExecResponse response) throws CatalogException, ImpalaRuntimeException {
     Db db = catalog_.getDb(dbName);
     if (db == null) {
-      throw new CatalogException("Database: " + db.getName() + " does not exist.");
+      throw new CatalogException("Database: " + dbName + " does not exist.");
     }
     Preconditions.checkNotNull(params.owner_name);
     Preconditions.checkNotNull(params.owner_type);

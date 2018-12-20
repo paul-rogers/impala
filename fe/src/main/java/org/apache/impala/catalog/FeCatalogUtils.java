@@ -23,7 +23,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import com.google.common.cache.CacheStats;
 import org.apache.hadoop.hive.common.FileUtils;
 import org.apache.hadoop.hive.common.StatsSetupConst;
 import org.apache.hadoop.hive.metastore.api.ColumnStatisticsObj;
@@ -33,9 +32,9 @@ import org.apache.impala.analysis.LiteralExpr;
 import org.apache.impala.analysis.NullLiteral;
 import org.apache.impala.analysis.PartitionKeyValue;
 import org.apache.impala.analysis.ToSqlUtils;
-import org.apache.impala.catalog.local.CatalogdMetaProvider;
 import org.apache.impala.catalog.CatalogObject.ThriftObjectType;
 import org.apache.impala.catalog.HdfsPartition.FileDescriptor;
+import org.apache.impala.catalog.local.CatalogdMetaProvider;
 import org.apache.impala.catalog.local.LocalCatalog;
 import org.apache.impala.catalog.local.MetaProvider;
 import org.apache.impala.service.BackendConfig;
@@ -48,6 +47,7 @@ import org.slf4j.LoggerFactory;
 
 import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
+import com.google.common.cache.CacheStats;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
@@ -146,6 +146,7 @@ public abstract class FeCatalogUtils {
       FeTable table) {
     for (ColumnStatisticsObj stats: colStats) {
       Column col = table.getColumn(stats.getColName());
+      // TODO: Warn or skip since columns could be out of date
       Preconditions.checkNotNull(col, "Unable to find column %s in table %s",
           stats.getColName(), table.getFullName());
       if (!ColumnStats.isSupportedColType(col.getType())) {

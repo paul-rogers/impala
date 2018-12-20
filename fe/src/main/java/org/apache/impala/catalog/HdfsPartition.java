@@ -19,7 +19,9 @@ package org.apache.impala.catalog;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -39,6 +41,8 @@ import org.apache.impala.common.FileSystemUtil;
 import org.apache.impala.common.ImpalaException;
 import org.apache.impala.common.Pair;
 import org.apache.impala.common.Reference;
+import org.apache.impala.common.serialize.ArraySerializer;
+import org.apache.impala.common.serialize.ObjectSerializer;
 import org.apache.impala.fb.FbCompression;
 import org.apache.impala.fb.FbFileBlock;
 import org.apache.impala.fb.FbFileDesc;
@@ -77,6 +81,8 @@ import com.google.flatbuffers.FlatBufferBuilder;
  * in SHOW statements.
  */
 public class HdfsPartition implements FeFsPartition, PrunablePartition {
+  private final static Logger LOG = LoggerFactory.getLogger(HdfsPartition.class);
+
   /**
    * Metadata for a single file in this partition.
    */
@@ -511,7 +517,6 @@ public class HdfsPartition implements FeFsPartition, PrunablePartition {
   @Nonnull
   private ImmutableList<byte[]> encodedFileDescriptors_;
   private HdfsPartitionLocationCompressor.Location location_;
-  private final static Logger LOG = LoggerFactory.getLogger(HdfsPartition.class);
   private boolean isDirty_ = false;
   // True if this partition is marked as cached. Does not necessarily mean the data is
   // cached.
@@ -1009,5 +1014,30 @@ public class HdfsPartition implements FeFsPartition, PrunablePartition {
       if (cmp != 0) return cmp;
     }
     return 0;
+  }
+
+  public void serialize(ObjectSerializer os) {
+    os.field("id", id_);
+    if (partitionKeyValues_.size() == 1) {
+      os.field("key", partitionKeyValues_.get(0).toSql());
+    } else {
+      ArraySerializer as = os.array("keys");
+      for (LiteralExpr key : partitionKeyValues_) {
+        as.scalar(key.toSql());
+      }
+    }
+    os.field("row_count", numRows_);
+    os.field("format", fileFormatDescriptor_.getFileFormat().name());
+    os.field("location", location_.suffix());
+    os.field("access_level", accessLevel_.name());
+    if (hmsParameters_ != null && !hmsParameters_.isEmpty()) {
+      ObjectSerializer ps = os.object("hms_params");
+      List<String> keys = new ArrayList<>();
+      keys.addAll(hmsParameters_.keySet());
+      Collections.sort(keys);
+      for (String key : keys) {
+        ps.field(key, hmsParameters_.get(key));
+      }
+    }
   }
 }

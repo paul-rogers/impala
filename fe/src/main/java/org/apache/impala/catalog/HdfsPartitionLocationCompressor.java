@@ -117,6 +117,8 @@ class HdfsPartitionLocationCompressor {
       return HdfsPartitionLocationCompressor.this.indexToPrefix(prefix_index_) + suffix_;
     }
 
+    public String suffix() { return suffix_; }
+
     @Override
     public int hashCode() { return toString().hashCode(); }
 

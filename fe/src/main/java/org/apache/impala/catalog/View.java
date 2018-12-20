@@ -17,26 +17,22 @@
 
 package org.apache.impala.catalog;
 
-import java.io.StringReader;
 import java.util.List;
 import java.util.Set;
 
 import org.apache.hadoop.hive.metastore.IMetaStoreClient;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
-
-import org.apache.impala.analysis.ParseNode;
 import org.apache.impala.analysis.Parser;
 import org.apache.impala.analysis.Parser.ParseException;
 import org.apache.impala.analysis.QueryStmt;
-import org.apache.impala.analysis.SqlParser;
-import org.apache.impala.analysis.SqlScanner;
 import org.apache.impala.analysis.StatementBase;
+import org.apache.impala.common.serialize.ObjectSerializer;
 import org.apache.impala.thrift.TCatalogObjectType;
-import org.apache.impala.thrift.TQueryOptions;
 import org.apache.impala.thrift.TTable;
 import org.apache.impala.thrift.TTableDescriptor;
 import org.apache.impala.thrift.TTableStats;
 import org.apache.impala.thrift.TTableType;
+
 import com.google.common.collect.Lists;
 
 /**
@@ -196,5 +192,15 @@ public class View extends Table implements FeView {
 
   public static View createTestView(Db db, String name, QueryStmt viewDefStmt) {
     return new View(db, name, viewDefStmt);
+  }
+
+  @Override
+  protected void serialize(ObjectSerializer os) {
+    super.serialize(os);
+    if (queryStmt_ == null) {
+      os.field("query", msTable_.getViewOriginalText());
+    } else {
+      os.field("query", queryStmt_.toSql());
+    }
   }
 }

@@ -17,21 +17,19 @@
 
 package org.apache.impala.catalog;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import org.apache.commons.codec.binary.Base64;
-import org.apache.thrift.TException;
-import org.apache.thrift.TSerializer;
-import org.apache.thrift.protocol.TCompactProtocol;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.apache.impala.analysis.ColumnDef;
 import org.apache.impala.analysis.KuduPartitionParam;
 import org.apache.impala.common.ImpalaException;
 import org.apache.impala.common.ImpalaRuntimeException;
+import org.apache.impala.common.serialize.ArraySerializer;
+import org.apache.impala.common.serialize.ObjectSerializer;
 import org.apache.impala.thrift.TCatalogObject;
 import org.apache.impala.thrift.TCatalogObjectType;
 import org.apache.impala.thrift.TDatabase;
@@ -43,6 +41,11 @@ import org.apache.impala.thrift.TGetPartialCatalogObjectResponse;
 import org.apache.impala.thrift.TPartialDbInfo;
 import org.apache.impala.util.FunctionUtils;
 import org.apache.impala.util.PatternMatcher;
+import org.apache.thrift.TException;
+import org.apache.thrift.TSerializer;
+import org.apache.thrift.protocol.TCompactProtocol;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
@@ -66,7 +69,6 @@ import com.google.common.collect.Maps;
  */
 public class Db extends CatalogObjectImpl implements FeDb {
   private static final Logger LOG = LoggerFactory.getLogger(Db.class);
-  private final TDatabase thriftDb_;
 
   public static final String FUNCTION_INDEX_PREFIX = "impala_registered_function_";
 
@@ -74,6 +76,8 @@ public class Db extends CatalogObjectImpl implements FeDb {
   // in DB parameters map. We need ensure that this limit isn't crossed
   // while serializing functions to the metastore.
   private static final int HIVE_METASTORE_DB_PARAM_LIMIT_BYTES = 4000;
+
+  private final TDatabase thriftDb_;
 
   // Table metadata cache.
   private final CatalogObjectCache<Table> tableCache_;
@@ -147,6 +151,7 @@ public class Db extends CatalogObjectImpl implements FeDb {
   /**
    * Gets all table names in the table cache.
    */
+  @Override
   public List<String> getAllTableNames() {
     return Lists.newArrayList(tableCache_.keySet());
   }
@@ -390,6 +395,7 @@ public class Db extends CatalogObjectImpl implements FeDb {
   /**
    * Returns all functions that match the pattern of 'matcher'.
    */
+  @Override
   public List<Function> getFunctions(TFunctionCategory category,
       PatternMatcher matcher) {
     Preconditions.checkNotNull(matcher);
@@ -462,5 +468,18 @@ public class Db extends CatalogObjectImpl implements FeDb {
       resp.db_info.function_names = ImmutableList.copyOf(functions_.keySet());
     }
     return resp;
+  }
+
+  public void serialize(ObjectSerializer os) {
+    os.field("name", thriftDb_.getDb_name());
+    os.field("is_system", isSystemDb_);
+    ArraySerializer as = os.array("tables");
+    List<String> tableNames = new ArrayList<>();
+    tableNames.addAll(tableCache_.keySet());
+    Collections.sort(tableNames);
+    for (String tableName : tableNames) {
+      Table table = getTable(tableName);
+      table.serialize(as.object());
+    }
   }
 }

@@ -35,6 +35,8 @@ import org.apache.impala.common.ImpalaRuntimeException;
 import org.apache.impala.common.Metrics;
 import org.apache.impala.common.Pair;
 import org.apache.impala.common.RuntimeEnv;
+import org.apache.impala.common.serialize.ArraySerializer;
+import org.apache.impala.common.serialize.ObjectSerializer;
 import org.apache.impala.thrift.TAccessLevel;
 import org.apache.impala.thrift.TCatalogObject;
 import org.apache.impala.thrift.TCatalogObjectType;
@@ -66,6 +68,20 @@ import com.google.common.collect.Maps;
  */
 public abstract class Table extends CatalogObjectImpl implements FeTable {
   private static final Logger LOG = Logger.getLogger(Table.class);
+
+  // Table metrics. These metrics are applicable to all table types. Each subclass of
+  // Table can define additional metrics specific to that table type.
+  public static final String REFRESH_DURATION_METRIC = "refresh-duration";
+  public static final String ALTER_DURATION_METRIC = "alter-duration";
+  public static final String LOAD_DURATION_METRIC = "load-duration";
+
+  // Table property key for storing the time of the last DDL operation.
+  public static final String TBL_PROP_LAST_DDL_TIME = "transient_lastDdlTime";
+
+  // Table property key for storing the last time when Impala executed COMPUTE STATS.
+  public static final String TBL_PROP_LAST_COMPUTE_STATS_TIME =
+      "impala.lastComputeStatsTime";
+
   protected org.apache.hadoop.hive.metastore.api.Table msTable_;
   protected final Db db_;
   protected final String name_;
@@ -110,19 +126,6 @@ public abstract class Table extends CatalogObjectImpl implements FeTable {
   // CatalogdTableInvalidator.nanoTime(). This is only set in catalogd and not used by
   // impalad.
   protected long lastUsedTime_;
-
-  // Table metrics. These metrics are applicable to all table types. Each subclass of
-  // Table can define additional metrics specific to that table type.
-  public static final String REFRESH_DURATION_METRIC = "refresh-duration";
-  public static final String ALTER_DURATION_METRIC = "alter-duration";
-  public static final String LOAD_DURATION_METRIC = "load-duration";
-
-  // Table property key for storing the time of the last DDL operation.
-  public static final String TBL_PROP_LAST_DDL_TIME = "transient_lastDdlTime";
-
-  // Table property key for storing the last time when Impala executed COMPUTE STATS.
-  public static final String TBL_PROP_LAST_COMPUTE_STATS_TIME =
-      "impala.lastComputeStatsTime";
 
   protected Table(org.apache.hadoop.hive.metastore.api.Table msTable, Db db,
       String name, String owner) {
@@ -590,5 +593,20 @@ public abstract class Table extends CatalogObjectImpl implements FeTable {
 
   public void refreshLastUsedTime() {
     lastUsedTime_ = CatalogdTableInvalidator.nanoTime();
+  }
+
+  protected void serialize(ObjectSerializer os) {
+    os.field("class", getClass().getSimpleName());
+    os.field("name", name_);
+    os.field("owner", owner_);
+    os.field("access_level", accessLevel_.name());
+    if (tableStats_ != null) {
+      os.field("rows", tableStats_.getNum_rows());
+      os.field("size", tableStats_.getTotal_file_bytes());
+    }
+    ArraySerializer as = os.array("columns");
+    for (Column col : colsByPos_) {
+      col.serialize(as.object());
+    }
   }
 }
