@@ -60,7 +60,7 @@ public abstract class AlterTableStmt extends StatementBase {
    * Can only be called after analysis, returns the Table object of the target of this
    * ALTER TABLE statement.
    */
-  protected FeTable getTargetTable() {
+  public FeTable getTargetTable() {
     Preconditions.checkNotNull(table_);
     return table_;
   }

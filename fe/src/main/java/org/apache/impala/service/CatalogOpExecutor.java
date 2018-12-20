@@ -49,6 +49,7 @@ import org.apache.impala.analysis.AlterTableSortByStmt;
 import org.apache.impala.analysis.FunctionName;
 import org.apache.impala.analysis.TableName;
 import org.apache.impala.authorization.User;
+import org.apache.impala.catalog.Catalog;
 import org.apache.impala.catalog.CatalogException;
 import org.apache.impala.catalog.CatalogServiceCatalog;
 import org.apache.impala.catalog.Column;
@@ -162,6 +163,7 @@ import org.apache.log4j.Logger;
 import org.apache.thrift.TException;
 
 import com.codahale.metrics.Timer;
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
@@ -237,16 +239,10 @@ import com.google.common.collect.Sets;
  * metastore out of this class.
  */
 public class CatalogOpExecutor {
+  private static final Logger LOG = Logger.getLogger(CatalogOpExecutor.class);
   // Format string for exceptions returned by Hive Metastore RPCs.
   private final static String HMS_RPC_ERROR_FORMAT_STR =
       "Error making '%s' RPC to Hive Metastore: ";
-
-  private final CatalogServiceCatalog catalog_;
-
-  // Lock used to ensure that CREATE[DROP] TABLE[DATABASE] operations performed in
-  // catalog_ and the corresponding RPC to apply the change in HMS are atomic.
-  private final Object metastoreDdlLock_ = new Object();
-  private static final Logger LOG = Logger.getLogger(CatalogOpExecutor.class);
 
   // The maximum number of partitions to update in one Hive Metastore RPC.
   // Used when persisting the results of COMPUTE STATS statements.
@@ -254,8 +250,44 @@ public class CatalogOpExecutor {
   // PARTITION statement.
   public final static short MAX_PARTITION_UPDATES_PER_RPC = 500;
 
+  public static class CatalogMutator {
+    private final Catalog catalog_;
+
+    public CatalogMutator(Catalog catalog) {
+      catalog_ = catalog;
+    }
+
+    /**
+     * Updates the row count and total file bytes of the given HMS table based on the
+     * the update stats parameters.
+     */
+    public void updateTableStats(TAlterTableUpdateStatsParams params,
+        org.apache.hadoop.hive.metastore.api.Table msTbl) throws ImpalaException {
+      Preconditions.checkState(params.isSetTable_stats());
+      long numRows = params.table_stats.num_rows;
+      // Update the table's ROW_COUNT and TOTAL_SIZE parameters.
+      msTbl.putToParameters(StatsSetupConst.ROW_COUNT, String.valueOf(numRows));
+      if (params.getTable_stats().isSetTotal_file_bytes()) {
+        msTbl.putToParameters(StatsSetupConst.TOTAL_SIZE,
+            String.valueOf(params.getTable_stats().total_file_bytes));
+      }
+      // HMS requires this param for stats changes to take effect.
+      Pair<String, String> statsTaskParam = MetastoreShim.statsGeneratedViaStatsTaskParam();
+      msTbl.putToParameters(statsTaskParam.first, statsTaskParam.second);
+    }
+
+  }
+
+  private final CatalogServiceCatalog catalog_;
+  private final CatalogMutator catalogMutator_;
+
+  // Lock used to ensure that CREATE[DROP] TABLE[DATABASE] operations performed in
+  // catalog_ and the corresponding RPC to apply the change in HMS are atomic.
+  private final Object metastoreDdlLock_ = new Object();
+
   public CatalogOpExecutor(CatalogServiceCatalog catalog) {
     catalog_ = catalog;
+    catalogMutator_ = new CatalogMutator(catalog);
   }
 
   public TDdlExecResponse execDdlRequest(TDdlExecRequest ddlRequest)
@@ -380,7 +412,8 @@ public class CatalogOpExecutor {
    * table metadata, except for RENAME, ADD PARTITION and DROP PARTITION. This call is
    * thread-safe, i.e. concurrent operations on the same table are serialized.
    */
-  private void alterTable(TAlterTableParams params, TDdlExecResponse response)
+  @VisibleForTesting
+  public void alterTable(TAlterTableParams params, TDdlExecResponse response)
       throws ImpalaException {
     // When true, loads the file/block metadata.
     boolean reloadFileMetadata = false;
@@ -793,7 +826,7 @@ public class CatalogOpExecutor {
 
     if (params.isSetTable_stats()) {
       // Update table row count and total file bytes.
-      updateTableStats(params, msTbl);
+      catalogMutator_.updateTableStats(params, msTbl);
       // Set impala.lastComputeStatsTime just before alter_table to ensure that it is as
       // accurate as possible.
       Table.updateTimestampProperty(msTbl, HdfsTable.TBL_PROP_LAST_COMPUTE_STATS_TIME);
@@ -863,25 +896,6 @@ public class CatalogOpExecutor {
       modifiedParts.add(partition);
     }
     return modifiedParts;
-  }
-
-  /**
-   * Updates the row count and total file bytes of the given HMS table based on the
-   * the update stats parameters.
-   */
-  private void updateTableStats(TAlterTableUpdateStatsParams params,
-      org.apache.hadoop.hive.metastore.api.Table msTbl) throws ImpalaException {
-    Preconditions.checkState(params.isSetTable_stats());
-    long numRows = params.table_stats.num_rows;
-    // Update the table's ROW_COUNT and TOTAL_SIZE parameters.
-    msTbl.putToParameters(StatsSetupConst.ROW_COUNT, String.valueOf(numRows));
-    if (params.getTable_stats().isSetTotal_file_bytes()) {
-      msTbl.putToParameters(StatsSetupConst.TOTAL_SIZE,
-          String.valueOf(params.getTable_stats().total_file_bytes));
-    }
-    // HMS requires this param for stats changes to take effect.
-    Pair<String, String> statsTaskParam = MetastoreShim.statsGeneratedViaStatsTaskParam();
-    msTbl.putToParameters(statsTaskParam.first, statsTaskParam.second);
   }
 
   /**
@@ -3711,7 +3725,7 @@ public class CatalogOpExecutor {
       throws ImpalaRuntimeException, CatalogException {
     Db db = catalog_.getDb(dbName);
     if (db == null) {
-      throw new CatalogException("Database: " + db.getName() + " does not exist.");
+      throw new CatalogException("Database: " + dbName + " does not exist.");
     }
     synchronized (metastoreDdlLock_) {
       Database msDb = db.getMetaStoreDb();
