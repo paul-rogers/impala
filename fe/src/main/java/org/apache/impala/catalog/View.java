@@ -35,6 +35,8 @@ import org.apache.impala.thrift.TTableType;
 
 import com.google.common.collect.Lists;
 
+import avro.shaded.com.google.common.base.Preconditions;
+
 /**
  * Table metadata representing a catalog view or a local view from a WITH clause.
  * Most methods inherited from Table are not supposed to be called on this class because
@@ -106,6 +108,15 @@ public class View extends Table implements FeView {
     } catch (Exception e) {
       throw new TableLoadingException("Failed to load metadata for view: " + name_, e);
     }
+  }
+
+  public void localLoad() throws TableLoadingException {
+    Preconditions.checkNotNull(msTable_);
+    // TODO: Need to analyze view to populate columns
+    numClusteringCols_ = 0;
+    tableStats_ = new TTableStats(-1);
+    tableStats_.setTotal_file_bytes(-1);
+    queryStmt_ = parseViewDef(this);
   }
 
   @Override
