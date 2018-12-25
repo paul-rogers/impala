@@ -32,6 +32,8 @@ import org.apache.impala.catalog.ColumnStats;
 import org.apache.impala.catalog.FeTable;
 import org.apache.impala.common.ImpalaException;
 import org.apache.impala.common.Pair;
+import org.apache.impala.common.serialize.ArraySerializer;
+import org.apache.impala.common.serialize.ObjectSerializer;
 import org.apache.impala.thrift.TExecNodePhase;
 import org.apache.impala.thrift.TJoinDistributionMode;
 import org.apache.impala.thrift.TQueryOptions;
@@ -48,6 +50,25 @@ import com.google.common.collect.Maps;
  */
 public abstract class JoinNode extends PlanNode {
   private final static Logger LOG = LoggerFactory.getLogger(JoinNode.class);
+
+  public enum DistributionMode {
+    NONE("NONE"),
+    BROADCAST("BROADCAST"),
+    PARTITIONED("PARTITIONED");
+
+    private final String description_;
+
+    private DistributionMode(String description) {
+      description_ = description;
+    }
+
+    @Override
+    public String toString() { return description_; }
+    public static DistributionMode fromThrift(TJoinDistributionMode distrMode) {
+      if (distrMode == TJoinDistributionMode.BROADCAST) return BROADCAST;
+      return PARTITIONED;
+    }
+  }
 
   // Default per-instance memory requirement used if no valid stats are available.
   // TODO: Come up with a more useful heuristic (e.g., based on scanned partitions).
@@ -91,25 +112,6 @@ public abstract class JoinNode extends PlanNode {
   //   a FK/PK relationship.
   // Theses conjuncts are printed in the explain plan.
   protected List<EqJoinConjunctScanSlots> fkPkEqJoinConjuncts_;
-
-  public enum DistributionMode {
-    NONE("NONE"),
-    BROADCAST("BROADCAST"),
-    PARTITIONED("PARTITIONED");
-
-    private final String description_;
-
-    private DistributionMode(String description) {
-      description_ = description;
-    }
-
-    @Override
-    public String toString() { return description_; }
-    public static DistributionMode fromThrift(TJoinDistributionMode distrMode) {
-      if (distrMode == TJoinDistributionMode.BROADCAST) return BROADCAST;
-      return PARTITIONED;
-    }
-  }
 
   public JoinNode(PlanNode outer, PlanNode inner, boolean isStraightJoin,
       DistributionMode distrMode, JoinOperator joinOp,
@@ -330,6 +332,7 @@ public abstract class JoinNode extends PlanNode {
       // the cardinality if the PK side has a higher NDV than the FK side.
       double ndvRatio = 1.0;
       if (slots.lhsNdv() > 0) ndvRatio = slots.rhsNdv() / slots.lhsNdv();
+      System.out.println("ndv ratio = " + ndvRatio);
       double rhsSelectivity = Double.MIN_VALUE;
       if (slots.rhsNumRows() > 0) rhsSelectivity = rhsCard / slots.rhsNumRows();
       long joinCard = (long) Math.ceil(lhsCard * rhsSelectivity * ndvRatio);
@@ -713,5 +716,52 @@ public abstract class JoinNode extends PlanNode {
             buildPipeline.getId(), buildPipeline.getHeight() + 1, TExecNodePhase.OPEN));
       }
     }
+  }
+
+  @Override
+  protected void serializeFields(ObjectSerializer os) {
+    super.serializeFields(os);
+    os.field("join_op", joinOp_.name());
+    os.field("straight_join", isStraightJoin_);
+    os.field("distrib_mode", distrMode_.name());
+    os.field("blocking", isBlockingJoinNode());
+    if (joinTableId_.isValid()) {
+      os.field("materialized_table_id", joinTableId_.asInt());
+    }
+  }
+
+  @Override
+  protected void serializeStructure(ObjectSerializer os) {
+    super.serializeStructure(os);
+    if (eqJoinConjuncts_ != null && !eqJoinConjuncts_.isEmpty()) {
+      ArraySerializer as = os.array("equi_conjuncts");
+      for (BinaryPredicate pred : eqJoinConjuncts_) {
+        serializeConjunct(as.object(), pred);
+      }
+    }
+    if (otherJoinConjuncts_ != null && !otherJoinConjuncts_.isEmpty()) {
+      ArraySerializer as = os.array("conjuncts");
+      for (Expr pred : otherJoinConjuncts_) {
+        serializeConjunct(as.object(), pred);
+      }
+    }
+  }
+
+  @Override
+  protected void serializeChildren(ObjectSerializer os) {
+    // Serialized as in the DESCRIBE output. If the JSON tree is
+    // rotated 90 degrees counter-clockwise, the root will be at
+    // the top and the left child (child 0) will be on the left:
+    //
+    //       root
+    //   left    right
+    //
+    // Rather than JSON list style:
+    //
+    // root
+    //   child 0 (left)
+    //   child 1 (right)
+    getChild(1).serialize(os.object("right"));
+    getChild(0).serialize(os.object("left"));
   }
 }

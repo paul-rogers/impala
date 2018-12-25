@@ -17,6 +17,8 @@
 
 package org.apache.impala.analysis;
 
+import static org.apache.impala.analysis.ToSqlOptions.DEFAULT;
+
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.BitSet;
@@ -36,6 +38,8 @@ import org.apache.impala.catalog.Type;
 import org.apache.impala.common.AnalysisException;
 import org.apache.impala.common.InternalException;
 import org.apache.impala.common.TreeNode;
+import org.apache.impala.common.serialize.ArraySerializer;
+import org.apache.impala.common.serialize.ObjectSerializer;
 import org.apache.impala.rewrite.ExprRewriter;
 import org.apache.impala.service.FeSupport;
 import org.apache.impala.thrift.TColumnValue;
@@ -51,8 +55,6 @@ import com.google.common.base.Preconditions;
 import com.google.common.base.Predicates;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
-
-import static org.apache.impala.analysis.ToSqlOptions.DEFAULT;
 
 /**
  * Root of the expr node hierarchy.
@@ -73,7 +75,7 @@ abstract public class Expr extends TreeNode<Expr> implements ParseNode, Cloneabl
   private final static String NEGATE_FN = "negate";
 
   // To be used where we cannot come up with a better estimate (selectivity_ is -1).
-  public static double DEFAULT_SELECTIVITY = 0.1;
+  public static final double DEFAULT_SELECTIVITY = 0.1;
 
   // The relative costs of different Exprs. These numbers are not intended as a precise
   // reflection of running times, but as simple heuristics for ordering Exprs from cheap
@@ -1625,5 +1627,28 @@ abstract public class Expr extends TreeNode<Expr> implements ParseNode, Cloneabl
           toSql() + " = " + value);
     }
     return value;
+  }
+
+  /**
+   * Summary serialization used when converting a plan to JSON
+   */
+  public void summarize(ObjectSerializer os) {
+    os.field("class", getClass().getSimpleName());
+    os.field("type", type_.toSql());
+    os.field("ndv", numDistinctValues_);
+    os.field("selectivity", selectivity_);
+    os.field("cost", evalCost_);
+    if (fn_ != null) {
+      os.field("fn", fn_.getName());
+    }
+    summarizeChildren(os);
+  }
+
+  protected void summarizeChildren(ObjectSerializer os) {
+    if (children_.isEmpty()) return;
+    ArraySerializer as = os.array("children");
+    for (Expr child : children_) {
+      child.summarize(as.object());
+    }
   }
 }

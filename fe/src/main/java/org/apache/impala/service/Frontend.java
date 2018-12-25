@@ -18,7 +18,6 @@
 package org.apache.impala.service;
 
 import java.io.IOException;
-import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -53,14 +52,11 @@ import org.apache.impala.analysis.GrantRevokePrivStmt;
 import org.apache.impala.analysis.GrantRevokeRoleStmt;
 import org.apache.impala.analysis.InsertStmt;
 import org.apache.impala.analysis.Parser;
-import org.apache.impala.analysis.Parser.ParseException;
 import org.apache.impala.analysis.QueryStmt;
 import org.apache.impala.analysis.ResetMetadataStmt;
 import org.apache.impala.analysis.ShowFunctionsStmt;
 import org.apache.impala.analysis.ShowGrantPrincipalStmt;
 import org.apache.impala.analysis.ShowRolesStmt;
-import org.apache.impala.analysis.SqlParser;
-import org.apache.impala.analysis.SqlScanner;
 import org.apache.impala.analysis.StatementBase;
 import org.apache.impala.analysis.StmtMetadataLoader;
 import org.apache.impala.analysis.StmtMetadataLoader.StmtTableCache;
@@ -92,7 +88,6 @@ import org.apache.impala.catalog.ImpaladCatalog;
 import org.apache.impala.catalog.ImpaladTableUsageTracker;
 import org.apache.impala.catalog.Type;
 import org.apache.impala.catalog.local.InconsistentMetadataFetchException;
-import org.apache.impala.common.AnalysisException;
 import org.apache.impala.common.FileSystemUtil;
 import org.apache.impala.common.ImpalaException;
 import org.apache.impala.common.InternalException;
@@ -101,8 +96,8 @@ import org.apache.impala.compat.MetastoreShim;
 import org.apache.impala.planner.HdfsScanNode;
 import org.apache.impala.planner.PlanFragment;
 import org.apache.impala.planner.Planner;
+import org.apache.impala.planner.Planner.QueryPlan;
 import org.apache.impala.planner.ScanNode;
-import org.apache.impala.thrift.TAdminRequest;
 import org.apache.impala.thrift.TAlterDbParams;
 import org.apache.impala.thrift.TCatalogOpRequest;
 import org.apache.impala.thrift.TCatalogOpType;
@@ -138,7 +133,6 @@ import org.apache.impala.thrift.TResultSet;
 import org.apache.impala.thrift.TResultSetMetadata;
 import org.apache.impala.thrift.TShowFilesParams;
 import org.apache.impala.thrift.TShowStatsOp;
-import org.apache.impala.thrift.TShutdownParams;
 import org.apache.impala.thrift.TStmtType;
 import org.apache.impala.thrift.TTableName;
 import org.apache.impala.thrift.TUpdateCatalogCacheRequest;
@@ -191,11 +185,12 @@ public class Frontend {
     protected final TQueryCtx queryCtx_;
     // The explain string built from the query plan.
     protected final StringBuilder explainBuf_;
-    // Flag to indicate whether to capture (return) the plan.
-    protected boolean capturePlan_;
     // The physical plan, divided by fragment, before conversion to
     // Thrift. For unit testing.
-    protected List<PlanFragment> plan_;
+    protected QueryPlan plan_;
+    protected boolean isMock_;
+    public StatementBase stmt_;
+    public List<PlanFragment> planRoots_;
 
     public PlanCtx(TQueryCtx qCtx) {
       queryCtx_ = qCtx;
@@ -210,15 +205,18 @@ public class Frontend {
     /**
      * Request to capture the plan tree for unit tests.
      */
-    public void requestPlanCapture() { capturePlan_ = true; }
-    public boolean planCaptureRequested() { return capturePlan_; }
+    public void requestPlanCapture() { }
+    public boolean planCaptureRequested() { return true; }
     public TQueryCtx getQueryContext() { return queryCtx_; }
+    public void becomeMock() { isMock_ = true; }
+    public boolean isMock() { return isMock_; }
 
     /**
      * @return the captured plan tree. Used only for unit tests
      */
     @VisibleForTesting
-    public List<PlanFragment> getPlan() { return plan_; }
+    public List<PlanFragment> getPlan() { return planRoots_; }
+    public QueryPlan plan() { return plan_; }
 
     /**
      * @return the captured describe string
@@ -1162,14 +1160,14 @@ public class Frontend {
     TQueryExecRequest result = new TQueryExecRequest();
     if (isMtExec) {
       LOG.trace("create mt plan");
-      planRoots.addAll(planner.createParallelPlans());
+      planCtx.plan_ = planner.createParallelPlans();
+      planRoots.addAll(planCtx.plan_.parallelPlan());
     } else {
       LOG.trace("create plan");
-      planRoots.add(planner.createPlan().get(0));
+      planCtx.plan_ = planner.createPlan();
+      planRoots.add(planCtx.plan_.physicalPlan().get(0));
     }
-    if (planCtx.planCaptureRequested()) {
-      planCtx.plan_ = planRoots;
-    }
+    planCtx.planRoots_ = planRoots;
 
     // Compute resource requirements of the final plans.
     planner.computeResourceReqs(planRoots, queryCtx, result);
@@ -1277,11 +1275,13 @@ public class Frontend {
 
     // Analyze and authorize stmt
     AnalysisContext analysisCtx = new AnalysisContext(queryCtx, authzConfig_, timeline);
+    if (planCtx.isMock()) analysisCtx.becomeMock();
     AnalysisResult analysisResult =
         analysisCtx.analyzeAndAuthorize(stmt, stmtTableCache, authzChecker_.get());
     LOG.info("Analysis finished.");
     timeline.markEvent("Analysis finished");
     Preconditions.checkNotNull(analysisResult.getStmt());
+    planCtx.stmt_ = analysisResult.getStmt();
 
     TExecRequest result = createBaseExecRequest(queryCtx, analysisResult);
 

@@ -281,6 +281,11 @@ public class HdfsPartition implements FeFsPartition, PrunablePartition {
             return arr;
           }
         };
+
+    public void serialize(ObjectSerializer os) {
+      os.field("name", getFileName());
+      os.field("size", getFileLength());
+    }
   }
 
   /**
@@ -1037,6 +1042,12 @@ public class HdfsPartition implements FeFsPartition, PrunablePartition {
       Collections.sort(keys);
       for (String key : keys) {
         ps.field(key, hmsParameters_.get(key));
+      }
+    }
+    if (hasFileDescriptors()) {
+      ArraySerializer as = os.array("files");
+      for (FileDescriptor fd : getFileDescriptors()) {
+        fd.serialize(as.object());
       }
     }
   }

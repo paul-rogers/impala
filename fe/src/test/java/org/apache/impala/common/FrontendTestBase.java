@@ -78,8 +78,8 @@ import com.google.common.collect.Lists;
  */
 // TODO: Revise to leverage AnalysisFixure
 public class FrontendTestBase {
-  protected static ImpaladTestCatalog catalog_ = new ImpaladTestCatalog();
-  protected static Frontend frontend_ = new Frontend(
+  public static ImpaladTestCatalog catalog_ = new ImpaladTestCatalog();
+  public static Frontend frontend_ = new Frontend(
       AuthorizationConfig.createAuthDisabledConfig(), catalog_);
 
   // Test-local list of test databases and tables. These are cleaned up in @After.
@@ -140,7 +140,7 @@ public class FrontendTestBase {
    * Returns the new dummy database.
    * The database is registered in testDbs_ and removed in the @After method.
    */
-  protected Db addTestDb(String dbName, String comment) {
+  public Db addTestDb(String dbName, String comment) {
     Db db = catalog_.getDb(dbName);
     Preconditions.checkState(db == null, "Test db must not already exist.");
     db = new Db(dbName, new org.apache.hadoop.hive.metastore.api.Database(
@@ -168,7 +168,7 @@ public class FrontendTestBase {
     return addTestTable(createTableSql, createTableStmt);
   }
 
-  protected Table addTestTable(String createTableSql, CreateTableStmt createTableStmt) {
+  public Table addTestTable(String createTableSql, CreateTableStmt createTableStmt) {
     Db db = catalog_.getDb(createTableStmt.getDb());
     Preconditions.checkNotNull(db, "Test tables must be created in an existing db.");
     org.apache.hadoop.hive.metastore.api.Table msTbl =
@@ -310,7 +310,7 @@ public class FrontendTestBase {
     return AnalyzesOk(stmt, createAnalysisCtx(), expectedWarning);
   }
 
-  protected AnalysisContext createAnalysisCtx() {
+  public AnalysisContext createAnalysisCtx() {
     return createAnalysisCtx(Catalog.DEFAULT_DB);
   }
 

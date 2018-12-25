@@ -34,6 +34,8 @@ import org.apache.impala.analysis.TupleId;
 import org.apache.impala.common.ImpalaException;
 import org.apache.impala.common.PrintUtils;
 import org.apache.impala.common.TreeNode;
+import org.apache.impala.common.serialize.ArraySerializer;
+import org.apache.impala.common.serialize.ObjectSerializer;
 import org.apache.impala.planner.RuntimeFilterGenerator.RuntimeFilter;
 import org.apache.impala.thrift.TExecNodePhase;
 import org.apache.impala.thrift.TExecStats;
@@ -119,6 +121,9 @@ abstract public class PlanNode extends TreeNode<PlanNode> {
   // estimate of the output cardinality of this node; set in computeStats();
   // invalid: -1
   protected long cardinality_;
+
+  // Estimated selectivity.
+  protected double selectivity_ = -1;
 
   // number of nodes on which the plan tree rooted at this node would execute;
   // set in computeStats(); invalid: -1
@@ -583,7 +588,8 @@ abstract public class PlanNode extends TreeNode<PlanNode> {
   }
 
   protected double computeSelectivity() {
-    return computeCombinedSelectivity(conjuncts_);
+    selectivity_ = computeCombinedSelectivity(conjuncts_);
+    return selectivity_;
   }
 
   // Convert this plan node into msg (excluding children), which requires setting
@@ -893,5 +899,88 @@ abstract public class PlanNode extends TreeNode<PlanNode> {
 
   public void setDisableCodegen(boolean disableCodegen) {
     disableCodegen_ = disableCodegen;
+  }
+
+  public void serialize(ObjectSerializer os) {
+    serializeFields(os);
+    serializeStructure(os);
+    serializeChildren(os);
+  }
+
+  protected void serializeFields(ObjectSerializer os) {
+    if (os.options().showInternals()) {
+      os.field("class", getClass().getSimpleName());
+    }
+    os.field("name", displayName_);
+    os.field("id", id_.asInt());
+    if (fragment_ != null) {
+      os.field("fragment", fragment_.getId().asInt());
+    }
+    if (limit_ > 0) os.field("row_limit", limit_);
+    os.field("cardinality", cardinality_);
+    if (selectivity_ >= 0) os.field("selectivity", selectivity_);
+    os.field("node_count", numNodes_);
+    os.field("avg_row_size",avgRowSize_);
+  }
+
+  protected void serializeStructure(ObjectSerializer os) {
+    ArraySerializer as = os.array("tuples");
+    for (TupleId tid : tupleIds_) {
+      as.scalar(tid.asInt());
+    }
+    as = os.array("tuple_refs");
+    for (TupleId tid : tblRefIds_) {
+      as.scalar(tid.asInt());
+    }
+    if (nullableTupleIds_ != null && ! nullableTupleIds_.isEmpty()) {
+      as = os.array("nullable_tuples");
+      for (TupleId tid : nullableTupleIds_) {
+        as.scalar(tid.asInt());
+      }
+    }
+    if (conjuncts_ != null && ! conjuncts_.isEmpty()) {
+      as = os.array("conjuncts");
+      for (Expr expr : conjuncts_) {
+        serializeConjunct(as.object(), expr);
+      }
+    }
+    if (assignedConjuncts_ != null && ! assignedConjuncts_.isEmpty()) {
+      as = os.array("assigned_conjuncts");
+      for (ExprId expr : assignedConjuncts_) {
+        as.scalar(expr.asInt());
+      }
+    }
+    if (runtimeFilters_ != null && ! runtimeFilters_.isEmpty()) {
+      as = os.array("runtime_filters");
+      for (RuntimeFilter filter : runtimeFilters_) {
+        if (os.options().showInternals()) {
+          filter.serialize(as.object());
+        } else {
+          as.scalar(filter.getOrigTargetExpr().toSql());
+        }
+      }
+    }
+  }
+
+  protected void serializeChildren(ObjectSerializer os) {
+    // Default serialization. Should be replaced by overrides
+    // with semantic structure.
+    if (children_.isEmpty()) return;
+    if (children_.size() == 1) {
+      getChild(0).serialize(os.object("input"));
+      return;
+    }
+    ArraySerializer as = os.array("children");
+    // Children emitted in "EXPLAIN" order: left child on the bottom
+    // (on the left if JSON is rotated 90 degrees counterclockwise),
+    // right node on the top.
+    for (int i = children_.size() - 1; i >= 0; i--) {
+      getChild(i).serialize(as.object());
+    }
+  }
+
+  protected void serializeConjunct(ObjectSerializer os, Expr conjunct) {
+    os.field("sql", conjunct.toSql());
+    conjunct.summarize(os);
   }
 }

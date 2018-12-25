@@ -601,8 +601,14 @@ public abstract class Table extends CatalogObjectImpl implements FeTable {
     os.field("owner", owner_);
     os.field("access_level", accessLevel_.name());
     if (tableStats_ != null) {
-      os.field("rows", tableStats_.getNum_rows());
-      os.field("size", tableStats_.getTotal_file_bytes());
+      long rowCount = tableStats_.getNum_rows();
+      if (rowCount != -1) os.field("rows", rowCount);
+      long size = tableStats_.getTotal_file_bytes();
+      if (size != -1) os.field("size", size);
+      if (rowCount > 0 && size > 0) {
+        long avgWidth = Math.round(size * 1.0D / rowCount);
+        os.field("avg_row_width", avgWidth);
+      }
     }
     ArraySerializer as = os.array("columns");
     for (Column col : colsByPos_) {

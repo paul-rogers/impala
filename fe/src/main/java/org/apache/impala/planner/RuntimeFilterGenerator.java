@@ -43,6 +43,8 @@ import org.apache.impala.catalog.KuduColumn;
 import org.apache.impala.catalog.Type;
 import org.apache.impala.common.IdGenerator;
 import org.apache.impala.common.InternalException;
+import org.apache.impala.common.serialize.ArraySerializer;
+import org.apache.impala.common.serialize.ObjectSerializer;
 import org.apache.impala.planner.JoinNode.DistributionMode;
 import org.apache.impala.service.BackendConfig;
 import org.apache.impala.service.FeSupport;
@@ -508,6 +510,30 @@ public final class RuntimeFilterGenerator {
           .append(Joiner.on(", ").join(targets_) + " ")
           .append("Selectivity: " + getSelectivity()).toString();
     }
+
+    public void serialize(ObjectSerializer os) {
+      os.field("id", id_.asInt());
+      os.field("type", type_.name());
+      os.field("source", src_.getId().asInt());
+      os.field("source_expr", srcExpr_.toSql());
+      os.field("source_selectivity", srcExpr_.getSelectivity());
+      os.field("target_expr", origTargetExpr_.toSql());
+      os.field("target_selectivity", origTargetExpr_.getSelectivity());
+      os.field("operator", exprCmpOp_.name());
+      os.field("join_type", isBroadcastJoin_ ? "broadcast" : "hash");
+      os.field("ndv", ndvEstimate_);
+      os.field("size_bytes", filterSizeBytes_);
+      os.field("is_local", hasLocalTargets_);
+      os.field("is_remote", hasRemoteTargets_);
+      ArraySerializer as = os.array("targets");
+      for (RuntimeFilterTarget target : targets_) {
+        ObjectSerializer fs = as.object();
+        fs.field("local", target.isLocalTarget);
+        fs.field("scan_node", target.node.getId().asInt());
+        fs.field("partition_only", target.isBoundByPartitionColumns);
+        fs.field("expr", target.expr.toSql());
+      }
+    }
   }
 
   /**
@@ -526,6 +552,7 @@ public final class RuntimeFilterGenerator {
       // If more than 'maxNumBloomFilters' were generated, sort them by increasing
       // selectivity and keep the 'maxNumBloomFilters' most selective bloom filters.
       Collections.sort(filters, new Comparator<RuntimeFilter>() {
+          @Override
           public int compare(RuntimeFilter a, RuntimeFilter b) {
             double aSelectivity =
                 a.getSelectivity() == -1 ? Double.MAX_VALUE : a.getSelectivity();
@@ -562,6 +589,7 @@ public final class RuntimeFilterGenerator {
     }
     List<RuntimeFilter> resultList = Lists.newArrayList(resultSet);
     Collections.sort(resultList, new Comparator<RuntimeFilter>() {
+        @Override
         public int compare(RuntimeFilter a, RuntimeFilter b) {
           return a.getFilterId().compareTo(b.getFilterId());
         }

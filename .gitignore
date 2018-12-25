@@ -79,3 +79,8 @@ gdb.txt
 
 # OS X Artifacts
 .DS_Store
+
+# Eclipse
+.cproject
+.project
+.settings

@@ -26,6 +26,9 @@ import org.apache.impala.catalog.HdfsFileFormat;
 import org.apache.impala.catalog.Type;
 import org.apache.impala.common.NotImplementedException;
 import org.apache.impala.common.RuntimeEnv;
+import org.apache.impala.common.serialize.ArraySerializer;
+import org.apache.impala.common.serialize.ObjectSerializer;
+import org.apache.impala.thrift.TFileSplitGeneratorSpec;
 import org.apache.impala.thrift.TNetworkAddress;
 import org.apache.impala.thrift.TQueryOptions;
 import org.apache.impala.thrift.TScanRangeSpec;
@@ -265,4 +268,27 @@ abstract public class ScanNode extends PlanNode {
    * engine.
    */
   public boolean hasStorageLayerConjuncts() { return false; }
+
+  @Override
+  protected void serializeFields(ObjectSerializer os) {
+    super.serializeFields(os);
+    os.field("tuple_id", desc_.getId().asInt());
+    os.field("input_cardinality", inputCardinality_);
+    if (inputCardinality_ > 0 && cardinality_ > 0) {
+      os.field("selectivity", cardinality_ * 1.0D / inputCardinality_);
+    }
+    if (scanRangeSpecs_.isSetSplit_specs()) {
+      ArraySerializer as = os.array("spits");
+      for (TFileSplitGeneratorSpec split : scanRangeSpecs_.getSplit_specs()) {
+        ObjectSerializer rs = as.object();
+        rs.field("partition_id", split.partition_id);
+        // TODO: file data is encoded, need to decode
+      }
+    }
+//    ArraySerializer as = os.array("scan_ranges");
+//    for (TScanRangeLocationList range : scanRangeSpecs_.getConcrete_ranges()) {
+//      ObjectSerializer rs = as.object();
+//      rs.field(name, range.getScan_range().g);
+//    }
+  }
 }

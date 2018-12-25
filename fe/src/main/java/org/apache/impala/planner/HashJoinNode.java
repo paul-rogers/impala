@@ -28,6 +28,7 @@ import org.apache.impala.catalog.Type;
 import org.apache.impala.common.AnalysisException;
 import org.apache.impala.common.ImpalaException;
 import org.apache.impala.common.InternalException;
+import org.apache.impala.common.serialize.ObjectSerializer;
 import org.apache.impala.thrift.TEqJoinCondition;
 import org.apache.impala.thrift.TExplainLevel;
 import org.apache.impala.thrift.THashJoinNode;
@@ -250,5 +251,12 @@ public class HashJoinNode extends JoinNode {
         .setMinMemReservationBytes(perInstanceMinMemReservation)
         .setSpillableBufferBytes(bufferSize)
         .setMaxRowBufferBytes(maxRowBufferSize).build();
+  }
+
+  @Override
+  protected void serializeChildren(ObjectSerializer os) {
+    // Output in describe order. See super implementation.
+    getChild(1).serialize(os.object("build")); // left
+    getChild(0).serialize(os.object("probe")); // right
   }
 }

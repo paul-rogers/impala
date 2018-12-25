@@ -26,6 +26,7 @@ import org.apache.impala.catalog.Type;
 import org.apache.impala.common.AnalysisException;
 import org.apache.impala.common.InternalException;
 import org.apache.impala.common.NotImplementedException;
+import org.apache.impala.common.serialize.ObjectSerializer;
 import org.apache.impala.service.FeSupport;
 import org.apache.impala.thrift.TColumnValue;
 import org.apache.impala.thrift.TExprNode;
@@ -280,5 +281,11 @@ public abstract class LiteralExpr extends Expr implements Comparable<LiteralExpr
     if (Expr.IS_NULL_LITERAL.apply(other)) return 1;
     if (getClass() != other.getClass()) return -1;
     return 0;
+  }
+
+  @Override
+  public void summarize(ObjectSerializer os) {
+    super.summarize(os);
+    os.field("value", getStringValue());
   }
 }

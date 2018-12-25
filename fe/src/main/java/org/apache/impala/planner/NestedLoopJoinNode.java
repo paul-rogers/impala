@@ -25,11 +25,13 @@ import org.apache.impala.analysis.BinaryPredicate;
 import org.apache.impala.analysis.Expr;
 import org.apache.impala.analysis.JoinOperator;
 import org.apache.impala.common.ImpalaException;
+import org.apache.impala.common.serialize.ObjectSerializer;
 import org.apache.impala.thrift.TExplainLevel;
 import org.apache.impala.thrift.TNestedLoopJoinNode;
 import org.apache.impala.thrift.TPlanNode;
 import org.apache.impala.thrift.TPlanNodeType;
 import org.apache.impala.thrift.TQueryOptions;
+
 import com.google.common.base.Objects;
 import com.google.common.base.Preconditions;
 
@@ -129,5 +131,12 @@ public class NestedLoopJoinNode extends JoinNode {
     return Objects.toStringHelper(this)
         .addValue(super.debugString())
         .toString();
+  }
+
+  @Override
+  protected void serializeChildren(ObjectSerializer os) {
+    // Output in describe order. See super implementation.
+    getChild(1).serialize(os.object("inner")); // right, inner, build
+    getChild(0).serialize(os.object("outer")); // left, outer, probe
   }
 }

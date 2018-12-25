@@ -17,8 +17,12 @@
 
 package org.apache.impala.util.treevis;
 
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
+import java.io.Writer;
 
 import org.apache.impala.analysis.Analyzer;
 import org.apache.impala.analysis.ParseNode;
@@ -38,7 +42,7 @@ public class AstPrinter {
   public static final int NODE_DEPTH = 3;
   public static final int TREE_DEPTH = 20;
 
-  private static ParseNode lastNode;
+  private static Object lastNode;
 
   /**
    * Print a subtree to a depth of three. Use this form for easy
@@ -72,19 +76,33 @@ public class AstPrinter {
    * Print an entire (sub-)tree to its entire depth.
    * @param node
    */
-  public static void printNode(ParseNode node) {
+  public static void printNode(Object node) {
     printTree(node, NODE_DEPTH);
   }
 
-  public static void printTree(ParseNode node) {
+  public static void printTree(Object node) {
     printTree(node, TREE_DEPTH);
   }
 
-  public static void printTree(ParseNode node, int maxDepth) {
+  public static void printTree(Object node, String dest) {
+    printTree(node, new File(dest));
+  }
+
+  public static void printTree(Object node, File dest) {
+    try (FileWriter out = new FileWriter(dest)) {
+      printTree(node, TREE_DEPTH, out);
+    } catch (IOException e) {
+      throw new IllegalStateException(e);
+    }
+  }
+
+  public static void printTree(Object node, int maxDepth) {
+    printTree(node, maxDepth, new OutputStreamWriter(System.out));
+  }
+
+  public static void printTree(Object node, int maxDepth, Writer out) {
     Visualizer vis = new Visualizer(
-        new TreePrinter(new PrintWriter(
-            new OutputStreamWriter(System.out),
-            true)));
+        new TreePrinter(new PrintWriter(out, true)));
     vis.ignore(TupleDescriptor.class);
     vis.ignore(HdfsTable.class);
     vis.ignore(Analyzer.class);

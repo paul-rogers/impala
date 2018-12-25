@@ -26,6 +26,7 @@ import org.apache.impala.catalog.ScalarFunction;
 import org.apache.impala.catalog.Type;
 import org.apache.impala.common.AnalysisException;
 import org.apache.impala.common.Reference;
+import org.apache.impala.common.serialize.ObjectSerializer;
 import org.apache.impala.thrift.TExprNode;
 import org.apache.impala.thrift.TExprNodeType;
 
@@ -236,4 +237,12 @@ public class InPredicate extends Predicate {
 
   @Override
   public Expr clone() { return new InPredicate(this); }
+
+  // No need to detail the values.
+
+  @Override
+  protected void summarizeChildren(ObjectSerializer os) {
+    getChild(0).summarize(os.object("lhs"));
+    os.field("value_count", children_.size() - 1);
+  }
 }

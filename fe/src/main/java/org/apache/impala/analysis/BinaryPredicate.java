@@ -28,6 +28,7 @@ import org.apache.impala.catalog.Type;
 import org.apache.impala.common.AnalysisException;
 import org.apache.impala.common.Pair;
 import org.apache.impala.common.Reference;
+import org.apache.impala.common.serialize.ObjectSerializer;
 import org.apache.impala.extdatasource.thrift.TComparisonOp;
 import org.apache.impala.thrift.TExprNode;
 import org.apache.impala.thrift.TExprNodeType;
@@ -328,4 +329,10 @@ public class BinaryPredicate extends Predicate {
 
   @Override
   public Expr clone() { return new BinaryPredicate(this); }
+
+  @Override
+  protected void summarizeChildren(ObjectSerializer os) {
+    getChild(0).summarize(os.object("lhs"));
+    getChild(1).summarize(os.object("rhs"));
+  }
 }

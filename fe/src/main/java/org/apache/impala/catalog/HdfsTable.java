@@ -987,7 +987,8 @@ public class HdfsTable extends Table implements FeFsTable {
    * Creates a new HdfsPartition from a specified StorageDescriptor and an HMS partition
    * object.
    */
-  private HdfsPartition createPartition(StorageDescriptor storageDescriptor,
+  @VisibleForTesting
+  public HdfsPartition createPartition(StorageDescriptor storageDescriptor,
       org.apache.hadoop.hive.metastore.api.Partition msPartition,
       FsPermissionCache permCache) throws CatalogException {
     HdfsStorageDescriptor fileFormatDescriptor =

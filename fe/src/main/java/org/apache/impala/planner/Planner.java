@@ -17,6 +17,8 @@
 
 package org.apache.impala.planner;
 
+import static org.apache.impala.analysis.ToSqlOptions.SHOW_IMPLICIT_CASTS;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -55,13 +57,23 @@ import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 
-import static org.apache.impala.analysis.ToSqlOptions.SHOW_IMPLICIT_CASTS;
-
 /**
  * Creates an executable plan from an analyzed parse tree and query options.
  */
 public class Planner {
   private final static Logger LOG = LoggerFactory.getLogger(Planner.class);
+
+  public static final class QueryPlan {
+    protected PlanNode logicalPlan_;
+    protected PlanFragment rootFragment_;
+    protected List<PlanFragment> physicalPlan_;
+    protected List<PlanFragment> parallelPlans_;
+
+    public PlanNode logicalPlan() { return logicalPlan_; }
+    public PlanFragment rootFragment() { return rootFragment_; }
+    public List<PlanFragment> physicalPlan() { return physicalPlan_; }
+    public List<PlanFragment> parallelPlan() { return parallelPlans_; }
+  }
 
   // Minimum per-host resource requirements to ensure that no plan node set can have
   // estimates of zero, even if the contained PlanNodes have estimates of zero.
@@ -97,10 +109,12 @@ public class Planner {
    *    that such an expr substitution during plan generation never fails. If it does,
    *    that typically means there is a bug in analysis, or a broken/missing smap.
    */
-  public ArrayList<PlanFragment> createPlan() throws ImpalaException {
+  public QueryPlan createPlan() throws ImpalaException {
     SingleNodePlanner singleNodePlanner = new SingleNodePlanner(ctx_);
     DistributedPlanner distributedPlanner = new DistributedPlanner(ctx_);
+    QueryPlan plan = new QueryPlan();
     PlanNode singleNodePlan = singleNodePlanner.createSingleNodePlan();
+    plan.logicalPlan_ = singleNodePlan;
     ctx_.getTimeline().markEvent("Single node plan created");
     ArrayList<PlanFragment> fragments = null;
 
@@ -120,9 +134,11 @@ public class Planner {
       // create distributed plan
       fragments = distributedPlanner.createPlanFragments(singleNodePlan);
     }
+    plan.physicalPlan_ = fragments;
 
     // Create runtime filters.
     PlanFragment rootFragment = fragments.get(fragments.size() - 1);
+    plan.rootFragment_ = rootFragment;
     if (ctx_.getQueryOptions().getRuntime_filter_mode() != TRuntimeFilterMode.OFF) {
       RuntimeFilterGenerator.generateRuntimeFilters(ctx_, rootFragment.getPlanRoot());
       ctx_.getTimeline().markEvent("Runtime filters computed");
@@ -138,6 +154,7 @@ public class Planner {
         // repartition on partition keys
         rootFragment = distributedPlanner.createInsertFragment(
             rootFragment, insertStmt, ctx_.getRootAnalyzer(), fragments);
+        plan.rootFragment_ = rootFragment;
       }
       // Add optional sort node to the plan, based on clustered/noclustered plan hint.
       createPreInsertSort(insertStmt, rootFragment, ctx_.getRootAnalyzer());
@@ -179,7 +196,7 @@ public class Planner {
     ColumnLineageGraph graph = ctx_.getRootAnalyzer().getColumnLineageGraph();
     if (BackendConfig.INSTANCE.getComputeLineage() || RuntimeEnv.INSTANCE.isTestEnv()) {
       // Lineage is disabled for UPDATE AND DELETE statements
-      if (ctx_.isUpdateOrDelete()) return fragments;
+      if (ctx_.isUpdateOrDelete()) return plan;
       // Compute the column lineage graph
       if (ctx_.isInsertOrCtas()) {
         InsertStmt insertStmt = ctx_.getAnalysisResult().getInsertStmt();
@@ -220,16 +237,17 @@ public class Planner {
       ctx_.getTimeline().markEvent("Lineage info computed");
     }
 
-    return fragments;
+    return plan;
   }
 
   /**
    * Return a list of plans, each represented by the root of their fragment trees.
    * TODO: roll into createPlan()
    */
-  public List<PlanFragment> createParallelPlans() throws ImpalaException {
+  public QueryPlan createParallelPlans() throws ImpalaException {
     Preconditions.checkState(ctx_.getQueryOptions().mt_dop > 0);
-    ArrayList<PlanFragment> distrPlan = createPlan();
+    QueryPlan plan = createPlan();
+    List<PlanFragment> distrPlan = plan.physicalPlan_;
     Preconditions.checkNotNull(distrPlan);
     ParallelPlanner planner = new ParallelPlanner(ctx_);
     List<PlanFragment> parallelPlans = planner.createPlans(distrPlan.get(0));
@@ -237,7 +255,8 @@ public class Planner {
     // parallelism is achieved via multiple fragment instances.
     ctx_.getQueryOptions().setNum_scanner_threads(1);
     ctx_.getTimeline().markEvent("Parallel plans created");
-    return parallelPlans;
+    plan.parallelPlans_ = parallelPlans;
+    return plan;
   }
 
   /**

@@ -354,7 +354,7 @@ public class SingleNodePlanner {
     // No point in adding SelectNode on top of an EmptyNode.
     if (root instanceof EmptySetNode) return root;
     Preconditions.checkNotNull(root);
-    // Gather unassigned conjuncts and generate predicates to enfore
+    // Gather unassigned conjuncts and generate predicates to enforce
     // slot equivalences for each tuple id.
     List<Expr> conjuncts = analyzer.getUnassignedConjuncts(root);
     for (TupleId tid: tupleIds) {
@@ -429,6 +429,7 @@ public class SingleNodePlanner {
     // consumption of the materialized hash tables required for the join sequence
     Collections.sort(candidates,
         new Comparator<Pair<TableRef, Long>>() {
+          @Override
           public int compare(Pair<TableRef, Long> a, Pair<TableRef, Long> b) {
             long diff = b.second - a.second;
             return (diff < 0 ? -1 : (diff > 0 ? 1 : 0));
@@ -637,7 +638,7 @@ public class SingleNodePlanner {
     }
 
     // Separate table refs into parent refs (uncorrelated or absolute) and
-    // subplan refs (correlated or relative), and generate their plan.
+    // subplan refs (correlated or relative), and generates their plan.
     List<TableRef> parentRefs = Lists.newArrayList();
     List<SubplanRef> subplanRefs = Lists.newArrayList();
     computeParentAndSubplanRefs(
@@ -661,7 +662,7 @@ public class SingleNodePlanner {
     }
 
     // All the conjuncts_ should be assigned at this point.
-    // TODO: Re-enable this check here and/or elswehere.
+    // TODO: Re-enable this check here and/or elsewhere.
     //Preconditions.checkState(!analyzer.hasUnassignedConjuncts());
     return root;
   }

@@ -2,15 +2,20 @@ package org.apache.impala.analysis;
 
 import java.io.IOException;
 
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.permission.FsAction;
 import org.apache.impala.authorization.Privilege;
+import org.apache.impala.catalog.HdfsPartition.FileDescriptor;
 import org.apache.impala.common.AnalysisException;
 import org.apache.impala.common.FileSystemUtil;
+import org.apache.impala.common.ImpalaRuntimeException;
 import org.apache.impala.util.FsPermissionChecker;
 
 public class HdfsFileSystemProxy implements FileSystemProxy {
+
+  private static final Configuration CONF = new Configuration();
 
   @Override
   public Path validatePath(Analyzer analyzer, Path path, Privilege privilege, FsAction perm) throws AnalysisException {
@@ -50,5 +55,22 @@ public class HdfsFileSystemProxy implements FileSystemProxy {
               path, ex.getMessage()), ex);
     }
     return path;
+  }
+
+  @Override
+  public BlockSizeReport maxBlockSize(Path locationPath) throws ImpalaRuntimeException {
+    FileSystem partitionFs;
+    try {
+      partitionFs = locationPath.getFileSystem(CONF);
+    } catch (IOException e) {
+      throw new ImpalaRuntimeException("Error determining partition fs type", e);
+    }
+    BlockSizeReport report = new BlockSizeReport();
+    report.hasBlocks_ = FileSystemUtil.supportsStorageIds(partitionFs);
+    if (report.hasBlocks_) {
+      report.maxBlockSize_ = partitionFs.getDefaultBlockSize(locationPath);
+    }
+    report.maxBlockSize_  = Math.max(report.maxBlockSize_, FileDescriptor.MIN_SYNTHETIC_BLOCK_SIZE);
+    return report;
   }
 }

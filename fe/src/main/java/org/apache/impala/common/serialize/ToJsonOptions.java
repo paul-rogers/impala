@@ -27,6 +27,7 @@ public class ToJsonOptions {
   private boolean showInternals_;
   private boolean elide_;
   private boolean dedup_;
+  private boolean omitExchanges_;
 
   /**
    * Include the source SQL.
@@ -34,7 +35,7 @@ public class ToJsonOptions {
   public ToJsonOptions showSource(boolean flag)
     { showSource_ = flag; return this; }
   /**
-   * Include details of the structures created by analyais, such
+   * Include details of the structures created by analysis, such
    * as the output result set.
    */
   public ToJsonOptions showOutput(boolean flag)
@@ -44,8 +45,8 @@ public class ToJsonOptions {
    */
   public ToJsonOptions showInternals(boolean flag)
     { showInternals_ = flag; return this; }
-  /**
-   * Create more compact JSON by "eliding" structures: omit fields which
+  /**=
+   * Create more compact JSON by "elliding" structures: omit fields which
    * are null or false, fields at their default values, etc.
    */
   public ToJsonOptions elide(boolean flag)
@@ -57,6 +58,11 @@ public class ToJsonOptions {
    */
   public ToJsonOptions dedup(boolean flag)
     { dedup_ = flag; return this; }
+
+  public ToJsonOptions omitExchanges(boolean flag) {
+    omitExchanges_ = flag;
+    return this;
+  }
 
   /**
    * Turn on all options.
@@ -79,5 +85,6 @@ public class ToJsonOptions {
   public boolean showOutput() { return showOutput_; }
   public boolean showInternals() { return showInternals_; }
   public boolean elide() { return elide_; }
-  public boolean dedup() { return dedup_;}
+  public boolean dedup() { return dedup_; }
+  public boolean omitExchanges() { return omitExchanges_; }
 }

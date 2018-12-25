@@ -22,6 +22,7 @@ import org.apache.impala.analysis.Expr;
 import org.apache.impala.analysis.SortInfo;
 import org.apache.impala.analysis.TupleId;
 import org.apache.impala.common.ImpalaException;
+import org.apache.impala.common.serialize.ObjectSerializer;
 import org.apache.impala.service.BackendConfig;
 import org.apache.impala.thrift.TExchangeNode;
 import org.apache.impala.thrift.TExplainLevel;
@@ -283,6 +284,15 @@ public class ExchangeNode extends PlanNode {
           mergeInfo_.getNullsFirst());
       msg.exchange_node.setSort_info(sortInfo);
       msg.exchange_node.setOffset(offset_);
+    }
+  }
+
+  @Override
+  public void serialize(ObjectSerializer os) {
+    if (os.options().omitExchanges()) {
+      getChild(0).serialize(os);
+    } else {
+      super.serialize(os);
     }
   }
 }
