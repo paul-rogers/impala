@@ -49,6 +49,20 @@ public class PrintUtils {
     return bytes + "B";
   }
 
+  public static final long KILO = 1000;
+  public static final long MEGA = KILO * 1000;
+  public static final long GIGA = MEGA * 1000;
+  public static final long TERA = GIGA * 1000;
+
+  public static String printMetric(long value) {
+    double result = value;
+    if (value >= TERA) return new DecimalFormat(".00T").format(result / TERA);
+    if (value >= GIGA) return new DecimalFormat(".00G").format(result / GIGA);
+    if (value >= MEGA) return new DecimalFormat(".00M").format(result / MEGA);
+    if (value >= KILO) return new DecimalFormat(".00K").format(result / KILO);
+    return Long.toString(value);
+  }
+
   /**
    * Same as printBytes() except 0 decimal points are shown for MB and KB.
    */

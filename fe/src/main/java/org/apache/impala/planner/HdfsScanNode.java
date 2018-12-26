@@ -1213,9 +1213,11 @@ public class HdfsScanNode extends ScanNode {
     output.append("]\n");
     if (detailLevel.ordinal() >= TExplainLevel.STANDARD.ordinal()) {
       if (tbl_.getNumClusteringCols() == 0) numPartitions_ = 1;
-      output.append(String.format("%spartitions=%s/%s files=%s size=%s", detailPrefix,
+      output.append(String.format("%spartitions=%d/%d files=%d size=%s rows=%s",
+          detailPrefix,
           numPartitions_, table.getPartitions().size(), totalFiles_,
-          PrintUtils.printBytes(totalBytes_)));
+          PrintUtils.printBytes(totalBytes_),
+          PrintUtils.printMetric(cardinality_)));
       output.append("\n");
       if (!conjuncts_.isEmpty()) {
         output.append(String.format("%spredicates: %s\n", detailPrefix,

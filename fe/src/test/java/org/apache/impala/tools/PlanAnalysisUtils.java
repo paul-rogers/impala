@@ -307,6 +307,11 @@ public class PlanAnalysisUtils {
           if (op.startsWith("stats")) continue;
           if (op.startsWith("tuple-ids")) continue;
           if (op.startsWith("mem-est")) continue;
+          if (op.startsWith("runtime filters")) continue;
+          if (op.startsWith("predicates")) continue;
+          if (op.startsWith("hash predicates")) continue;
+          if (op.startsWith("output")) continue;
+          if (op.startsWith("group by")) continue;
           buf.append(lead).append(op).append("\n");
           continue;
         }
@@ -336,8 +341,15 @@ public class PlanAnalysisUtils {
         node_ = node;
         actual = node.actualRowCount();
         est = node.estRowCount();
-        error = actual / est;
-        logError = (int) Math.round(Math.log10(error));
+        if (est < 0) {
+          error = 0;
+          logError = 0;
+        } else {
+          double baseActual = actual <= 0 ? 1 : actual;
+          double baseEst = est <= 0 ? 1 : est;
+          error = baseEst / baseActual;
+          logError = (int) Math.round(Math.log10(error));
+        }
       }
     }
 
@@ -351,7 +363,7 @@ public class PlanAnalysisUtils {
         RowSummary row = new RowSummary(node);
         rows.add(row);
         minLogError = Math.min(minLogError, row.logError);
-        maxLogError = Math.min(minLogError, row.logError);
+        maxLogError = Math.max(maxLogError, row.logError);
       }
     }
 
@@ -359,16 +371,22 @@ public class PlanAnalysisUtils {
 
     public String printTable() {
       StringBuilder buf = new StringBuilder();
-      buf.append(String.format(CARD_FORMAT + "  %s",
+      buf.append(String.format(CARD_FORMAT + "    %s",
           "Operation", "Card", "Est Card", "log10(error)"))
          .append("\n")
-         .append(PrintUtils.repeat("-", 62)).append("\n");
+         .append(PrintUtils.repeat("-", 64 +
+             Math.max(0, maxLogError - minLogError - 6)))
+         .append("\n");
       for (RowSummary row : rows) {
-        buf.append(String.format(CARD_FORMAT + "  %3d  %s",
+        buf.append(String.format(CARD_FORMAT + "  %3d  ",
             row.node_.prefix + row.node_.idStr + ":" + row.node_.label,
             row.node_.actualCardinality, row.node_.estCardinality,
-            row.logError,
-            PrintUtils.horizBarChart(minLogError, maxLogError, row.logError)));
+            row.logError));
+        if (row.est < 0) {
+          buf.append(PrintUtils.repeat(" ", -minLogError - 1)).append("???");
+        } else {
+          buf.append(PrintUtils.horizBarChart(minLogError, maxLogError, row.logError));
+        }
         buf.append("\n");
       }
       return buf.toString();

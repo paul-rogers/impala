@@ -42,6 +42,7 @@ import org.apache.impala.analysis.CreateViewStmt;
 import org.apache.impala.analysis.Expr;
 import org.apache.impala.analysis.LiteralExpr;
 import org.apache.impala.analysis.Parser;
+import org.apache.impala.analysis.Parser.ParseException;
 import org.apache.impala.analysis.PartitionSet;
 import org.apache.impala.analysis.SlotRef;
 import org.apache.impala.analysis.StatementBase;
@@ -86,10 +87,14 @@ public class CatalogBuilder {
   public Catalog catalog() { return FrontendTestBase.catalog_; }
 
   public void runStmt(String sql) throws ImpalaException {
-    sql = sql.replaceAll("\n--", "\n");
-    sql = sql.replaceAll("'(\\d+),", "'$1',");
     AnalysisContext ctx = test_.createAnalysisCtx();
-    StatementBase parsedStmt = Parser.parse(sql, ctx.getQueryOptions());
+    StatementBase parsedStmt;
+    try {
+      parsedStmt = Parser.parse(sql, ctx.getQueryOptions());
+    } catch (ParseException e) {
+      System.out.println(sql);
+      throw e;
+    }
     if (parsedStmt instanceof AlterTableSetTblProperties) {
       preAnalysisCheck((AlterTableSetTblProperties) parsedStmt);
     }
@@ -117,19 +122,29 @@ public class CatalogBuilder {
     }
   }
 
+  public Table getTable(TableName tableName) {
+    String dbName = tableName.getDb();
+    if (dbName == null || dbName.isEmpty()) return null;
+    Db db = catalog().getDb(dbName);
+    String baseName = tableName.getTbl();
+    if (baseName == null || baseName.isEmpty()) return null;
+    return db.getTable(baseName);
+  }
+
   private void preAnalysisCheck(AlterTableSetTblProperties stmt) throws CatalogException {
-    String dbName = stmt.getTableName().getDb();
-    if (dbName == null || dbName.isEmpty()) return;
-    Db db = MockPlanner.catalog_.getDb(dbName);
-    String tableName = stmt.getTableName().getTbl();
-    if (tableName == null || tableName.isEmpty()) return;
-    Table table = db.getTable(tableName);
-    //System.out.println(table.toString());
+    Table table = getTable(stmt.getTableName());
+    if (table == null) return;
     if (!(table instanceof HdfsTable)) return;
     HdfsTable fsTable = (HdfsTable) table;
     PartitionSet partSet = stmt.getPartitionSet();
     if (partSet == null) return;
-    for (Expr expr : partSet.getPartitionExprs()) {
+    int keyCount = fsTable.getNumClusteringCols();
+    if (keyCount != partSet.getPartitionExprs().size()) return;
+    String tail = "";
+    List<LiteralExpr> keys = new ArrayList<>();
+    for (int i = 0; i < keyCount; i++) {
+      Expr expr = partSet.getPartitionExprs().get(i);
+      String colName = fsTable.getColumns().get(i).getName();
       // Just let analysis fail if the expression is wrong
       if (!(expr instanceof BinaryPredicate)) return;
       Expr left = expr.getChild(0);
@@ -138,18 +153,22 @@ public class CatalogBuilder {
       if (!(right instanceof LiteralExpr)) return;
       LiteralExpr partKey = (LiteralExpr) right;
       SlotRef partName = (SlotRef) left;
-      List<String> path = partName.getRawPath();
-      if (path.size() != 1) return;
-      String name = path.get(0);
+      if (colName.equals(partName.getRawPath().get(0))) return;
+//      List<String> path = partName.getRawPath();
+//      if (path.size() != 1) return;
+//      String name = path.get(0);
       //System.out.println("Create partition: " + name + "=" + partKey.toSql());
       //System.out.println("Prototype: " + proto.toString());
-      HdfsPartition partition = makePartition(fsTable, "/" + name + "=" + partKey.toSql(), Lists.newArrayList(partKey));
-      //System.out.println(partition);
-      fsTable.addPartition(partition);
+      if (!tail.isEmpty()) tail += "/";
+      tail += colName + "=" + partKey.toSql();
+      keys.add(partKey);
     }
+    HdfsPartition partition = makePartition(fsTable, "/" + tail, keys);
+    //System.out.println(partition);
+    fsTable.addPartition(partition);
   }
 
-  private HdfsPartition makePartition(HdfsTable fsTable, String suffix, List<LiteralExpr> keys) {
+  HdfsPartition makePartition(HdfsTable fsTable, String suffix, List<LiteralExpr> keys) {
     HdfsPartition proto = fsTable.getPrototypePartition();
     org.apache.hadoop.hive.metastore.api.Partition msPartition = new org.apache.hadoop.hive.metastore.api.Partition();
     msPartition.setDbName(fsTable.getDb().getName());
@@ -166,8 +185,16 @@ public class CatalogBuilder {
   }
 
   private void createDb(CreateDbStmt stmt) {
-    dbs_.add(stmt.getDb());
-    test_.addTestDb(stmt.getDb(), stmt.getComment());
+    createDb(stmt.getDb(), stmt.getComment());
+  }
+
+  public void createDb(String db) {
+    createDb(db, "");
+  }
+
+  public void createDb(String db, String comment) {
+    dbs_.add(db);
+    test_.addTestDb(db, comment);
   }
 
   private void createTable(String sql, CreateTableStmt stmt) {
@@ -321,14 +348,22 @@ public class CatalogBuilder {
     }
   }
 
-  public void parseSql(File file) throws IOException, ImpalaException {
-    List<String> stmts = SqlFileParser.parse(file);
-
-    for (String stmt : stmts) {
-      stmt = ParseUtils.sanitize(stmt);
-//      System.out.println(stmt);
-      runStmt(stmt);
-    }
+  public interface StmtCleaner {
+    String clean(String stmt);
   }
 
+  public void parseSql(File file) throws IOException, ImpalaException {
+    parseSql(file, new StmtCleaner() {
+      @Override
+      public String clean(String stmt) {
+        return stmt;
+      }
+    });
+  }
+  public void parseSql(File file, StmtCleaner cleaner) throws IOException, ImpalaException {
+    for (String stmt : SqlFileParser.parse(file)) {
+//      System.out.println(stmt);
+      runStmt(cleaner.clean(stmt));
+    }
+  }
 }

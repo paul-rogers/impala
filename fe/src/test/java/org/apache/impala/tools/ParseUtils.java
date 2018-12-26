@@ -87,7 +87,7 @@ public class ParseUtils {
   }
 
   public static long parseRows(String rows) {
-    Pattern p = Pattern.compile("([0-9.]+)([KMB]?)");
+    Pattern p = Pattern.compile("([-0-9.]+)([KMB]?)");
     Matcher m = p.matcher(rows);
     if (!m.matches()) {
       throw new IllegalStateException(rows);

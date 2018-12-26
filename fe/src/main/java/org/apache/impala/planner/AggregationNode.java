@@ -32,6 +32,7 @@ import org.apache.impala.analysis.NumericLiteral;
 import org.apache.impala.analysis.TupleId;
 import org.apache.impala.analysis.ValidTupleIdExpr;
 import org.apache.impala.common.InternalException;
+import org.apache.impala.common.PrintUtils;
 import org.apache.impala.thrift.TAggregationNode;
 import org.apache.impala.thrift.TAggregator;
 import org.apache.impala.thrift.TExplainLevel;
@@ -406,6 +407,8 @@ public class AggregationNode extends PlanNode {
     output.append(String.format("%s%s", prefix, getDisplayLabel()));
     if (nameDetail != null) output.append(" [" + nameDetail + "]");
     output.append("\n");
+    output.append(detailPrefix).append("rows=")
+      .append(PrintUtils.printMetric(cardinality_)).append("\n");
 
     if (detailLevel.ordinal() >= TExplainLevel.STANDARD.ordinal()) {
       if (aggInfos_.size() == 1) {

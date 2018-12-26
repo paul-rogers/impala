@@ -28,6 +28,7 @@ import org.apache.impala.catalog.Type;
 import org.apache.impala.common.AnalysisException;
 import org.apache.impala.common.ImpalaException;
 import org.apache.impala.common.InternalException;
+import org.apache.impala.common.PrintUtils;
 import org.apache.impala.common.serialize.ObjectSerializer;
 import org.apache.impala.thrift.TEqJoinCondition;
 import org.apache.impala.thrift.TExplainLevel;
@@ -164,6 +165,8 @@ public class HashJoinNode extends JoinNode {
       }
     }
     if (detailLevel.ordinal() > TExplainLevel.MINIMAL.ordinal()) {
+      output.append(detailPrefix).append("rows=")
+        .append(PrintUtils.printMetric(cardinality_)).append("\n");
       output.append(detailPrefix + "hash predicates: ");
       for (int i = 0; i < eqJoinConjuncts_.size(); ++i) {
         Expr eqConjunct = eqJoinConjuncts_.get(i);

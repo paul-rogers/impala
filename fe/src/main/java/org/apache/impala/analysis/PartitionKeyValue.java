@@ -17,12 +17,13 @@
 
 package org.apache.impala.analysis;
 
-import com.google.common.base.Preconditions;
-import com.google.common.collect.Lists;
-
-import org.apache.impala.common.AnalysisException;
 import java.util.Comparator;
 import java.util.List;
+
+import org.apache.impala.common.AnalysisException;
+
+import com.google.common.base.Preconditions;
+import com.google.common.collect.Lists;
 
 /**
  * Representation of a single column:value element in the PARTITION (...) clause of an
@@ -39,6 +40,9 @@ public class PartitionKeyValue {
   public PartitionKeyValue(String colName, Expr value) {
     this.colName_ = colName.toLowerCase();
     this.value_ = value;
+    if (Expr.IS_LITERAL.apply(value_)) {
+      literalValue_ = (LiteralExpr) value_;
+    }
   }
 
   public void analyze(Analyzer analyzer) throws AnalysisException {
