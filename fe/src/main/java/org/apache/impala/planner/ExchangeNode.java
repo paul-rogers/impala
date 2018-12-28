@@ -174,6 +174,11 @@ public class ExchangeNode extends PlanNode {
   }
 
   @Override
+  protected boolean needsCardinality(TExplainLevel detailLevel) {
+    return detailLevel.ordinal() >= TExplainLevel.EXTENDED.ordinal();
+  }
+
+  @Override
   protected String getDisplayLabelDetail() {
     // For the non-fragmented explain levels, print the data partition
     // of the data stream sink that sends to this exchange node.

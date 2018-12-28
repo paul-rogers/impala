@@ -334,8 +334,20 @@ abstract public class PlanNode extends TreeNode<PlanNode> {
         expBuilder.append(tupleId.asInt() + nullIndicator);
         if (i + 1 != tupleIds_.size()) expBuilder.append(",");
       }
-      expBuilder.append(" row-size=" + PrintUtils.printBytes(Math.round(avgRowSize_)));
-      expBuilder.append(PrintUtils.printCardinality(" ", cardinality_));
+      // If no cardinality needed, end the line, else keep it open
+      // to append cardinality.
+      if (!needsCardinality(detailLevel)) expBuilder.append("\n");
+    }
+    // Output cardinality: in standard and above levels. In standard, on a line
+    // by itself. In extended, appended to above line.
+    if (detailLevel.ordinal() >= TExplainLevel.STANDARD.ordinal() &&
+        needsCardinality(detailLevel)) {
+      if (detailLevel.ordinal() >= TExplainLevel.EXTENDED.ordinal()) {
+        expBuilder.append(" ");
+      } else {
+        expBuilder.append(detailPrefix);
+      }
+      explainCardinality(expBuilder);
       expBuilder.append("\n");
     }
 
@@ -352,7 +364,6 @@ abstract public class PlanNode extends TreeNode<PlanNode> {
         expBuilder.append("<not computed>");
       }
     }
-
 
     // Print the children. Do not traverse into the children of an Exchange node to
     // avoid crossing fragment boundaries.
@@ -383,6 +394,26 @@ abstract public class PlanNode extends TreeNode<PlanNode> {
           children_.get(0).getExplainString(prefix, prefix, queryOptions, detailLevel));
     }
     return expBuilder.toString();
+  }
+
+  /**
+   * Per-node setting whether to include cardinality in the node overview.
+   * Some nodes omit cardinality because either a) it is not needed
+   * (Empty set, Exchange), or b) it is printed by the node itself (HDFS scan.)
+   * @return true if cardinality should be included in the generic
+   * node details, false if it should be omitted.
+   */
+  protected boolean needsCardinality(TExplainLevel detailLevel) { return true; }
+
+  /**
+   * Produce the string with the row size and cardinality numbers: the
+   * data needd to understand plan choices.
+   */
+  protected void explainCardinality(StringBuilder expBuilder) {
+    expBuilder.append("row-size=")
+      .append(PrintUtils.printBytes(Math.round(avgRowSize_)))
+      .append(" ")
+      .append(PrintUtils.printCardinality(cardinality_));
   }
 
   /**

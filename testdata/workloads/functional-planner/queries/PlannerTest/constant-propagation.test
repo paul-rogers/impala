@@ -17,7 +17,7 @@ where a.int_col1 = 10 and a.int_col2 = a.int_col1 + 1 and a.int_col3 = a.int_col
 PLAN-ROOT SINK
 |
 00:SCAN HDFS [functional.widetable_250_cols a]
-   partitions=1/1 files=1 size=28.69KB
+   partitions=1/1 files=1 size=28.69KB row-size=1.21KB cardinality=unavailable
    predicates: a.int_col1 = 10, a.int_col2 = 11, a.int_col3 = 55, a.int_col4 = 110
 ====
 # Test multiple forward propagation
@@ -28,7 +28,7 @@ where a.int_col1 = 10 and a.int_col2 = a.int_col1 + 1 and a.int_col3 = a.int_col
 PLAN-ROOT SINK
 |
 00:SCAN HDFS [functional.widetable_250_cols a]
-   partitions=1/1 files=1 size=28.69KB
+   partitions=1/1 files=1 size=28.69KB row-size=1.21KB cardinality=unavailable
    predicates: a.int_col1 = 10, a.int_col2 = 11, a.int_col3 = 55, a.int_col4 = -385
 ====
 # Test multiple forward propagation
@@ -39,7 +39,7 @@ where a.int_col1 = 10 and a.int_col2 = a.int_col1 + 1 and a.int_col2 * 5 = a.int
 PLAN-ROOT SINK
 |
 00:SCAN HDFS [functional.widetable_250_cols a]
-   partitions=1/1 files=1 size=28.69KB
+   partitions=1/1 files=1 size=28.69KB row-size=1.21KB cardinality=unavailable
    predicates: a.int_col1 = 10, a.int_col2 = 11, a.int_col3 = 55, a.int_col4 = -495
 ====
 # Test multiple forward propagation, and a reversed propagation
@@ -51,7 +51,7 @@ where a.int_col1 = 10 and a.int_col2 = a.int_col1 + 1 and a.int_col3 = a.int_col
 PLAN-ROOT SINK
 |
 00:SCAN HDFS [functional.widetable_250_cols a]
-   partitions=1/1 files=1 size=28.69KB
+   partitions=1/1 files=1 size=28.69KB row-size=1.21KB cardinality=unavailable
    predicates: a.int_col1 = 10, a.int_col2 = 11, a.int_col3 = 55, a.int_col4 / 10 = 55
 ====
 # Another impossibility (a.int_col3 = a.int_col2 * 5 = a.int_col2 * -7)
@@ -72,6 +72,7 @@ PLAN-ROOT SINK
 |
 01:AGGREGATE [FINALIZE]
 |  output: count(*)
+|  row-size=8B cardinality=0
 |
 00:EMPTYSET
 ====
@@ -84,6 +85,7 @@ PLAN-ROOT SINK
 |
 01:AGGREGATE [FINALIZE]
 |  output: count(*)
+|  row-size=8B cardinality=0
 |
 00:EMPTYSET
 ====
@@ -94,7 +96,7 @@ where cast(a.int_col as string) = 'abc' and cast(int_col as string) > 'xyz'
 PLAN-ROOT SINK
 |
 00:SCAN HDFS [functional.alltypes a]
-   partitions=24/24 files=24 size=478.45KB
+   partitions=24/24 files=24 size=478.45KB row-size=89B cardinality=231
    predicates: CAST(a.int_col AS STRING) = 'abc', CAST(int_col AS STRING) > 'xyz'
 ====
 # Implicit casts are considered for propagation
@@ -115,16 +117,19 @@ PLAN-ROOT SINK
 |
 03:AGGREGATE [FINALIZE]
 |  output: count(*)
+|  row-size=8B cardinality=0
 |
 02:SELECT
 |  predicates: int_col = 12, int_col > 1
+|  row-size=4B cardinality=0
 |
 01:AGGREGATE [FINALIZE]
 |  group by: int_col
 |  limit: 10
+|  row-size=4B cardinality=10
 |
 00:SCAN HDFS [functional.alltypes]
-   partitions=24/24 files=24 size=478.45KB
+   partitions=24/24 files=24 size=478.45KB row-size=4B cardinality=730
    predicates: int_col = 10
 ====
 # Many constant predicates removed
@@ -137,9 +142,10 @@ PLAN-ROOT SINK
 |
 01:AGGREGATE [FINALIZE]
 |  output: count(*)
+|  row-size=8B cardinality=1
 |
 00:SCAN HDFS [functional.alltypes]
-   partitions=24/24 files=24 size=478.45KB
+   partitions=24/24 files=24 size=478.45KB row-size=4B cardinality=730
    predicates: int_col = 10
 ====
 # All true predicates elided
@@ -151,9 +157,10 @@ PLAN-ROOT SINK
 |
 01:AGGREGATE [FINALIZE]
 |  output: count(*)
+|  row-size=8B cardinality=1
 |
 00:SCAN HDFS [functional.alltypes]
-   partitions=24/24 files=24 size=478.45KB
+   partitions=24/24 files=24 size=478.45KB row-size=0B cardinality=7.30K
 ====
 # Many redundant / duplicate predicates
  select count(*) from
@@ -204,9 +211,10 @@ PLAN-ROOT SINK
 |
 01:AGGREGATE [FINALIZE]
 |  output: count(*)
+|  row-size=8B cardinality=1
 |
 00:SCAN HDFS [functional.alltypes]
-   partitions=24/24 files=24 size=478.45KB
+   partitions=24/24 files=24 size=478.45KB row-size=4B cardinality=730
    predicates: int_col = 10
 ====
 # Non-trivial expr substitution (const false)
@@ -219,6 +227,7 @@ PLAN-ROOT SINK
 |
 01:AGGREGATE [FINALIZE]
 |  output: count(*)
+|  row-size=8B cardinality=0
 |
 00:EMPTYSET
 ====
@@ -233,9 +242,10 @@ PLAN-ROOT SINK
 |
 01:AGGREGATE [FINALIZE]
 |  output: count(*)
+|  row-size=8B cardinality=1
 |
 00:SCAN HDFS [functional.alltypes]
-   partitions=24/24 files=24 size=478.45KB
+   partitions=24/24 files=24 size=478.45KB row-size=4B cardinality=730
    predicates: int_col = 10
 ====
 # Non-trivial expr substitution (non-constant)
@@ -249,9 +259,10 @@ PLAN-ROOT SINK
 |
 01:AGGREGATE [FINALIZE]
 |  output: count(*)
+|  row-size=8B cardinality=1
 |
 00:SCAN HDFS [functional.alltypes]
-   partitions=24/24 files=24 size=478.45KB
+   partitions=24/24 files=24 size=478.45KB row-size=5B cardinality=231
    predicates: int_col = 10, TRUE OR 10 + random() * functional.alltypes.tinyint_col = 100
 ====
 # Collection predicates within HDFS scan nodes get optimized
@@ -262,23 +273,31 @@ where l_partkey < l_suppkey and c.c_nationkey = 10 and o_orderkey = 4 and l_supp
 PLAN-ROOT SINK
 |
 01:SUBPLAN
+|  row-size=50B cardinality=600.00K
 |
 |--08:NESTED LOOP JOIN [CROSS JOIN]
+|  |  row-size=50B cardinality=100
 |  |
 |  |--02:SINGULAR ROW SRC
+|  |     row-size=14B cardinality=1
 |  |
 |  04:SUBPLAN
+|  |  row-size=36B cardinality=100
 |  |
 |  |--07:NESTED LOOP JOIN [CROSS JOIN]
+|  |  |  row-size=36B cardinality=10
 |  |  |
 |  |  |--05:SINGULAR ROW SRC
+|  |  |     row-size=20B cardinality=1
 |  |  |
 |  |  06:UNNEST [o.o_lineitems]
+|  |     row-size=0B cardinality=10
 |  |
 |  03:UNNEST [c.c_orders o]
+|     row-size=0B cardinality=10
 |
 00:SCAN HDFS [tpch_nested_parquet.customer c]
-   partitions=1/1 files=4 size=292.36MB
+   partitions=1/1 files=4 size=288.99MB row-size=14B cardinality=6.00K
    predicates: c.c_nationkey = 10, !empty(c.c_orders)
    predicates on o: !empty(o.o_lineitems), o_orderkey = 4
    predicates on o_lineitems: l_partkey < 10, l_suppkey = 10
@@ -292,24 +311,32 @@ where l_partkey < l_suppkey and c.c_nationkey = 10 and o_orderkey = o_shippriori
 PLAN-ROOT SINK
 |
 01:SUBPLAN
+|  row-size=54B cardinality=600.00K
 |
 |--08:NESTED LOOP JOIN [INNER JOIN]
 |  |  join predicates: o_shippriority = c_nationkey
+|  |  row-size=54B cardinality=100
 |  |
 |  |--02:SINGULAR ROW SRC
+|  |     row-size=14B cardinality=1
 |  |
 |  04:SUBPLAN
+|  |  row-size=40B cardinality=100
 |  |
 |  |--07:NESTED LOOP JOIN [CROSS JOIN]
+|  |  |  row-size=40B cardinality=10
 |  |  |
 |  |  |--05:SINGULAR ROW SRC
+|  |  |     row-size=24B cardinality=1
 |  |  |
 |  |  06:UNNEST [o.o_lineitems]
+|  |     row-size=0B cardinality=10
 |  |
 |  03:UNNEST [c.c_orders o]
+|     row-size=0B cardinality=10
 |
 00:SCAN HDFS [tpch_nested_parquet.customer c]
-   partitions=1/1 files=4 size=292.36MB
+   partitions=1/1 files=4 size=288.99MB row-size=14B cardinality=6.00K
    predicates: c.c_nationkey = 10, !empty(c.c_orders)
    predicates on o: !empty(o.o_lineitems), o.o_orderkey = 10, o.o_shippriority = 10
    predicates on o_lineitems: l_partkey < 10, l_suppkey = 10
@@ -322,6 +349,7 @@ PLAN-ROOT SINK
 |
 01:AGGREGATE [FINALIZE]
 |  output: count(*)
+|  row-size=8B cardinality=0
 |
 00:EMPTYSET
 ====
@@ -332,6 +360,7 @@ PLAN-ROOT SINK
 |
 01:AGGREGATE [FINALIZE]
 |  output: count(*)
+|  row-size=8B cardinality=0
 |
 00:EMPTYSET
 ====
@@ -343,9 +372,10 @@ PLAN-ROOT SINK
 |
 01:AGGREGATE [FINALIZE]
 |  output: count(*)
+|  row-size=8B cardinality=1
 |
 00:SCAN HDFS [functional.alltypes]
-   partitions=24/24 files=24 size=478.45KB
+   partitions=24/24 files=24 size=478.45KB row-size=5B cardinality=730
    predicates: bool_col IS NULL, functional.alltypes.id IS NULL, id > 0, functional.alltypes.bool_col > 0, id = bool_col
 ====
 # = NULL and >
@@ -356,6 +386,7 @@ PLAN-ROOT SINK
 |
 01:AGGREGATE [FINALIZE]
 |  output: count(*)
+|  row-size=8B cardinality=0
 |
 00:EMPTYSET
 ====

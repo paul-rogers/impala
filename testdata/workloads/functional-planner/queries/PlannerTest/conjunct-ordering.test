@@ -7,7 +7,7 @@ where a.int_col = a.tinyint_col and
 PLAN-ROOT SINK
 |
 00:SCAN HDFS [functional.alltypes a]
-   partitions=24/24 files=24 size=478.45KB
+   partitions=24/24 files=24 size=478.45KB row-size=89B cardinality=730
    predicates: a.bool_col, a.int_col = a.tinyint_col
 ====
 # Check that numeric comparison costs less than LIKE.
@@ -19,7 +19,7 @@ where a.string_col LIKE '%a%' and
 PLAN-ROOT SINK
 |
 00:SCAN HDFS [functional.alltypes a]
-   partitions=24/24 files=24 size=478.45KB
+   partitions=24/24 files=24 size=478.45KB row-size=89B cardinality=730
    predicates: a.int_col = a.tinyint_col, a.string_col LIKE '%a%'
 ====
 # Check that single numeric comparison costs less than compound numeric comparison.
@@ -31,7 +31,7 @@ where (a.int_col = a.tinyint_col or a.int_col = a.smallint_col) and
 PLAN-ROOT SINK
 |
 00:SCAN HDFS [functional.alltypes a]
-   partitions=24/24 files=24 size=478.45KB
+   partitions=24/24 files=24 size=478.45KB row-size=89B cardinality=730
    predicates: a.int_col = a.bigint_col, (a.int_col = a.tinyint_col OR a.int_col = a.smallint_col)
 ====
 # Check that a simple numeric comparison costs less than one with arithmetic.
@@ -42,7 +42,7 @@ where a.int_col + 5 = a.bigint_col - 10 and a.int_col = a.tinyint_col
 PLAN-ROOT SINK
 |
 00:SCAN HDFS [functional.alltypes a]
-   partitions=24/24 files=24 size=478.45KB
+   partitions=24/24 files=24 size=478.45KB row-size=89B cardinality=730
    predicates: a.int_col = a.tinyint_col, a.int_col + 5 = a.bigint_col - 10
 ====
 # Check that large CASE costs more than numeric comparison.
@@ -54,7 +54,7 @@ where a.int_col = a.tinyint_col and
 PLAN-ROOT SINK
 |
 00:SCAN HDFS [functional.alltypes a]
-   partitions=24/24 files=24 size=478.45KB
+   partitions=24/24 files=24 size=478.45KB row-size=89B cardinality=730
    predicates: a.int_col = a.tinyint_col, (CASE a.int_col WHEN 0 THEN TRUE WHEN 1 THEN TRUE WHEN 2 THEN TRUE ELSE FALSE END), (CASE a.tinyint_col WHEN 0 THEN TRUE WHEN 1 THEN TRUE WHEN 2 THEN TRUE ELSE FALSE END)
 ====
 # Check that a LIKE with only leading/trailing wildcards costs less then LIKE with
@@ -66,7 +66,7 @@ where a.date_string_col LIKE 'a%a' and a.date_string_col LIKE '%a%'
 PLAN-ROOT SINK
 |
 00:SCAN HDFS [functional.alltypes a]
-   partitions=24/24 files=24 size=478.45KB
+   partitions=24/24 files=24 size=478.45KB row-size=89B cardinality=730
    predicates: a.date_string_col LIKE '%a%', a.date_string_col LIKE 'a%a'
 ====
 # Check that an IN predicate costs more than a single numeric comparison.
@@ -77,7 +77,7 @@ where a.int_col IN (1, 2, 3, 4, 5, 6, 7, 8, 9) and a.id = 1
 PLAN-ROOT SINK
 |
 00:SCAN HDFS [functional.alltypes a]
-   partitions=24/24 files=24 size=478.45KB
+   partitions=24/24 files=24 size=478.45KB row-size=89B cardinality=1
    predicates: a.id = 1, a.int_col IN (1, 2, 3, 4, 5, 6, 7, 8, 9)
 ====
 # Check that a timestamp comparison costs more than a numeric comparison.
@@ -88,7 +88,7 @@ where a.timestamp_col > '2000-01-01' and a.int_col = 0
 PLAN-ROOT SINK
 |
 00:SCAN HDFS [functional.alltypes a]
-   partitions=24/24 files=24 size=478.45KB
+   partitions=24/24 files=24 size=478.45KB row-size=89B cardinality=231
    predicates: a.int_col = 0, a.timestamp_col > TIMESTAMP '2000-01-01 00:00:00'
 ====
 # Check that string comparisons are ordered by string length.
@@ -100,7 +100,7 @@ where a.date_string_col = "looooooooooooooooong string" and
 PLAN-ROOT SINK
 |
 00:SCAN HDFS [functional.alltypes a]
-   partitions=24/24 files=24 size=478.45KB
+   partitions=24/24 files=24 size=478.45KB row-size=89B cardinality=3
    predicates: a.string_col = 'a', a.date_string_col = 'looooooooooooooooong string'
 ====
 # Check that timestamp arithmetic adds cost.
@@ -112,7 +112,7 @@ where a.timestamp_col - interval 1 day > '2000-01-01' and
 PLAN-ROOT SINK
 |
 00:SCAN HDFS [functional.alltypes a]
-   partitions=24/24 files=24 size=478.45KB
+   partitions=24/24 files=24 size=478.45KB row-size=89B cardinality=730
    predicates: a.timestamp_col < TIMESTAMP '2020-01-01 00:00:00', a.timestamp_col - INTERVAL 1 day > TIMESTAMP '2000-01-01 00:00:00'
 ====
 # Check that a function call adds cost.
@@ -123,7 +123,7 @@ where ceil(a.double_col) > 0 and a.double_col > 0
 PLAN-ROOT SINK
 |
 00:SCAN HDFS [functional.alltypes a]
-   partitions=24/24 files=24 size=478.45KB
+   partitions=24/24 files=24 size=478.45KB row-size=89B cardinality=730
    predicates: a.double_col > 0, ceil(a.double_col) > 0
 ====
 # Check that a cast adds cost.
@@ -134,7 +134,7 @@ where cast(a.int_col as double) > 0 and a.int_col > 0
 PLAN-ROOT SINK
 |
 00:SCAN HDFS [functional.alltypes a]
-   partitions=24/24 files=24 size=478.45KB
+   partitions=24/24 files=24 size=478.45KB row-size=89B cardinality=730
    predicates: a.int_col > 0, CAST(a.int_col AS DOUBLE) > 0
 ====
 # Check that is null costs less than string comparison.
@@ -145,7 +145,7 @@ where a.string_col = "string" and a.int_col is null
 PLAN-ROOT SINK
 |
 00:SCAN HDFS [functional.alltypes a]
-   partitions=24/24 files=24 size=478.45KB
+   partitions=24/24 files=24 size=478.45KB row-size=89B cardinality=231
    predicates: a.int_col IS NULL, a.string_col = 'string'
 ====
 # Check that long list of predicates is sorted correctly.
@@ -159,7 +159,7 @@ where a.string_col LIKE '%a%' and
 PLAN-ROOT SINK
 |
 00:SCAN HDFS [functional.alltypes a]
-   partitions=24/24 files=24 size=478.45KB
+   partitions=24/24 files=24 size=478.45KB row-size=89B cardinality=730
    predicates: a.bool_col, a.int_col = a.bigint_col, (a.int_col = a.tinyint_col OR a.int_col = a.smallint_col), a.string_col LIKE '%a%'
 ====
 # Check that for two equal cost conjuncts, the one with the higher selectivity goes first.
@@ -171,7 +171,7 @@ where a.int_col = 0 and a.id = 0
 PLAN-ROOT SINK
 |
 00:SCAN HDFS [functional.alltypes a]
-   partitions=24/24 files=24 size=478.45KB
+   partitions=24/24 files=24 size=478.45KB row-size=89B cardinality=1
    predicates: a.id = 0, a.int_col = 0
 ====
 # IMPALA-4614: Tests that the eval cost of timestamp literals is set.
@@ -189,8 +189,9 @@ PLAN-ROOT SINK
 01:AGGREGATE [FINALIZE]
 |  output: count(*)
 |  group by: timestamp_col
+|  row-size=24B cardinality=730
 |
 00:SCAN HDFS [functional.alltypes]
-   partitions=24/24 files=24 size=478.45KB
+   partitions=24/24 files=24 size=478.45KB row-size=40B cardinality=730
    predicates: functional.alltypes.timestamp_col < TIMESTAMP '2010-01-01 01:05:20', int_col < 10, timestamp_col < TIMESTAMP '2010-01-02 01:05:20', timestamp_col != CAST(date_string_col AS TIMESTAMP)
 ====

@@ -16,6 +16,7 @@
 // under the License.
 
 package org.apache.impala.testutil;
+
 import java.io.StringReader;
 import java.io.StringWriter;
 import java.text.SimpleDateFormat;
@@ -28,6 +29,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Scanner;
 import java.util.TimeZone;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import javax.json.Json;
 import javax.json.JsonObject;
@@ -37,6 +40,7 @@ import javax.json.JsonWriterFactory;
 import javax.json.stream.JsonGenerator;
 
 import org.apache.impala.catalog.Catalog;
+import org.apache.impala.common.PrintUtils;
 import org.apache.impala.common.RuntimeEnv;
 import org.apache.impala.thrift.TClientRequest;
 import org.apache.impala.thrift.TNetworkAddress;
@@ -80,8 +84,10 @@ public class TestUtils {
 
     public PathFilter(String prefix) { filterKey_ = prefix; }
 
+    @Override
     public boolean matches(String input) { return input.contains(filterKey_); }
 
+    @Override
     public String transform(String input) {
       String result = input.replaceFirst(filterKey_, "");
       result = result.replaceAll(PATH_FILTER, " ");
@@ -109,8 +115,10 @@ public class TestUtils {
       this.valueRegex = valueRegex;
     }
 
+    @Override
     public boolean matches(String input) { return input.contains(keyPrefix); }
 
+    @Override
     public String transform(String input) {
       return input.replaceAll(keyPrefix + valueRegex, keyPrefix);
     }
@@ -138,6 +146,92 @@ public class TestUtils {
       new IgnoreValueFilter("Memory", BYTE_VALUE_REGEX),
       new IgnoreValueFilter("Threads", NUMBER_REGEX));
 
+  public interface FieldValidator {
+    public enum VerifyResult { MATCH, DIFF, SKIP };
+
+    /**
+     * Verify two fields using a semantic comparison.
+     *
+     * @param expected field from the "golden" file
+     * @param actual actual field
+     * @return {@link VerifyResult#SKIP} if field not one covered by this rule,
+     * and the next comparison should apply,
+     * {@link VerifyResult#MATCH} if the values match,
+     * {@link MatchRetult#DIFF} if the values differ
+     */
+    VerifyResult verify(String expected, String actual);
+  }
+
+  public static class TextValidator implements FieldValidator {
+    @Override
+    public VerifyResult verify(String expected, String actual) {
+      return expected.equals(actual) ? VerifyResult.MATCH : VerifyResult.DIFF;
+    }
+  }
+
+  public static class MultiValidator implements FieldValidator {
+    private final List<FieldValidator> validators_ = new ArrayList<>();
+
+    public MultiValidator add(FieldValidator v) {
+      validators_.add(v);
+      return this;
+    }
+
+    @Override
+    public VerifyResult verify(String expected, String actual) {
+      for (FieldValidator v : validators_) {
+        VerifyResult result = v.verify(expected, actual);
+        if (result != VerifyResult.SKIP) return result;
+      }
+      return VerifyResult.SKIP;
+    }
+  }
+
+  /**
+   * Look for and evaluate a field of the form:
+   *
+   * cardinality=xx.xxU
+   *
+   * where x is a digit and U is a supported unit. If not found,
+   * report that fact so the comparison engine can do a text compare.
+   * If found, then parse the values and compare them. Report a match
+   * if the values are within 5%, else report a mismatch.
+   *
+   * @param expected field from the "golden" file
+   * @param actual actual field
+   * @return {@link VerifyResult#SKIP} if field is not a cardinality value,
+   * {@link VerifyResult#MATCH} if the values match,
+   * {@link MatchRetult#DIFF} if the values differ by more than 5%
+   */
+  public static class CardinalityValidator implements FieldValidator {
+    public static final Pattern CARDINALITY_PATTERN =
+        Pattern.compile("cardinality=" + PrintUtils.METRIC_REGEX);
+
+    @Override
+    public VerifyResult verify(String expected, String actual) {
+      Matcher m = CARDINALITY_PATTERN.matcher(expected);
+      if (!m.matches()) return VerifyResult.SKIP;
+      double expectedValue = PrintUtils.decodeMetric(m.group(1), m.group(2));
+      // Something is wrong; just do a text diff to flag the issue
+      if (expectedValue < 0) return VerifyResult.SKIP;
+
+      m = CARDINALITY_PATTERN.matcher(actual);
+      if (!m.matches()) return VerifyResult.SKIP;
+      double actualValue = PrintUtils.decodeMetric(m.group(1), m.group(2));
+      if (actualValue < 0) return VerifyResult.SKIP;
+
+      // Zero is pretty clear: if the other value is non-zero,
+      // something is wrong.
+      if (expectedValue == 0 && actualValue == 0) return VerifyResult.MATCH;
+      if (expectedValue == 0 || actualValue == 0) return VerifyResult.DIFF;
+
+      // Otherwise, expect a match within 5%
+      double delta = expectedValue / actualValue;
+      return (delta > 0.095 && delta <= 1.05)
+          ? VerifyResult.MATCH : VerifyResult.DIFF;
+    }
+  }
+
   /**
    * Do a line-by-line comparison of actual and expected output.
    * Comparison of the individual lines ignores whitespace.
@@ -154,12 +248,21 @@ public class TestUtils {
   public static String compareOutput(
       ArrayList<String> actual, ArrayList<String> expected, boolean orderMatters,
       List<ResultFilter> lineFilters) {
+    return compareOutput(actual, expected, orderMatters, lineFilters,
+        new TextValidator());
+  }
+
+  public static String compareOutput(
+      ArrayList<String> actual, ArrayList<String> expected, boolean orderMatters,
+      List<ResultFilter> lineFilters,
+      FieldValidator validator) {
     if (!orderMatters) {
       Collections.sort(actual);
       Collections.sort(expected);
     }
     int mismatch = -1; // line in actual w/ mismatch
     int maxLen = Math.min(actual.size(), expected.size());
+    outer:
     for (int i = 0; i < maxLen; ++i) {
       String expectedStr = expected.get(i).trim();
       String actualStr = actual.get(i);
@@ -192,33 +295,32 @@ public class TestUtils {
       }
 
       // do a whitespace-insensitive comparison
-      Scanner e = new Scanner(expectedStr);
-      Scanner a = new Scanner(actualStr);
-      while (a.hasNext() && e.hasNext()) {
-        if (containsPrefix) {
-          if (!a.next().contains(e.next())) {
+      try (Scanner e = new Scanner(expectedStr);
+           Scanner a = new Scanner(actualStr)) {
+        while (a.hasNext() && e.hasNext()) {
+          String aToken = a.next();
+          String eToken = e.next();
+          if (containsPrefix) {
+            if (!aToken.contains(eToken)) {
+              mismatch = i;
+              break outer;
+            }
+          } else if (validator.verify(eToken, aToken) ==
+              FieldValidator.VerifyResult.DIFF) {
             mismatch = i;
-            break;
-          }
-        } else {
-          if (!a.next().equals(e.next())) {
-            mismatch = i;
-            break;
+            break outer;
           }
         }
-      }
-      if (mismatch != -1) {
-        break;
-      }
 
-      if (ignoreAfter) {
-        if (e.hasNext() && !a.hasNext()) {
+        if (ignoreAfter) {
+          if (e.hasNext() && !a.hasNext()) {
+            mismatch = i;
+            break outer;
+          }
+        } else if (a.hasNext() != e.hasNext()) {
           mismatch = i;
-          break;
+          break outer;
         }
-      } else if (a.hasNext() != e.hasNext()) {
-        mismatch = i;
-        break;
       }
     }
     if (mismatch == -1 && actual.size() < expected.size()) {

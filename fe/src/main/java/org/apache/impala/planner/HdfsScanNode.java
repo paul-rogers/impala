@@ -49,9 +49,9 @@ import org.apache.impala.analysis.TupleDescriptor;
 import org.apache.impala.analysis.TupleId;
 import org.apache.impala.catalog.Column;
 import org.apache.impala.catalog.ColumnStats;
-import org.apache.impala.catalog.HdfsCompression;
 import org.apache.impala.catalog.FeFsPartition;
 import org.apache.impala.catalog.FeFsTable;
+import org.apache.impala.catalog.HdfsCompression;
 import org.apache.impala.catalog.HdfsFileFormat;
 import org.apache.impala.catalog.HdfsPartition.FileBlock;
 import org.apache.impala.catalog.HdfsPartition.FileDescriptor;
@@ -68,8 +68,8 @@ import org.apache.impala.fb.FbFileBlock;
 import org.apache.impala.service.BackendConfig;
 import org.apache.impala.thrift.TExplainLevel;
 import org.apache.impala.thrift.TExpr;
-import org.apache.impala.thrift.THdfsFileSplit;
 import org.apache.impala.thrift.TFileSplitGeneratorSpec;
+import org.apache.impala.thrift.THdfsFileSplit;
 import org.apache.impala.thrift.THdfsScanNode;
 import org.apache.impala.thrift.TNetworkAddress;
 import org.apache.impala.thrift.TPlanNode;
@@ -91,8 +91,6 @@ import com.google.common.base.Objects;
 import com.google.common.base.Objects.ToStringHelper;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
 
 /**
  * Scan of a single table.
@@ -1225,9 +1223,11 @@ public class HdfsScanNode extends ScanNode {
     output.append("]\n");
     if (detailLevel.ordinal() >= TExplainLevel.STANDARD.ordinal()) {
       if (tbl_.getNumClusteringCols() == 0) numPartitions_ = 1;
-      output.append(String.format("%spartitions=%s/%s files=%s size=%s", detailPrefix,
+      output.append(String.format("%spartitions=%d/%d files=%d size=%s ",
+          detailPrefix,
           numPartitions_, table.getPartitions().size(), totalFiles_,
           PrintUtils.printBytes(totalBytes_)));
+      explainCardinality(output);
       output.append("\n");
       if (!conjuncts_.isEmpty()) {
         output.append(String.format("%spredicates: %s\n", detailPrefix,
@@ -1273,6 +1273,9 @@ public class HdfsScanNode extends ScanNode {
     }
     return output.toString();
   }
+
+  @Override
+  protected boolean needsCardinality(TExplainLevel detailLevel) { return false; }
 
   // Helper method that prints min max original conjuncts by tuple descriptor.
   private String getMinMaxOriginalConjunctsExplainString(

@@ -46,7 +46,10 @@ import org.apache.impala.testutil.TestFileParser;
 import org.apache.impala.testutil.TestFileParser.Section;
 import org.apache.impala.testutil.TestFileParser.TestCase;
 import org.apache.impala.testutil.TestUtils;
+import org.apache.impala.testutil.TestUtils.CardinalityValidator;
+import org.apache.impala.testutil.TestUtils.MultiValidator;
 import org.apache.impala.testutil.TestUtils.ResultFilter;
+import org.apache.impala.testutil.TestUtils.TextValidator;
 import org.apache.impala.thrift.ImpalaInternalServiceConstants;
 import org.apache.impala.thrift.TDescriptorTable;
 import org.apache.impala.thrift.TExecRequest;
@@ -74,8 +77,8 @@ import org.apache.impala.util.ExecutorMembershipSnapshot;
 import org.apache.kudu.client.KuduClient;
 import org.apache.kudu.client.KuduScanToken;
 import org.junit.AfterClass;
-import org.junit.BeforeClass;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -357,7 +360,8 @@ public class PlannerTestBase extends FrontendTestBase {
 
   private void handleException(String query, String expectedErrorMsg,
       StringBuilder errorLog, StringBuilder actualOutput, Throwable e) {
-    actualOutput.append(e.toString() + "\n");
+    String actualErrorMsg = e.getClass().getSimpleName() + ": " + e.getMessage();
+    actualOutput.append(actualErrorMsg).append("\n");
     if (expectedErrorMsg == null) {
       // Exception is unexpected
       errorLog.append(String.format("Query:\n%s\nError Stack:\n%s\n", query,
@@ -365,7 +369,6 @@ public class PlannerTestBase extends FrontendTestBase {
     } else {
       // Compare actual and expected error messages.
       if (expectedErrorMsg != null && !expectedErrorMsg.isEmpty()) {
-        String actualErrorMsg = e.getClass().getSimpleName() + ": " + e.getMessage();
         if (!actualErrorMsg.toLowerCase().startsWith(expectedErrorMsg.toLowerCase())) {
           errorLog.append("query:\n" + query + "\nExpected error message: '"
               + expectedErrorMsg + "'\nActual error message: '" + actualErrorMsg + "'\n");
@@ -535,8 +538,12 @@ public class PlannerTestBase extends FrontendTestBase {
       if (!testOptions.contains(PlannerTestOption.VALIDATE_RESOURCES)) {
         resultFilters.addAll(TestUtils.RESOURCE_FILTERS);
       }
+      MultiValidator validator = new MultiValidator()
+          .add(new CardinalityValidator())
+          .add(new TextValidator());
       String planDiff = TestUtils.compareOutput(
-          Lists.newArrayList(explainStr.split("\n")), expectedPlan, true, resultFilters);
+          Lists.newArrayList(explainStr.split("\n")), expectedPlan,
+          true, resultFilters, validator);
       if (!planDiff.isEmpty()) {
         errorLog.append(String.format(
             "\nSection %s of query:\n%s\n\n%s", section, query, planDiff));

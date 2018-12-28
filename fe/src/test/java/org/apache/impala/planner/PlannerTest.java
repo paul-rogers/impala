@@ -539,11 +539,16 @@ public class PlannerTest extends PlannerTestBase {
   }
 
   @Test
-  public void testDefaultJoinDistributionMode() {
+  public void testDefaultJoinDistributionBroadcastMode() {
     TQueryOptions options = defaultQueryOptions();
     Preconditions.checkState(
         options.getDefault_join_distribution_mode() == TJoinDistributionMode.BROADCAST);
     runPlannerTestFile("default-join-distr-mode-broadcast", options);
+  }
+
+  @Test
+  public void testDefaultJoinDistributionShuffleMode() {
+    TQueryOptions options = defaultQueryOptions();
     options.setDefault_join_distribution_mode(TJoinDistributionMode.SHUFFLE);
     runPlannerTestFile("default-join-distr-mode-shuffle", options);
   }
