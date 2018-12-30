@@ -201,10 +201,6 @@ abstract public class PlanNode extends TreeNode<PlanNode> {
 
   public PlanNodeId getId() { return id_; }
   public List<PipelineMembership> getPipelines() { return pipelines_; }
-  public void setId(PlanNodeId id) {
-    Preconditions.checkState(id_ == null);
-    id_ = id;
-  }
   public long getLimit() { return limit_; }
   public boolean hasLimit() { return limit_ > -1; }
   public long getCardinality() { return cardinality_; }
@@ -217,8 +213,15 @@ abstract public class PlanNode extends TreeNode<PlanNode> {
   public ExprSubstitutionMap getOutputSmap() { return outputSmap_; }
   public void setOutputSmap(ExprSubstitutionMap smap) { outputSmap_ = smap; }
   public Set<ExprId> getAssignedConjuncts() { return assignedConjuncts_; }
+  public String displayName() { return displayName_; }
+
   public void setAssignedConjuncts(Set<ExprId> conjuncts) {
     assignedConjuncts_ = conjuncts;
+  }
+
+  public void setId(PlanNodeId id) {
+    Preconditions.checkState(id_ == null);
+    id_ = id;
   }
 
   /**

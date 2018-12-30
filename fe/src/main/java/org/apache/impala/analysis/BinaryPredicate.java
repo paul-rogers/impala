@@ -207,15 +207,40 @@ public class BinaryPredicate extends Predicate {
 
     // Determine selectivity
     // TODO: Compute selectivity for nested predicates.
-    // TODO: Improve estimation using histograms.
     Reference<SlotRef> slotRefRef = new Reference<SlotRef>();
-    if ((op_ == Operator.EQ || op_ == Operator.NOT_DISTINCT)
-        && isSingleColumnPredicate(slotRefRef, null)) {
-      long distinctValues = slotRefRef.getRef().getNumDistinctValues();
+    if (!isSingleColumnPredicate(slotRefRef, null)) return;
+    long distinctValues = slotRefRef.getRef().getNumDistinctValues();
+    switch (op_) {
+    case EQ:
+    case NOT_DISTINCT:
+    case NULL_MATCHING_EQ:
       if (distinctValues > 0) {
         selectivity_ = 1.0 / distinctValues;
-        selectivity_ = Math.max(0, Math.min(1, selectivity_));
+      } else {
+        selectivity_ = 0.1;
       }
+      break;
+    case DISTINCT_FROM:
+    case NE:
+      if (distinctValues > 0) {
+        selectivity_ = 1.0 - 1.0 / distinctValues;
+      } else {
+        selectivity_ = 0.9;
+      }
+      break;
+    case GE:
+    case GT:
+    case LE:
+    case LT:
+      // TODO: Improve estimation using histograms.
+      // TODO: At least gather min/max values and assume uniform distribution
+      selectivity_ = 0.33;
+      break;
+    default:
+      break;
+    }
+    if (selectivity_ != -1) {
+      selectivity_ = Math.max(0, Math.min(1, selectivity_));
     }
   }
 

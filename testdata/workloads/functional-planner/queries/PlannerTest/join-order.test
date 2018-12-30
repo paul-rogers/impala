@@ -32,12 +32,12 @@ PLAN-ROOT SINK
 05:AGGREGATE [FINALIZE]
 |  output: sum(l_extendedprice * (1 - l_discount))
 |  group by: l_orderkey, o_orderdate, o_shippriority
-|  row-size=50B cardinality=17.56K
+|  row-size=50B cardinality=11.52K
 |
 04:HASH JOIN [INNER JOIN]
 |  hash predicates: o.o_custkey = c.c_custkey
 |  runtime filters: RF000 <- c.c_custkey
-|  row-size=117B cardinality=17.56K
+|  row-size=117B cardinality=11.52K
 |
 |--00:SCAN HDFS [tpch.customer c]
 |     partitions=1/1 files=1 size=23.08MB row-size=29B cardinality=30.00K
@@ -71,19 +71,19 @@ PLAN-ROOT SINK
 10:AGGREGATE [FINALIZE]
 |  output: sum:merge(l_extendedprice * (1 - l_discount))
 |  group by: l_orderkey, o_orderdate, o_shippriority
-|  row-size=50B cardinality=17.56K
+|  row-size=50B cardinality=11.52K
 |
 09:EXCHANGE [HASH(l_orderkey,o_orderdate,o_shippriority)]
 |
 05:AGGREGATE [STREAMING]
 |  output: sum(l_extendedprice * (1 - l_discount))
 |  group by: l_orderkey, o_orderdate, o_shippriority
-|  row-size=50B cardinality=17.56K
+|  row-size=50B cardinality=11.52K
 |
 04:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: o.o_custkey = c.c_custkey
 |  runtime filters: RF000 <- c.c_custkey
-|  row-size=117B cardinality=17.56K
+|  row-size=117B cardinality=11.52K
 |
 |--08:EXCHANGE [BROADCAST]
 |  |
@@ -142,12 +142,12 @@ PLAN-ROOT SINK
 05:AGGREGATE [FINALIZE]
 |  output: sum(l_extendedprice * (1 - l_discount))
 |  group by: l_orderkey, o_orderdate, o_shippriority
-|  row-size=50B cardinality=575.77K
+|  row-size=50B cardinality=11.52K
 |
 04:HASH JOIN [INNER JOIN]
 |  hash predicates: o.o_orderkey = l.l_orderkey
 |  runtime filters: RF000 <- l.l_orderkey
-|  row-size=117B cardinality=575.77K
+|  row-size=117B cardinality=11.52K
 |
 |--02:SCAN HDFS [tpch.lineitem l]
 |     partitions=1/1 files=1 size=718.94MB row-size=46B cardinality=600.12K
@@ -156,7 +156,7 @@ PLAN-ROOT SINK
 03:HASH JOIN [INNER JOIN]
 |  hash predicates: c.c_custkey = o.o_custkey
 |  runtime filters: RF002 <- o.o_custkey
-|  row-size=71B cardinality=150.00K
+|  row-size=71B cardinality=30.00K
 |
 |--01:SCAN HDFS [tpch.orders o]
 |     partitions=1/1 files=1 size=162.56MB row-size=42B cardinality=150.00K

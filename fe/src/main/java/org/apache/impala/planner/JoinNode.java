@@ -252,11 +252,14 @@ public abstract class JoinNode extends PlanNode {
     Preconditions.checkState(joinOp_.isInnerJoin() || joinOp_.isOuterJoin());
     fkPkEqJoinConjuncts_ = Collections.emptyList();
 
-    long lhsCard = getChild(0).cardinality_;
-    long rhsCard = getChild(1).cardinality_;
-    if (lhsCard == -1 || rhsCard == -1) {
+    PlanNode probeNode = getChild(0);
+    PlanNode buildNode = getChild(1);
+    long probeCard = probeNode.cardinality_;
+    long buildCard = buildNode.cardinality_;
+    if (probeCard == -1 || buildCard == -1) {
       // Assume FK/PK with a join selectivity of 1.
-      return lhsCard;
+      // See IMPALA-XXXX
+      return probeCard;
     }
 
     // Collect join conjuncts that are eligible to participate in cardinality estimation.
@@ -269,15 +272,105 @@ public abstract class JoinNode extends PlanNode {
     if (eqJoinConjunctSlots.isEmpty()) {
       // There are no eligible equi-join conjuncts. Optimistically assume FK/PK with a
       // join selectivity of 1.
-      return lhsCard;
+      // See IMPALA-XXXX
+      return probeCard;
     }
 
-    fkPkEqJoinConjuncts_ = getFkPkEqJoinConjuncts(eqJoinConjunctSlots);
-    if (fkPkEqJoinConjuncts_ != null) {
-      return getFkPkJoinCardinality(fkPkEqJoinConjuncts_, lhsCard, rhsCard);
-    } else {
-      return getGenericJoinCardinality(eqJoinConjunctSlots, lhsCard, rhsCard);
+    // Determine the table cardinality to use to clamp the estimated
+    // cardinality of a compound key. It is the table cardinality for tables,
+    // but the join cardinality for joins. (Note: it is NOT correct to use the
+    // scan cardinality for tables.)
+    // The probe side is normally the one that is adjusted since it may be
+    // the output of another join for which no base table cardinality applies.
+    long probeTableCard = probeNode instanceof ScanNode ?
+                          probeNode.getInputCardinality() : probeCard;
+    long buildTableCard = buildNode instanceof ScanNode ?
+                          buildNode.getInputCardinality() : buildCard;
+
+    {
+      System.out.print(getChild(0).displayName());
+      System.out.print(" ");
+      System.out.print(getChild(0).getDisplayLabelDetail());
+      System.out.print(" card=" + probeCard);
+      System.out.print(" table=" + probeTableCard);
+      System.out.print(" >< ");
+      System.out.print(getChild(1).displayName());
+      System.out.print(" ");
+      System.out.print(getChild(1).getDisplayLabelDetail());
+      System.out.print(" card=" + buildCard);
+      System.out.println(" table=" + buildTableCard);
     }
+    List<EqJoinConjunctScanSlots> joinKeys =
+        fkPkEqJoinConjuncts_ .isEmpty() ? eqJoinConjunctSlots : fkPkEqJoinConjuncts_;
+    long result = estimateJoinCardinality(joinKeys, probeCard, probeTableCard,
+        buildCard, buildTableCard);
+    System.out.println("  --> " + result);
+    return result;
+//    if (fkPkEqJoinConjuncts_ != null) {
+//      return getFkPkJoinCardinality(fkPkEqJoinConjuncts_, probeCard, buildCard);
+//    } else {
+//      return getGenericJoinCardinality(eqJoinConjunctSlots, probeCard, buildCard);
+//    }
+  }
+
+  /**
+   * Compute the estimated join cardinality using the expression derived in IMPALA-8014:
+   *
+   * <pre>
+   *                     |scan(P)| * |scan(B)|
+   * |join| = ---------------------------------------------
+   *          max(min(Prod(P.ki|, |P|), min(Prod|B.ki|, |B|))
+   * </pre>
+   *
+   * Where:
+   *
+   * * P is the probe (left) table
+   * * B is the build (right) table
+   * * Pki (Bki) is the ith join key on the probe (build) side
+   *
+   * If the join keys are compound (more than one), we assume key independence
+   * and use the multiplicative rule. (See the S&S paper cited below.)
+   *
+   * @param joinKeys
+   * @param probeScanCard probe (left, lhs, detail) cardinality after
+   * applying filters (generally, the result of some join subtree)
+   * @param buildScanCard build (right, rhs, master) cardinality after
+   * applying filters
+   * @param buildTableCard build side table cardinality
+   * @return estimated cardinality of this join
+   * @see <a href=
+   * "https://pdfs.semanticscholar.org/2735/672262940a23cfce8d4cc1e25c0191de7da7.pdf">
+   * S & S Paper</a>.
+   */
+
+  private long estimateJoinCardinality(List<EqJoinConjunctScanSlots> joinKeys,
+      long probeScanCard, long probeTableCard,
+      long buildScanCard, long buildTableCard) {
+    Preconditions.checkState(!joinKeys.isEmpty());
+    Preconditions.checkState(probeScanCard >= 0 && buildScanCard >= 0);
+
+    // Bail out fast in the |build| = 0 case. We may have an EmptySet node.
+    // But, the NDV of the build columns still have their values from earlier
+    // in the plan; continuing will cause us to work with meaningless numbers.
+    if (buildScanCard == 0 || probeScanCard == 0) return 0;
+
+    // Compute the joint NDV (cardinality) of the join keys assuming
+    // the multiplicative rule, and observing that |key| <= |T|.
+    double jointProbeKeyCard = 1;
+    double jointBuildKeyCard = 1;
+    for (EqJoinConjunctScanSlots joinKey : joinKeys) {
+      jointProbeKeyCard *= joinKey.lhsNdv();
+      jointBuildKeyCard *= joinKey.rhsNdv();
+    }
+    jointProbeKeyCard = Math.min(jointProbeKeyCard, probeTableCard);
+    jointBuildKeyCard = Math.min(jointBuildKeyCard, buildTableCard);
+
+    // Apply the cardinality expression
+    double joinCard = (double) probeScanCard * (double) buildScanCard /
+                      Math.max(jointProbeKeyCard, jointBuildKeyCard);
+
+    // Clamp the value to the range (1, MAX_LONG)
+    return Math.max(1, Math.round(Math.min(joinCard, Long.MAX_VALUE)));
   }
 
   /**

@@ -17,7 +17,8 @@
 
 package org.apache.impala.analysis;
 
-import java.lang.reflect.Method;
+import static org.apache.impala.analysis.ToSqlOptions.DEFAULT;
+
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.HashSet;
@@ -51,8 +52,6 @@ import com.google.common.base.Preconditions;
 import com.google.common.base.Predicates;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
-
-import static org.apache.impala.analysis.ToSqlOptions.DEFAULT;
 
 /**
  * Root of the expr node hierarchy.

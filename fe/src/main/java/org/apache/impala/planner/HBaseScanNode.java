@@ -36,6 +36,7 @@ import org.apache.impala.analysis.LiteralExpr;
 import org.apache.impala.analysis.SlotDescriptor;
 import org.apache.impala.analysis.StringLiteral;
 import org.apache.impala.analysis.TupleDescriptor;
+import org.apache.impala.catalog.Column;
 import org.apache.impala.catalog.FeHBaseTable;
 import org.apache.impala.catalog.HBaseColumn;
 import org.apache.impala.catalog.PrimitiveType;
@@ -62,7 +63,6 @@ import org.slf4j.LoggerFactory;
 import com.google.common.base.Objects;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
 
 /**
  * Full scan of an HBase table.
@@ -224,6 +224,20 @@ public class HBaseScanNode extends ScanNode {
       }
     }
     inputCardinality_ = cardinality_;
+
+    // Hbase has a longstanding issue that we cannot accurately estimate table
+    // cardinality. However, we do estimate column cardinality (NDV). Use the
+    // maximum column cardinality to fudge the table cardinality upward, observing
+    // that no column can have more keys than there are rows.
+    for (Column col : tbl.getColumns()) {
+      inputCardinality_ = Math.max(inputCardinality_,
+                                   col.getStats().getNumDistinctValues());
+    }
+    if (inputCardinality_ > cardinality_) {
+      LOG.info("computeStats: table cardinality={}, adjusted to={}",
+               cardinality_, inputCardinality_);
+      System.out.println("HBase: " + cardinality_ + " --> " + inputCardinality_);
+    }
 
     cardinality_ *= computeSelectivity();
     cardinality_ = Math.max(1, cardinality_);
