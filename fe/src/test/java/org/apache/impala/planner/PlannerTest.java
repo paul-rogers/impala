@@ -48,6 +48,23 @@ import com.google.common.collect.Lists;
 // All planner tests, except for S3 specific tests should go here.
 public class PlannerTest extends PlannerTestBase {
 
+  /**
+   * Test planner cardinality propagation, starting from predicates
+   * applied to a scan.
+   */
+  @Test
+  public void testScanCardinalityPropagation() {
+    runPlannerTestFile("card-scan");
+  }
+
+  /**
+   * Continue planner cardinality propagation with various join scenarios.
+   */
+  @Test
+  public void testJoinCardinalityPropagation() {
+    runPlannerTestFile("card-join");
+  }
+
   @Test
   public void testPredicatePropagation() {
     runPlannerTestFile("predicate-propagation");
