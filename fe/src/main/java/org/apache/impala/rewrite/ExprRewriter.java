@@ -22,6 +22,7 @@ import java.util.List;
 import org.apache.impala.analysis.Analyzer;
 import org.apache.impala.analysis.Expr;
 import org.apache.impala.common.AnalysisException;
+
 import com.google.common.collect.Lists;
 
 /**

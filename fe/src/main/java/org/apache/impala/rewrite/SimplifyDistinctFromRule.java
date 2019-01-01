@@ -19,7 +19,6 @@ package org.apache.impala.rewrite;
 
 import org.apache.impala.analysis.Analyzer;
 import org.apache.impala.analysis.BinaryPredicate;
-import org.apache.impala.analysis.BoolLiteral;
 import org.apache.impala.analysis.Expr;
 
 /**
@@ -38,19 +37,9 @@ public class SimplifyDistinctFromRule implements ExprRewriteRule {
   public Expr apply(Expr expr, Analyzer analyzer) {
     if (!expr.isAnalyzed()) return expr;
 
-    if (expr instanceof BinaryPredicate) {
-      BinaryPredicate pred = (BinaryPredicate) expr;
-      if (pred.getOp() == BinaryPredicate.Operator.NOT_DISTINCT) {
-        if (pred.getChild(0).equals(pred.getChild(1))) {
-          return new BoolLiteral(true);
-        }
-      }
-      if (pred.getOp() == BinaryPredicate.Operator.DISTINCT_FROM) {
-        if (pred.getChild(0).equals(pred.getChild(1))) {
-          return new BoolLiteral(false);
-        }
-      }
-    }
-    return expr;
+    if (!(expr instanceof BinaryPredicate)) return expr;
+    BinaryPredicate pred = (BinaryPredicate) expr;
+    Expr result = pred.simplifyDistinctFrom();
+    return result == null ? expr : result;
   }
 }

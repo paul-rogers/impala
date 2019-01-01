@@ -376,11 +376,14 @@ public class Analyzer {
   // conjunct evaluating to false.
   private boolean hasEmptySpjResultSet_ = false;
 
+  private final ExprAnalyzer exprAnalyzer_;
+
   public Analyzer(StmtTableCache stmtTableCache, TQueryCtx queryCtx,
       AuthorizationConfig authzConfig) {
     ancestors_ = new ArrayList<>();
     globalState_ = new GlobalState(stmtTableCache, queryCtx, authzConfig);
     user_ = new User(TSessionStateUtil.getEffectiveUser(queryCtx.session));
+    exprAnalyzer_ = new ExprAnalyzer(this);
   }
 
   /**
@@ -404,6 +407,7 @@ public class Analyzer {
     maskPrivChecks_ = parentAnalyzer.maskPrivChecks_;
     enablePrivChecks_ = parentAnalyzer.enablePrivChecks_;
     isWithClause_ = parentAnalyzer.isWithClause_;
+    exprAnalyzer_ = new ExprAnalyzer(this);
   }
 
   /**
@@ -2688,4 +2692,17 @@ public class Analyzer {
     return getAuthzConfig().isEnabled() ? getAuthzConfig().getServerName().intern() :
         null;
   }
+
+  /**
+   * Normal expression analysis and rewrite. The output expression may differ
+   * from the input, and analysis errors may occur.
+   *
+   * @param expr the expression to analyze and rewrite
+   * @return the possibly rewritten expression that should replace the input
+   */
+  public Expr analyzeAndRewrite(Expr expr) throws AnalysisException {
+    return exprAnalyzer_.analyze(expr);
+  }
+
+  public ExprAnalyzer exprAnalyzer() { return exprAnalyzer_; }
 }

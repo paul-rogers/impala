@@ -17,6 +17,7 @@
 
 package org.apache.impala.analysis;
 
+import org.apache.impala.analysis.ExprAnalyzer.RewriteMode;
 import org.apache.impala.catalog.ScalarType;
 import org.apache.impala.common.AnalysisException;
 import org.apache.impala.thrift.TExprNode;
@@ -89,6 +90,37 @@ public class BetweenPredicate extends Predicate {
   protected float computeEvalCost() { return UNKNOWN_COST; }
 
   public boolean isNotBetween() { return isNotBetween_; }
+
+  /**
+   * Rewrites BetweenPredicates into an equivalent conjunctive/disjunctive
+   * CompoundPredicate.
+   * It can be applied to pre-analysis expr trees and therefore does not reanalyze
+   * the transformation output itself.
+   * Examples:
+   * A BETWEEN X AND Y ==> A >= X AND A <= Y
+   * A NOT BETWEEN X AND Y ==> (A < X OR A > Y)
+   *
+   * BetweenPredicates must be rewritten to be executable.
+   */
+  @Override
+  public Expr rewrite(ExprAnalyzer exprAnalyzer) {
+    if (!exprAnalyzer.isEnabled(RewriteMode.REQUIRED)) return this;
+    if (isNotBetween()) {
+      // Rewrite into disjunction.
+      Predicate lower = new BinaryPredicate(BinaryPredicate.Operator.LT,
+          getChild(0), getChild(1));
+      Predicate upper = new BinaryPredicate(BinaryPredicate.Operator.GT,
+          getChild(0), getChild(2));
+      return new CompoundPredicate(CompoundPredicate.Operator.OR, lower, upper);
+    } else {
+      // Rewrite into conjunction.
+      Predicate lower = new BinaryPredicate(BinaryPredicate.Operator.GE,
+          getChild(0), getChild(1));
+      Predicate upper = new BinaryPredicate(BinaryPredicate.Operator.LE,
+          getChild(0), getChild(2));
+      return new CompoundPredicate(CompoundPredicate.Operator.AND, lower, upper);
+    }
+  }
 
   @Override
   protected void toThrift(TExprNode msg) {

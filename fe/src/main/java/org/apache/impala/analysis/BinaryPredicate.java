@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import org.apache.impala.analysis.ExprAnalyzer.RewriteMode;
 import org.apache.impala.catalog.Db;
 import org.apache.impala.catalog.Function.CompareMode;
 import org.apache.impala.catalog.ScalarFunction;
@@ -217,6 +218,76 @@ public class BinaryPredicate extends Predicate {
         selectivity_ = Math.max(0, Math.min(1, selectivity_));
       }
     }
+  }
+
+
+  @Override
+  public Expr rewrite(ExprAnalyzer exprAnalyzer) {
+    if (!exprAnalyzer.isEnabled(RewriteMode.OPTIONAL)) return this;
+
+    Expr result = normalize();
+    if (result != null) return result;
+    result = simplifyDistinctFrom();
+    return result == null ? this : result;
+  }
+
+  /**
+   * Normalizes binary predicates of the form <expr> <op> <slot> so that the slot is
+   * on the left hand side. Predicates where <slot> is wrapped in a cast (implicit or
+   * explicit) are normalized, too. Predicates of the form <constant> <op> <expr>
+   * are also normalized so that <constant> is always on the right hand side.
+   *
+   * Examples:
+   * 5 > id -> id < 5
+   * cast(0 as double) = id -> id = cast(0 as double)
+   * 5 = id + 2 -> id + 2 = 5
+   * id + 5 = int_col -> int_col = id + 5
+   *
+   * The last form above ensures that, if both sides have a slot, the one with the
+   * "bare" slot is put on the left.
+   *
+   * Binary predicates must be rewritten to a canonical form for both Kudu predicate
+   * pushdown and Parquet row group pruning based on min/max statistics.
+   */
+  public Expr normalize() {
+    // Null matching eq does not support converse()
+    // TODO: is this intentional: should such exprs be rewritten?
+    if ((isExprOpSlotRef() || isConstantOpExpr()) && op_ != Operator.NULL_MATCHING_EQ) {
+      return new BinaryPredicate(getOp().converse(), getChild(1), getChild(0));
+    }
+    return null;
+  }
+
+  private boolean isConstantOpExpr() {
+    return getChild(0).isConstant() && !getChild(1).isConstant();
+  }
+
+  private boolean isExprOpSlotRef() {
+    return getChild(0).unwrapSlotRef(false) == null
+        && getChild(1).unwrapSlotRef(false) != null;
+  }
+
+  /**
+   * Simplifies DISTINCT FROM and NOT DISTINCT FROM predicates
+   * where the arguments are identical expressions.
+   *
+   * x IS DISTINCT FROM x -> false
+   * x IS NOT DISTINCT FROM x -> true
+   *
+   * Note that "IS NOT DISTINCT FROM" and the "<=>" are the same.
+   */
+  public Expr simplifyDistinctFrom() {
+    if (getOp() == BinaryPredicate.Operator.NOT_DISTINCT) {
+      if (getChild(0).equals(getChild(1))) {
+        return new BoolLiteral(true);
+      }
+    }
+    else if (getOp() == BinaryPredicate.Operator.DISTINCT_FROM) {
+      if (getChild(0).equals(getChild(1))) {
+        return new BoolLiteral(false);
+      }
+    }
+    return null;
   }
 
   @Override

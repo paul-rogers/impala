@@ -19,6 +19,7 @@ package org.apache.impala.analysis;
 
 import java.util.List;
 
+import org.apache.impala.analysis.ExprAnalyzer.RewriteMode;
 import org.apache.impala.authorization.Privilege;
 import org.apache.impala.catalog.AggregateFunction;
 import org.apache.impala.catalog.BuiltinsDb;
@@ -39,6 +40,7 @@ import org.apache.impala.thrift.TQueryOptions;
 import com.google.common.base.Joiner;
 import com.google.common.base.Objects;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 
 public class FunctionCallExpr extends Expr {
@@ -624,6 +626,134 @@ public class FunctionCallExpr extends Expr {
     if (type_.isWildcardChar() || type_.isWildcardVarchar()) {
       type_ = ScalarType.STRING;
     }
+  }
+
+  /**
+   * Simplify conditional functions with constant conditions. It relies on
+   * constant folding to replace the constant conditions with a BoolLiteral or NullLiteral
+   * first, and on NormalizeExprsRule to normalize CompoundPredicates.
+   *
+   * Examples:
+   * if (true, 0, 1) -> 0
+   * id = 0 OR false -> id = 0
+   * false AND id = 1 -> false
+   * coalesce(1, 0) -> 1
+   *
+   * Unary functions like isfalse, isnotfalse, istrue, isnottrue, nullvalue,
+   * and nonnullvalue don't need special handling as the fold constants rule
+   * will handle them.  nullif and nvl2 are converted to an if in FunctionCallExpr,
+   * and therefore don't need handling here.
+   *
+   * Note that FunctionalCallExpr.createExpr() converts "nvl2" into "if",
+   * and "nullif" into "if".
+   */
+  @Override
+  protected Expr rewrite(ExprAnalyzer exprAnalyzer) throws AnalysisException {
+    if (!exprAnalyzer.isEnabled(RewriteMode.OPTIONAL)) return this;
+    Expr result = simplifyConditionals();
+    if (result != null) return result;
+    result = normalizeCountStar();
+    return result == null ? this : result;
+  }
+
+  private static List<String> IFNULL_ALIASES = ImmutableList.of(
+      "ifnull", "isnull", "nvl");
+
+  // Visible to allow calls from the legacy expr rewriter
+  public Expr simplifyConditionals() {
+    String fnName = getFnName().getFunction();
+    if (fnName.equals("if")) {
+      return simplifyIfFunctionCallExpr();
+    } else if (fnName.equals("coalesce")) {
+      return simplifyCoalesceFunctionCallExpr();
+    } else if (IFNULL_ALIASES.contains(fnName)) {
+      return simplifyIfNullFunctionCallExpr();
+    }
+    return null;
+  }
+
+  /**
+   * Simplifies IF by returning the corresponding child if the condition has a constant
+   * TRUE, FALSE, or NULL (equivalent to FALSE) value.
+   */
+  private Expr simplifyIfFunctionCallExpr() {
+    Preconditions.checkState(getChildCount() == 3);
+    Expr head = getChild(0);
+    if (Expr.IS_TRUE_LITERAL.apply(head)) {
+      // IF(TRUE)
+      return getChild(1);
+    } else if (Expr.IS_FALSE_LITERAL.apply(head)) {
+      // IF(FALSE)
+      return getChild(2);
+    } else if (Expr.IS_NULL_LITERAL.apply(head)) {
+      // IF(NULL)
+      return getChild(2);
+    }
+    return null;
+  }
+
+  /**
+   * Simplifies IFNULL if the condition is a literal, using the
+   * following transformations:
+   *   IFNULL(NULL, x) -> x
+   *   IFNULL(a, x) -> a, if a is a non-null literal
+   */
+  private Expr simplifyIfNullFunctionCallExpr() {
+    Preconditions.checkState(getChildCount() == 2);
+    Expr child0 = getChild(0);
+    if (Expr.IS_NULL_LITERAL.apply(child0)) return getChild(1);
+    if (Expr.IS_LITERAL.apply(child0)) return child0;
+    return null;
+  }
+
+  /**
+   * Simplify COALESCE by skipping leading nulls and applying the following transformations:
+   * COALESCE(null, a, b) -> COALESCE(a, b);
+   * COALESCE(<literal>, a, b) -> <literal>, when literal is not NullLiteral;
+   */
+  private Expr simplifyCoalesceFunctionCallExpr() {
+    int numChildren = getChildCount();
+    Expr result = NullLiteral.create(getType());
+    for (int i = 0; i < numChildren; ++i) {
+      Expr childExpr = getChild(i);
+      // Skip leading nulls.
+      if (Expr.IS_NULL_VALUE.apply(childExpr)) continue;
+      if ((i == numChildren - 1) || Expr.IS_LITERAL.apply(childExpr)) {
+        result = childExpr;
+      } else if (i == 0) {
+        result = this;
+      } else {
+        List<Expr> newChildren = Lists.newArrayList(getChildren().subList(i, numChildren));
+        result = new FunctionCallExpr(getFnName(), newChildren);
+      }
+      break;
+    }
+    return result == this ? null : result;
+  }
+
+  /**
+   * Replaces count(<literal>) with an equivalent count{*}.
+   *
+   * Examples:
+   * count(1)    --> count(*)
+   * count(2017) --> count(*)
+   * count(null) --> count(null)
+   */
+  public Expr normalizeCountStar() {
+    if (!getFnName().getFunction().equalsIgnoreCase("count")) return null;
+    if (getParams().isStar()) return null;
+    if (getParams().isDistinct()) return null;
+    if (getParams().exprs().size() != 1) return null;
+    Expr child = getChild(0);
+    if (!Expr.IS_LITERAL.apply(child)) return null;
+    if (Expr.IS_NULL_VALUE.apply(child)) return null;
+    return new FunctionCallExpr(new FunctionName("count"), FunctionParams.createStarParam());
+  }
+
+  @Override
+  protected void computeNumDistinctValues() {
+    if (fn_ instanceof AggregateFunction) numDistinctValues_ = 1;
+    else super.computeNumDistinctValues();
   }
 
   @Override

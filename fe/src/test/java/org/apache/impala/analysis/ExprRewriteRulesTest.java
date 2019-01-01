@@ -24,6 +24,7 @@ import static org.junit.Assert.fail;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.apache.impala.analysis.ExprAnalyzer.RewriteMode;
 import org.apache.impala.catalog.ScalarType;
 import org.apache.impala.common.AnalysisException;
 import org.apache.impala.common.FrontendTestBase;
@@ -86,6 +87,8 @@ public class ExprRewriteRulesTest extends FrontendTestBase {
      */
     public Expr rewrite(Expr origExpr, List<ExprRewriteRule> rules,
         boolean requireFire) throws AnalysisException {
+      // Force full rewrite mode
+      analyzer().exprAnalyzer().setRewriteMode(RewriteMode.OPTIONAL);
       // Wrap the rules in a (stateful) rule that counts the
       // number of times each wrapped rule fires.
       List<ExprRewriteRule> wrappedRules = new ArrayList<>();

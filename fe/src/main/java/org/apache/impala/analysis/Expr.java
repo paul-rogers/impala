@@ -439,6 +439,11 @@ abstract public class Expr extends TreeNode<Expr> implements ParseNode, Cloneabl
   abstract protected void analyzeImpl(Analyzer analyzer) throws AnalysisException;
 
   /**
+   * Rewrite this expression using rewrite rules.
+   */
+  protected Expr rewrite(ExprAnalyzer exprAnalyzer) throws AnalysisException { return this; }
+
+  /**
    * Helper function to analyze this expr and assert that the analysis was successful.
    * TODO: This function could be used in many more places to clean up. Consider
    * adding an IAnalyzable interface or similar to and move this helper into Analyzer
