@@ -338,6 +338,83 @@ PLAN-ROOT SINK
    predicates: m.c_name = 'foo'
    runtime filters: RF000 -> m.c_custkey
 ====
+# Correlated filtering on master
+# |join| = |D| / |M|
+# TODO: Bug
+select m.c_custkey, d.o_custkey
+from tpch.customer m,
+     tpch.orders d
+where m.c_custkey = d.o_custkey
+  and m.c_custkey = 10
+---- PLAN
+PLAN-ROOT SINK
+|
+02:HASH JOIN [INNER JOIN]
+|  hash predicates: d.o_custkey = m.c_custkey
+|  runtime filters: RF000 <- m.c_custkey
+|  row-size=16B cardinality=1
+|
+|--00:SCAN HDFS [tpch.customer m]
+|     partitions=1/1 files=1 size=23.08MB row-size=8B cardinality=1
+|     predicates: m.c_custkey = 10
+|
+01:SCAN HDFS [tpch.orders d]
+   partitions=1/1 files=1 size=162.56MB row-size=8B cardinality=15
+   predicates: d.o_custkey = 10
+   runtime filters: RF000 -> d.o_custkey
+====
+# Correlated filtering on detail
+# |join| = |D| / |M|
+# TODO: Bug
+select m.c_custkey, d.o_custkey
+from tpch.customer m,
+     tpch.orders d
+where m.c_custkey = d.o_custkey
+  and d.o_custkey = 10
+---- PLAN
+PLAN-ROOT SINK
+|
+02:HASH JOIN [INNER JOIN]
+|  hash predicates: d.o_custkey = m.c_custkey
+|  runtime filters: RF000 <- m.c_custkey
+|  row-size=16B cardinality=1
+|
+|--00:SCAN HDFS [tpch.customer m]
+|     partitions=1/1 files=1 size=23.08MB row-size=8B cardinality=1
+|     predicates: m.c_custkey = 10
+|
+01:SCAN HDFS [tpch.orders d]
+   partitions=1/1 files=1 size=162.56MB row-size=8B cardinality=15
+   predicates: d.o_custkey = 10
+   runtime filters: RF000 -> d.o_custkey
+====
+# Redundant correlated filtering on both sides
+# Same as above case internally
+# TODO: Bug
+select m.c_custkey, d.o_custkey
+from tpch.customer m,
+     tpch.orders d
+where m.c_custkey = d.o_custkey
+  and m.c_name = 'foo'
+  and m.c_custkey = 10
+  and d.o_custkey = 10
+---- PLAN
+PLAN-ROOT SINK
+|
+02:HASH JOIN [INNER JOIN]
+|  hash predicates: d.o_custkey = m.c_custkey
+|  runtime filters: RF000 <- m.c_custkey
+|  row-size=46B cardinality=1
+|
+|--00:SCAN HDFS [tpch.customer m]
+|     partitions=1/1 files=1 size=23.08MB row-size=38B cardinality=1
+|     predicates: m.c_custkey = 10, m.c_name = 'foo'
+|
+01:SCAN HDFS [tpch.orders d]
+   partitions=1/1 files=1 size=162.56MB row-size=8B cardinality=15
+   predicates: d.o_custkey = 10
+   runtime filters: RF000 -> d.o_custkey
+====
 # Selective filtering on master, broad on detail
 # |M'| = 1
 # |D'| = |D| * .33, uncorrelated with above
