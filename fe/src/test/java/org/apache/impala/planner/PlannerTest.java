@@ -53,7 +53,7 @@ public class PlannerTest extends PlannerTestBase {
    * applied to a scan.
    */
   @Test
-  public void testScanCardinalityPropagation() {
+  public void testScanCardinality() {
     runPlannerTestFile("card-scan");
   }
 
@@ -61,7 +61,7 @@ public class PlannerTest extends PlannerTestBase {
    * Continue planner cardinality propagation with various join scenarios.
    */
   @Test
-  public void testJoinCardinalityPropagation() {
+  public void testJoinCardinality() {
     runPlannerTestFile("card-join");
   }
 

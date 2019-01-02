@@ -18,9 +18,9 @@ PLAN-ROOT SINK
 01:SCAN HDFS [functional.alltypessmall d]
    partitions=4/4 files=4 size=6.32KB row-size=4B cardinality=100
 ====
-# Simplest M:1 join
+# Simplest M:1 join, join between a master table (M) and a detail table (D)
 # (small):(tiny)
-# Card = |M|
+# |jion| = |D|
 select m.id, d.id
 from functional.alltypestiny m,
      functional.alltypessmall d
@@ -140,7 +140,7 @@ PLAN-ROOT SINK
 # Similar, but with big tables
 # |customer| = 150K
 # |orders| = 1.5M
-# Card = |M| = |customer|
+# |join| = |D| = |orders|
 select m.c_custkey, d.o_custkey
 from tpch.customer m,
      tpch.orders d
@@ -185,7 +185,8 @@ PLAN-ROOT SINK
 ====
 # Selective master filtering, column common with detail
 # Card = |D|/|M|
-# Bug: IMPALA-TBD: Wrong cardinality, should be same as above = 10
+# Bug: IMPALA-8040: Wrong cardinality, should be same as above = 10
+# Also, wrong cardinality for |D|, should be |D|/|M| = 10
 select m.c_custkey, d.o_custkey
 from tpch.customer m,
      tpch.orders d
@@ -210,6 +211,7 @@ PLAN-ROOT SINK
 ====
 # Selective detail filtering
 # Card = 1: one detail record finds its master record
+# Bug: IMPALA-8040, |join| should be 10, not 1
 select m.c_custkey, d.o_custkey
 from tpch.customer m,
      tpch.orders d
@@ -235,6 +237,7 @@ PLAN-ROOT SINK
 # |M'| = |M| * 0.33 = 50K
 # Each master finds all its details
 # Card = |M'| * |D|/|M| = 50K * 10 = 500K
+# Fixed: IMPALA-8039, IMPALA-8037, IMPALA-8014
 select m.c_custkey, d.o_custkey
 from tpch.customer m,
      tpch.orders d
@@ -260,7 +263,7 @@ PLAN-ROOT SINK
 # |M'| = |M| * 0.33 = 50K
 # Each master finds all its details
 # Card = |M'| * |D|/|M| = 50K * 10 = 500K
-# BUG: IMPALA-TBD: Affect of shared column is counted twice
+# BUG: IMPALA-8040: Affect of shared column is counted twice
 select m.c_custkey, d.o_custkey
 from tpch.customer m,
      tpch.orders d
@@ -391,13 +394,11 @@ PLAN-ROOT SINK
    runtime filters: RF000 -> m.c_custkey
 ====
 # M:N join
-# |T1| = |partsupp| = 800K
-# |T2| = |lineitem| = 6M
-# NDV(ps_suppkey) = 9.7K
-# NDV(l_suppkey) = 9.7K
-# |T1 >< T2| = |T1|/|ps_supkey| * |T2|/|l_suppkey|
-# = 800K/10K * 6M/10K = 80K * 600K = 48B
-# TODO: BUG, probably in my code
+# |partsupp| = 800K
+# |lineitem| = 6M
+# NDV(ps_suppkey) = NDV(l_suppkey) = |suppkey| = 9.7K
+# |lineitem >< partsupp| = (|lineitem| * |partsupp|) / |suppkey|
+#                        = 800K * 6M / 10K = 80 * 600 = 480M
 select t1.ps_suppkey, t2.l_suppkey
 from tpch.partsupp t1,
      tpch.lineitem t2
@@ -418,10 +419,11 @@ PLAN-ROOT SINK
    runtime filters: RF000 -> t2.l_suppkey
 ====
 # M:N join with filtering on smaller table
-# NDV(availqty) = 10K
-# |T1'| = |T1| / |availqty| = 800K / 10K = 80
-# |T1' >< T2| = |T1 >< T2| / (|T1'| / |T1|) = 48B / 80 = 60M
-# TODO: BUG, probably in my code
+# NDV(availqty) = = |availqty| = 10K
+# |partsupp'| = |partsupp| / |availqty|
+#             = 800K / 10K = 80
+# |lineitem >< partsupp'| = |lineitem| * |partsupp'| / |suppkey|
+#                         = 6M * 80 / 10K = 48K
 select t1.ps_suppkey, t2.l_suppkey
 from tpch.partsupp t1,
      tpch.lineitem t2
@@ -444,10 +446,10 @@ PLAN-ROOT SINK
    runtime filters: RF000 -> t2.l_suppkey
 ====
 # M:N join with filtering on larger table
-# NDV(l_partkey) = 200K
-# |T2'| = |T2| / |l_partkey| = 6M / 200K = 30
-# |T1 >< T2'| = |T1 >< T2| / (|T2'| / |Td|) = 48B / 30 = 160M
-# TODO: BUG, probably in my code
+# NDV(l_partkey) = |l_partkey| = 200K
+# |lineitem'| = |lineitem| / |l_partkey| = 6M / 200K = 30
+# |lineitem' >< partsupp| = |lineitem'| * |partsupp| / |suppkey|
+#                         = 30 * 800K / 10K = 2400
 select t1.ps_suppkey, t2.l_suppkey
 from tpch.partsupp t1,
      tpch.lineitem t2
@@ -470,9 +472,11 @@ PLAN-ROOT SINK
    runtime filters: RF000 -> t1.ps_suppkey
 ====
 # M:N join with selective filtering on shared column
-# |T1' >< T2'| = |T1|/|key1| * |T2|/|key2|
-# = 800K / 10K * 6M / 10K = 80 * 600 = 48K
-# TODO: BUG, probably in my code
+# |partsupp'| = |partsupp| / |suppkey| = 800K / 10K = 80
+# But, filtering is done on the join column, so we want:
+# |lineitem >< partsupp'| = |lineitem| * |partsupp'|
+#                         = (80 * 6M) / 10K = 80 * 600 = 48K
+# Bug: TBD
 select t1.ps_suppkey, t2.l_suppkey
 from tpch.partsupp t1,
      tpch.lineitem t2
@@ -497,10 +501,10 @@ PLAN-ROOT SINK
 ====
 # M:N join with broad filtering on smaller table
 # Most general join case
-# |T1'| = |T1| * 0.33
-# |T1' >< T2| = |T1'| * |T2| / max(|key1|, |key2|)
-#             = 800K/3 * 6M / 10K = 160M
-# TODO: BUG, probably in my code
+# |partsupp'| = |partsupp| * 0.33
+#             = 800K / 3 = 267K
+# |lineietem >< partsupp'| = |lineitem| * |partsupp'| / |suppkey|
+#             = 267K * 6M / 10K = 160M
 select t1.ps_suppkey, t2.l_suppkey
 from tpch.partsupp t1,
      tpch.lineitem t2
@@ -523,10 +527,9 @@ PLAN-ROOT SINK
    runtime filters: RF000 -> t2.l_suppkey
 ====
 # M:N join with broad filtering on larger table
-# |T2'| = |T2| * 0.33
-# |T1 >< T2'| = |T1 >< T2| / (|T2'| / |T2|)
-#             = |T1 >< T2| / 3 = 16G
-# TODO: BUG, probably in my code
+# |lineitem'| = |lineitem| * 0.33 = 6M / 3 = 2M
+# |lineitem' >< partsupp| = |lineitem'| * |partsupp| / |suppkey|
+#             = 2M * 800K / 10K = 160M
 select t1.ps_suppkey, t2.l_suppkey
 from tpch.partsupp t1,
      tpch.lineitem t2
@@ -550,12 +553,10 @@ PLAN-ROOT SINK
 ====
 # M:N join with filtering on both sides
 # Most general join case
-# |T1'| = |T1| * 0.33
-# |T2'| = |T2| * 0.33
-# |T1' >< T2'| = |T1'| * |T2'| / max(|key1|, |key2|)
-#              = 800K/3 * 6M/3 / 10K = 5.3B
-# TODO: Cardinality looks wrong
-# TODO: BUG, probably in my code
+# |lineitem'| = |lineitem| * 0.33
+# |partsup'| = |partsupp| * 0.33
+# |lineitem' >< partsupp'| = |lineitem'| * |partsupp'| / |suppkey|
+#              = 800K/3 * 6M/3 / 10K = 53M
 select t1.ps_suppkey, t2.l_suppkey
 from tpch.partsupp t1,
      tpch.lineitem t2

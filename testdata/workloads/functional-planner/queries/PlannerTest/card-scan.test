@@ -43,7 +43,7 @@ PLAN-ROOT SINK
    predicates: c.c_custkey IN (10, 20)
 ====
 # OR'ed predicate, distinct columns
-# card = sum of card of each OR term
+# card = max(card of each OR term)
 select *
 from tpch.customer c
 where c.c_custkey = 10
@@ -57,20 +57,20 @@ PLAN-ROOT SINK
 ====
 # As above, but with smaller table to see effect
 # NDV(id) = |T| = 8
-# NDV(month) = 4
-# card = |T|/NDV(id) + |T|/NDV(month) = 1 + 4 = 5
-# But done by multiplying cardinalities, which is wrong
-# Bug: IMPALA-TBD
+# NDV(bool_val) = 2
+# card = max(|T|/NDV(id),|T|/NDV(bool_val)) = max(1, 4)
+# But done by adding cardinalities, which seems right, but is wrong
+# Bug: IMPALA-8038
 select *
 from functional.alltypestiny t
 where t.id = 10
-   or t.month = 20
+   or t.bool_col = true
 ---- PLAN
 PLAN-ROOT SINK
 |
 00:SCAN HDFS [functional.alltypestiny t]
-   partitions=4/4 files=4 size=460B row-size=89B cardinality=3
-   predicates: t.id = 10 OR t.month = 20
+   partitions=4/4 files=4 size=460B row-size=89B cardinality=5
+   predicates: t.id = CAST(10 AS INT) OR t.bool_col = TRUE
 ====
 # IN, card = x/ndv
 select *
@@ -84,7 +84,7 @@ PLAN-ROOT SINK
    predicates: c.c_custkey IN (10, 20, 30)
 ====
 # IN with duplicate values. Remove dups.
-# Bug: IMPALA-TBD
+# Bug: IMPALA-8030
 select *
 from tpch.customer c
 where c.c_custkey in (10, 20, 30, 30, 10, 20)
@@ -108,7 +108,7 @@ PLAN-ROOT SINK
 ====
 # OR on same value: card = 1/ndv
 # Different expression order
-# Bug: IMPALA-TBD (same as IN-bug)
+# Bug: IMPALA-8030
 select *
 from tpch.customer c
 where c.c_custkey = 10 OR 10 = c.c_custkey
@@ -142,6 +142,7 @@ PLAN-ROOT SINK
 # Not-equal, card = 1 - 1/ndv
 # Use smaller table so effect is clear
 # |T|=8, NDV=8
+# Bug: IMPALA-8039
 select *
 from functional.alltypestiny
 where id != 10
@@ -153,6 +154,7 @@ PLAN-ROOT SINK
    predicates: id != 10
 ====
 # Inequality. No useful stats. Assume sel = 0.33
+# Fixed in: IMPALA-8037
 select *
 from tpch.customer c
 where c.c_custkey < 1234
@@ -188,7 +190,7 @@ PLAN-ROOT SINK
    predicates: c.c_custkey < 1234
 ====
 # Two inequalities of the same "direction" Assume only one applies.
-# Bug: IMPALA-TBD
+# Bug: IMPALA-8031
 select *
 from tpch.customer c
 where c.c_custkey < 1234
@@ -215,8 +217,9 @@ PLAN-ROOT SINK
 ====
 # Between. No useful stats. Should assume, say 0.16
 # But, gets rewritten before computing selectivity,
-# So sel = 0.33 ^ 2
-# See IMPALA-TBD
+# So same as AND'ed inequalities
+# sel = 0.33 ^ 2 = 0.11, but Ramakrisnan and Gherke suggest 1/4
+# Bug: IMPALA-TBD
 select *
 from tpch.customer c
 where c.c_custkey between 1234 and 2345
@@ -227,9 +230,14 @@ PLAN-ROOT SINK
    partitions=1/1 files=1 size=23.08MB row-size=218B cardinality=28.44K
    predicates: c.c_custkey <= 2345, c.c_custkey >= 1234
 ====
-# Between. No useful stats. Should assume, say 0.16
-# But, gets rewritten before computing selectivity,
-# So same as AND'ed inequalities
+# Compound inequality that is the same as BETWEEN.
+# Gets compouted as AND of inequalities.
+# sel = 0.33 ^ 2 = 0.11
+# But, these conditions are not independent, so a better estimate
+# would be, say 1/6
+# |<<< <<< ===| c > x
+# |=== >>> >>>| c < y
+# |<<< === >>>| c > x AND c < y
 select *
 from tpch.customer c
 where c.c_custkey >= 1234 and c.c_custkey <= 2345
