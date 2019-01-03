@@ -308,7 +308,7 @@ public abstract class JoinNode extends PlanNode {
     List<EqJoinConjunctScanSlots> joinKeys =
         fkPkEqJoinConjuncts_ .isEmpty() ? eqJoinConjunctSlots : fkPkEqJoinConjuncts_;
     long result = estimateJoinCardinality(joinKeys, probeCard, probeSelectivity,
-        buildCard, buildSelectivity, sharedSelectivity);
+        buildCard, buildSelectivity);
     System.out.println(String.format("  --> card=%d, sel=%.8f", result, selectivity_));
     return result;
 //    if (fkPkEqJoinConjuncts_ != null) {
@@ -369,14 +369,12 @@ public abstract class JoinNode extends PlanNode {
 
   private long estimateJoinCardinality(List<EqJoinConjunctScanSlots> joinKeys,
       long probeCard, double probeSelectivity,
-      long buildCard, double buildSelectivity,
-      double sharedSelectivity) {
+      long buildCard, double buildSelectivity) {
     Preconditions.checkState(!joinKeys.isEmpty());
     Preconditions.checkState(probeCard >= 0);
     Preconditions.checkState(buildCard >= 0);
     Preconditions.checkState(probeSelectivity >= 0);
     Preconditions.checkState(buildSelectivity >= 0);
-    Preconditions.checkState(sharedSelectivity >= 0);
 
     // Bail out fast in the |build| = 0 case. We may have an EmptySet node.
     // But, the NDV of the build columns still have their values from earlier
@@ -394,20 +392,26 @@ public abstract class JoinNode extends PlanNode {
     jointProbeKeyCard = Math.min(jointProbeKeyCard, probeCard);
     jointBuildKeyCard = Math.min(jointBuildKeyCard, buildCard);
 
-    // Arbitrarily remove the shared selectivity from the probe side.
-    double adjustedProbeCard = probeCard / sharedSelectivity;
-    jointProbeKeyCard /= sharedSelectivity;
+    // Common filter has been applied to both table cardinalities.
+    // But, because we divide by only one key cardinality, the
+    // we have sel^2/sel, meaning that the shared selectivity
+    // does not cancel. Adjust the largest key cardinality
+    // to match.
+    double largestKeyCard;
+    if (jointProbeKeyCard > jointBuildKeyCard) {
+      largestKeyCard = jointProbeKeyCard;
+      selectivity_ = buildSelectivity;
+    } else {
+      largestKeyCard = jointBuildKeyCard;
+      selectivity_ = probeSelectivity;
+    }
 
     // Apply the cardinality expression
-    double cartesianProduct = adjustedProbeCard * (double) buildCard;
-    double joinCard =  cartesianProduct / Math.max(jointProbeKeyCard, jointBuildKeyCard);
+    double cartesianProduct = (double) probeCard * (double) buildCard;
+    double joinCard =  cartesianProduct / largestKeyCard;
 
     // Clamp the value to the range (1, MAX_LONG)
-    joinCard = Math.max(1, Math.min(joinCard, Long.MAX_VALUE));
-
-    // Compute accumulated selectivity.
-    selectivity_ = joinCard / (cartesianProduct * probeSelectivity * buildSelectivity);
-    return Math.round(joinCard);
+    return Math.round(Math.max(1, Math.min(joinCard, Long.MAX_VALUE)));
   }
 
   /**
