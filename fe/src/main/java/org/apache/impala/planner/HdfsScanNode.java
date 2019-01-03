@@ -33,6 +33,7 @@ import org.apache.impala.analysis.Analyzer;
 import org.apache.impala.analysis.BinaryPredicate;
 import org.apache.impala.analysis.DescriptorTable;
 import org.apache.impala.analysis.Expr;
+import org.apache.impala.analysis.ExprId;
 import org.apache.impala.analysis.ExprSubstitutionMap;
 import org.apache.impala.analysis.FunctionCallExpr;
 import org.apache.impala.analysis.FunctionName;
@@ -263,6 +264,10 @@ public class HdfsScanNode extends ScanNode {
   // this scan node has the count(*) optimization enabled.
   private SlotDescriptor countStarSlot_ = null;
 
+  // Identifies the conjuncts assigned to this scan.
+  // Used to detect common filtering on both sides of a join.
+  protected final Set<ExprId> conjunctIds_;
+
   /**
    * Construct a node to scan given data files into tuples described by 'desc',
    * with 'conjuncts' being the unevaluated conjuncts bound by the tuple and
@@ -270,11 +275,13 @@ public class HdfsScanNode extends ScanNode {
    * class comments above for details.
    */
   public HdfsScanNode(PlanNodeId id, TupleDescriptor desc, List<Expr> conjuncts,
+      Set<ExprId> assocConjunctIds,
       List<? extends FeFsPartition> partitions, TableRef hdfsTblRef, AggregateInfo aggInfo) {
     super(id, desc, "SCAN HDFS");
     Preconditions.checkState(desc.getTable() instanceof FeFsTable);
     tbl_ = (FeFsTable)desc.getTable();
     conjuncts_ = conjuncts;
+    conjunctIds_ = assocConjunctIds;
     partitions_ = partitions;
     sampleParams_ = hdfsTblRef.getSampleParams();
     replicaPreference_ = hdfsTblRef.getReplicaPreference();
@@ -1636,4 +1643,7 @@ public class HdfsScanNode extends ScanNode {
   public boolean hasCorruptTableStats() { return hasCorruptTableStats_; }
 
   public boolean hasMissingDiskIds() { return numScanRangesNoDiskIds_ > 0; }
+
+  @Override
+  public Set<ExprId> conjunctIds() { return conjunctIds_; }
 }

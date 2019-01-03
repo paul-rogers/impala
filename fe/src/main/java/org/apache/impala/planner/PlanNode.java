@@ -121,6 +121,10 @@ abstract public class PlanNode extends TreeNode<PlanNode> {
   // invalid: -1
   protected long cardinality_;
 
+  // Selectivity estimated for this node. Used in join cardinality
+  // calculations.
+  protected double selectivity_ = -1;
+
   // number of nodes on which the plan tree rooted at this node would execute;
   // set in computeStats(); invalid: -1
   protected int numNodes_;
@@ -214,6 +218,8 @@ abstract public class PlanNode extends TreeNode<PlanNode> {
   public void setOutputSmap(ExprSubstitutionMap smap) { outputSmap_ = smap; }
   public Set<ExprId> getAssignedConjuncts() { return assignedConjuncts_; }
   public String displayName() { return displayName_; }
+  public double selectivity() { return selectivity_; }
+  public Set<ExprId> conjunctIds() { return new HashSet<>(); }
 
   public void setAssignedConjuncts(Set<ExprId> conjuncts) {
     assignedConjuncts_ = conjuncts;
@@ -618,7 +624,8 @@ abstract public class PlanNode extends TreeNode<PlanNode> {
   }
 
   protected double computeSelectivity() {
-    return computeCombinedSelectivity(conjuncts_);
+    selectivity_ = computeCombinedSelectivity(conjuncts_);
+    return selectivity_;
   }
 
   // Convert this plan node into msg (excluding children), which requires setting

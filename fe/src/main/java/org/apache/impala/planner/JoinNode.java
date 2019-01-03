@@ -26,6 +26,7 @@ import java.util.Map;
 import org.apache.impala.analysis.Analyzer;
 import org.apache.impala.analysis.BinaryPredicate;
 import org.apache.impala.analysis.Expr;
+import org.apache.impala.analysis.ExprId;
 import org.apache.impala.analysis.JoinOperator;
 import org.apache.impala.analysis.SlotDescriptor;
 import org.apache.impala.analysis.SlotRef;
@@ -276,35 +277,39 @@ public abstract class JoinNode extends PlanNode {
       return probeCard;
     }
 
-    // Determine the table cardinality to use to clamp the estimated
-    // cardinality of a compound key. It is the table cardinality for tables,
-    // but the join cardinality for joins. (Note: it is NOT correct to use the
-    // scan cardinality for tables.)
-    // The probe side is normally the one that is adjusted since it may be
-    // the output of another join for which no base table cardinality applies.
-    long probeTableCard = probeNode instanceof ScanNode ?
-                          probeNode.getInputCardinality() : probeCard;
-    long buildTableCard = buildNode instanceof ScanNode ?
-                          buildNode.getInputCardinality() : buildCard;
+    // Retrieve the selectivity of the child nodes. This is combines
+    // the effect of all filters already applied.
+    double probeSelectivity = probeNode.selectivity();
+    double buildSelectivity = buildNode.selectivity();
+
+    // Identify conjuncts that apply on both sides.
+    // Clunky nested loop. The assigned conjuncts map is
+    // global, does not apply to just the node.
+    // TODO: Improve this.
+    double sharedSelectivity = 1;
+    for (ExprId conjunctId : probeNode.conjunctIds()) {
+      if (buildNode.conjunctIds().contains(conjunctId)) {
+        Expr expr = analyzer.getConjunct(conjunctId);
+        sharedSelectivity *= expr.getSelectivity();
+      }
+    }
 
     {
-      System.out.print(getChild(0).displayName());
-      System.out.print(" ");
-      System.out.print(getChild(0).getDisplayLabelDetail());
-      System.out.print(" card=" + probeCard);
-      System.out.print(" table=" + probeTableCard);
-      System.out.print(" >< ");
-      System.out.print(getChild(1).displayName());
-      System.out.print(" ");
-      System.out.print(getChild(1).getDisplayLabelDetail());
-      System.out.print(" card=" + buildCard);
-      System.out.println(" table=" + buildTableCard);
+      System.out.println(String.format(
+          "%s %s card=%d sel=%.8f >< %s %s card=%d, sel=%.8f; shared=%.8f",
+          probeNode.displayName(),
+          probeNode.getDisplayLabelDetail(),
+          probeCard, probeSelectivity,
+          buildNode.displayName(),
+          buildNode.getDisplayLabelDetail(),
+          buildCard, buildSelectivity,
+          sharedSelectivity));
     }
     List<EqJoinConjunctScanSlots> joinKeys =
         fkPkEqJoinConjuncts_ .isEmpty() ? eqJoinConjunctSlots : fkPkEqJoinConjuncts_;
-    long result = estimateJoinCardinality(joinKeys, probeCard, probeTableCard,
-        buildCard, buildTableCard);
-    System.out.println("  --> " + result);
+    long result = estimateJoinCardinality(joinKeys, probeCard, probeSelectivity,
+        buildCard, buildSelectivity, sharedSelectivity);
+    System.out.println(String.format("  --> card=%d, sel=%.8f", result, selectivity_));
     return result;
 //    if (fkPkEqJoinConjuncts_ != null) {
 //      return getFkPkJoinCardinality(fkPkEqJoinConjuncts_, probeCard, buildCard);
@@ -317,19 +322,38 @@ public abstract class JoinNode extends PlanNode {
    * Compute the estimated join cardinality using the expression derived in IMPALA-8014:
    *
    * <pre>
-   *                     |scan(P)| * |scan(B)|
-   * |join| = ---------------------------------------------
-   *          max(min(Prod(P.ki|, |P|), min(Prod|B.ki|, |B|))
+   * |L.k'| = min(sel(L) * prod(|L.ki'|), |L'|)
+   *
+   * |R.k'| = min(sel(R) * prod(|R.ki'|), |R'|)
+   *
+   * |R.k''| = |R.k'| / ss
+   *
+   * |R''| = |R'| / ss
+   *
+   *                  |L'| * |R''|
+   * |L' >< R'| = --------------------
+   *              max(|L.k'|, |R.k''|)
+   *
+   *             |L' >< R'|
+   * sel(join) = -----------
+   *             |L'| * |R'|
    * </pre>
    *
    * Where:
    *
-   * * P is the probe (left) table
-   * * B is the build (right) table
+   * * L is the left (probe) table
+   * * R is the right (build) table
    * * Pki (Bki) is the ith join key on the probe (build) side
+   * * sel(L), sel(R) are the selectivities applies on the input nodes
+   * * prod() is the product function (capital-pi)
+   * * ss is the shared selectivity (which is 1 if no expressions are shared).
    *
    * If the join keys are compound (more than one), we assume key independence
    * and use the multiplicative rule. (See the S&S paper cited below.)
+   *
+   * Shared selectivity occurs if the same conjunct is assigned to both input
+   * tables. To avoid double-counting that reduction, we back it out of the
+   * smaller (build) side.
    *
    * @param joinKeys
    * @param probeScanCard probe (left, lhs, detail) cardinality after
@@ -344,33 +368,46 @@ public abstract class JoinNode extends PlanNode {
    */
 
   private long estimateJoinCardinality(List<EqJoinConjunctScanSlots> joinKeys,
-      long probeScanCard, long probeTableCard,
-      long buildScanCard, long buildTableCard) {
+      long probeCard, double probeSelectivity,
+      long buildCard, double buildSelectivity,
+      double sharedSelectivity) {
     Preconditions.checkState(!joinKeys.isEmpty());
-    Preconditions.checkState(probeScanCard >= 0 && buildScanCard >= 0);
+    Preconditions.checkState(probeCard >= 0);
+    Preconditions.checkState(buildCard >= 0);
+    Preconditions.checkState(probeSelectivity >= 0);
+    Preconditions.checkState(buildSelectivity >= 0);
+    Preconditions.checkState(sharedSelectivity >= 0);
 
     // Bail out fast in the |build| = 0 case. We may have an EmptySet node.
     // But, the NDV of the build columns still have their values from earlier
     // in the plan; continuing will cause us to work with meaningless numbers.
-    if (buildScanCard == 0 || probeScanCard == 0) return 0;
+    if (probeCard == 0 || buildCard == 0) return 0;
 
     // Compute the joint NDV (cardinality) of the join keys assuming
     // the multiplicative rule, and observing that |key| <= |T|.
-    double jointProbeKeyCard = 1;
-    double jointBuildKeyCard = 1;
+    double jointProbeKeyCard = probeSelectivity;
+    double jointBuildKeyCard = buildSelectivity;
     for (EqJoinConjunctScanSlots joinKey : joinKeys) {
       jointProbeKeyCard *= joinKey.lhsNdv();
       jointBuildKeyCard *= joinKey.rhsNdv();
     }
-    jointProbeKeyCard = Math.min(jointProbeKeyCard, probeTableCard);
-    jointBuildKeyCard = Math.min(jointBuildKeyCard, buildTableCard);
+    jointProbeKeyCard = Math.min(jointProbeKeyCard, probeCard);
+    jointBuildKeyCard = Math.min(jointBuildKeyCard, buildCard);
+
+    // Arbitrarily remove the shared selectivity from the probe side.
+    double adjustedProbeCard = probeCard / sharedSelectivity;
+    jointProbeKeyCard /= sharedSelectivity;
 
     // Apply the cardinality expression
-    double joinCard = (double) probeScanCard * (double) buildScanCard /
-                      Math.max(jointProbeKeyCard, jointBuildKeyCard);
+    double cartesianProduct = adjustedProbeCard * (double) buildCard;
+    double joinCard =  cartesianProduct / Math.max(jointProbeKeyCard, jointBuildKeyCard);
 
     // Clamp the value to the range (1, MAX_LONG)
-    return Math.max(1, Math.round(Math.min(joinCard, Long.MAX_VALUE)));
+    joinCard = Math.max(1, Math.min(joinCard, Long.MAX_VALUE));
+
+    // Compute accumulated selectivity.
+    selectivity_ = joinCard / (cartesianProduct * probeSelectivity * buildSelectivity);
+    return Math.round(joinCard);
   }
 
   /**

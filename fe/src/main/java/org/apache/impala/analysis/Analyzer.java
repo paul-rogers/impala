@@ -1153,6 +1153,10 @@ public class Analyzer {
     }
   }
 
+  public Expr getConjunct(ExprId id) {
+    return globalState_.conjuncts.get(id);
+  }
+
   /**
    * Create and register an auxiliary predicate to express a mutual value transfer
    * between two exprs (BinaryPredicate with EQ); this predicate does not need to be
@@ -1495,7 +1499,13 @@ public class Analyzer {
    */
   public List<Expr> getBoundPredicates(TupleId destTid, Set<SlotId> ignoreSlots,
       boolean markAssigned) {
+    return getBoundPredicatesAndIds(destTid, ignoreSlots, markAssigned).second;
+  }
+
+  public Pair<Set<ExprId>, List<Expr>> getBoundPredicatesAndIds(TupleId destTid, Set<SlotId> ignoreSlots,
+      boolean markAssigned) {
     List<Expr> result = new ArrayList<>();
+    Set<ExprId> resultIds = new HashSet<>();
     for (ExprId srcConjunctId: globalState_.singleTidConjuncts) {
       Expr srcConjunct = globalState_.conjuncts.get(srcConjunctId);
       if (srcConjunct instanceof SlotRef) continue;
@@ -1619,14 +1629,21 @@ public class Analyzer {
         }
 
         // check if we already created this predicate
-        if (!result.contains(p)) result.add(p);
+        if (!result.contains(p)) {
+          result.add(p);
+          resultIds.add(srcConjunctId);
+        }
       }
     }
-    return result;
+    return new Pair<>(resultIds, result);
   }
 
   public List<Expr> getBoundPredicates(TupleId destTid) {
     return getBoundPredicates(destTid, new HashSet<>(), true);
+  }
+
+  public Pair<Set<ExprId>, List<Expr>> getBoundPredicatesAndIds(TupleId destTid) {
+    return getBoundPredicatesAndIds(destTid, new HashSet<>(), true);
   }
 
   /**

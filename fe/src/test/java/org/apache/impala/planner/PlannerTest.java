@@ -66,6 +66,11 @@ public class PlannerTest extends PlannerTestBase {
   }
 
   @Test
+  public void testAdHoc() {
+    runPlannerTestFile("ad-hoc");
+  }
+
+  @Test
   public void testPredicatePropagation() {
     runPlannerTestFile("predicate-propagation");
   }
@@ -186,11 +191,6 @@ public class PlannerTest extends PlannerTestBase {
   @Test
   public void testJoinOrder() {
     runPlannerTestFile("join-order");
-  }
-
-  @Test
-  public void testAdHoc() {
-    runPlannerTestFile("ad-hoc");
   }
 
   @Test

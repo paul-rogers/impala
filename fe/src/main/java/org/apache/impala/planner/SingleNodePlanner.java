@@ -1274,7 +1274,7 @@ public class SingleNodePlanner {
    * the scan and aggregation.
    */
   private PlanNode createHdfsScanPlan(TableRef hdfsTblRef, AggregateInfo aggInfo,
-      List<Expr> conjuncts, Analyzer analyzer) throws ImpalaException {
+      List<Expr> conjuncts, Set<ExprId> conjunctIds, Analyzer analyzer) throws ImpalaException {
     TupleDescriptor tupleDesc = hdfsTblRef.getDesc();
 
     // Do partition pruning before deciding which slots to materialize because we might
@@ -1324,8 +1324,8 @@ public class SingleNodePlanner {
       return unionNode;
     } else {
       ScanNode scanNode =
-          new HdfsScanNode(ctx_.getNextNodeId(), tupleDesc, conjuncts, partitions,
-              hdfsTblRef, aggInfo);
+          new HdfsScanNode(ctx_.getNextNodeId(), tupleDesc, conjuncts, conjunctIds,
+              partitions, hdfsTblRef, aggInfo);
       scanNode.init(analyzer);
       return scanNode;
     }
@@ -1347,7 +1347,8 @@ public class SingleNodePlanner {
     // Get all predicates bound by the tuple.
     List<Expr> conjuncts = new ArrayList<>();
     TupleId tid = tblRef.getId();
-    conjuncts.addAll(analyzer.getBoundPredicates(tid));
+    Pair<Set<ExprId>, List<Expr>> conjunctPair = analyzer.getBoundPredicatesAndIds(tid);
+    conjuncts.addAll(conjunctPair.second);
 
     // Also add remaining unassigned conjuncts
     List<Expr> unassigned = analyzer.getUnassignedConjuncts(tid.asList());
@@ -1370,7 +1371,8 @@ public class SingleNodePlanner {
     // TODO(todd) introduce FE interfaces for DataSourceTable, HBaseTable, KuduTable
     FeTable table = tblRef.getTable();
     if (table instanceof FeFsTable) {
-      return createHdfsScanPlan(tblRef, aggInfo, conjuncts, analyzer);
+      return createHdfsScanPlan(tblRef, aggInfo, conjuncts,
+          conjunctPair.first, analyzer);
     } else if (table instanceof FeDataSourceTable) {
       scanNode = new DataSourceScanNode(ctx_.getNextNodeId(), tblRef.getDesc(),
           conjuncts);
@@ -1424,7 +1426,7 @@ public class SingleNodePlanner {
    * - for outer joins: same type of conjuncts as inner joins, but only from the
    *   ON or USING clause
    * Predicates that are redundant based on equivalence classes are intentionally
-   * returneded by this function because the removal of redundant predicates and the
+   * returned by this function because the removal of redundant predicates and the
    * creation of new predicates for enforcing slot equivalences go hand-in-hand
    * (see analyzer.createEquivConjuncts()).
    */

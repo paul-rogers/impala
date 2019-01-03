@@ -20,7 +20,7 @@ PLAN-ROOT SINK
 ====
 # Simplest M:1 join, join between a master table (M) and a detail table (D)
 # (small):(tiny)
-# |jion| = |D|
+# |join| = |D|
 select m.id, d.id
 from functional.alltypestiny m,
      functional.alltypessmall d
@@ -138,8 +138,10 @@ PLAN-ROOT SINK
    runtime filters: RF000 -> m.id
 ====
 # Similar, but with big tables
-# |customer| = 150K
-# |orders| = 1.5M
+# |M| = |customer| = 150K
+# |M.pk| = |customer.c_custkey| = |customer| = 150K
+# |D| = |orders| = 1.5M
+# |D.fk| = |orders.o_custkey| = 100K
 # |join| = |D| = |orders|
 select m.c_custkey, d.o_custkey
 from tpch.customer m,
@@ -161,7 +163,7 @@ PLAN-ROOT SINK
    runtime filters: RF000 -> d.o_custkey
 ====
 # Selective master filtering
-# Card = |D|/|M|
+# |join| = |D|/|D.fk| = 15
 select m.c_custkey, d.o_custkey
 from tpch.customer m,
      tpch.orders d
@@ -173,7 +175,7 @@ PLAN-ROOT SINK
 02:HASH JOIN [INNER JOIN]
 |  hash predicates: d.o_custkey = m.c_custkey
 |  runtime filters: RF000 <- m.c_custkey
-|  row-size=46B cardinality=10
+|  row-size=46B cardinality=15
 |
 |--00:SCAN HDFS [tpch.customer m]
 |     partitions=1/1 files=1 size=23.08MB row-size=38B cardinality=1
@@ -184,9 +186,7 @@ PLAN-ROOT SINK
    runtime filters: RF000 -> d.o_custkey
 ====
 # Selective master filtering, column common with detail
-# Card = |D|/|M|
-# Bug: IMPALA-8040: Wrong cardinality, should be same as above = 10
-# Also, wrong cardinality for |D|, should be |D|/|M| = 10
+# |join| = |D|/|D.fk| = 15
 select m.c_custkey, d.o_custkey
 from tpch.customer m,
      tpch.orders d
@@ -198,7 +198,7 @@ PLAN-ROOT SINK
 02:HASH JOIN [INNER JOIN]
 |  hash predicates: d.o_custkey = m.c_custkey
 |  runtime filters: RF000 <- m.c_custkey
-|  row-size=16B cardinality=1
+|  row-size=16B cardinality=15
 |
 |--00:SCAN HDFS [tpch.customer m]
 |     partitions=1/1 files=1 size=23.08MB row-size=8B cardinality=1
@@ -236,8 +236,8 @@ PLAN-ROOT SINK
 # Broad master filtering
 # |M'| = |M| * 0.33 = 50K
 # Each master finds all its details
-# Card = |M'| * |D|/|M| = 50K * 10 = 500K
-# Fixed: IMPALA-8039, IMPALA-8037, IMPALA-8014
+# |join|= |M'| * |D|/|D.fk| = 50K * 15 = 750K
+# Though |M.pk| > |D.fk|, we assume that filtering eliminated the unmatched keys
 select m.c_custkey, d.o_custkey
 from tpch.customer m,
      tpch.orders d
@@ -249,7 +249,7 @@ PLAN-ROOT SINK
 02:HASH JOIN [INNER JOIN]
 |  hash predicates: d.o_custkey = m.c_custkey
 |  runtime filters: RF000 <- m.c_custkey
-|  row-size=46B cardinality=495.00K
+|  row-size=46B cardinality=754.65K
 |
 |--00:SCAN HDFS [tpch.customer m]
 |     partitions=1/1 files=1 size=23.08MB row-size=38B cardinality=49.50K
@@ -262,8 +262,7 @@ PLAN-ROOT SINK
 # Broad master filtering, column common with detail
 # |M'| = |M| * 0.33 = 50K
 # Each master finds all its details
-# Card = |M'| * |D|/|M| = 50K * 10 = 500K
-# BUG: IMPALA-8040: Affect of shared column is counted twice
+# |join| = |M'| * |D|/|D.fk| = 50K * 15 = 750K
 select m.c_custkey, d.o_custkey
 from tpch.customer m,
      tpch.orders d
@@ -275,7 +274,7 @@ PLAN-ROOT SINK
 02:HASH JOIN [INNER JOIN]
 |  hash predicates: d.o_custkey = m.c_custkey
 |  runtime filters: RF000 <- m.c_custkey
-|  row-size=16B cardinality=163.35K
+|  row-size=16B cardinality=754.65K
 |
 |--00:SCAN HDFS [tpch.customer m]
 |     partitions=1/1 files=1 size=23.08MB row-size=8B cardinality=49.50K
@@ -339,8 +338,7 @@ PLAN-ROOT SINK
    runtime filters: RF000 -> m.c_custkey
 ====
 # Correlated filtering on master
-# |join| = |D| / |M|
-# TODO: Bug
+# |join| = |D| / |D.fk|
 select m.c_custkey, d.o_custkey
 from tpch.customer m,
      tpch.orders d
@@ -352,7 +350,7 @@ PLAN-ROOT SINK
 02:HASH JOIN [INNER JOIN]
 |  hash predicates: d.o_custkey = m.c_custkey
 |  runtime filters: RF000 <- m.c_custkey
-|  row-size=16B cardinality=1
+|  row-size=16B cardinality=15
 |
 |--00:SCAN HDFS [tpch.customer m]
 |     partitions=1/1 files=1 size=23.08MB row-size=8B cardinality=1
@@ -364,8 +362,7 @@ PLAN-ROOT SINK
    runtime filters: RF000 -> d.o_custkey
 ====
 # Correlated filtering on detail
-# |join| = |D| / |M|
-# TODO: Bug
+# |join| = |D| / |D.fk|
 select m.c_custkey, d.o_custkey
 from tpch.customer m,
      tpch.orders d
@@ -377,7 +374,7 @@ PLAN-ROOT SINK
 02:HASH JOIN [INNER JOIN]
 |  hash predicates: d.o_custkey = m.c_custkey
 |  runtime filters: RF000 <- m.c_custkey
-|  row-size=16B cardinality=1
+|  row-size=16B cardinality=15
 |
 |--00:SCAN HDFS [tpch.customer m]
 |     partitions=1/1 files=1 size=23.08MB row-size=8B cardinality=1
@@ -390,7 +387,6 @@ PLAN-ROOT SINK
 ====
 # Redundant correlated filtering on both sides
 # Same as above case internally
-# TODO: Bug
 select m.c_custkey, d.o_custkey
 from tpch.customer m,
      tpch.orders d
@@ -404,7 +400,7 @@ PLAN-ROOT SINK
 02:HASH JOIN [INNER JOIN]
 |  hash predicates: d.o_custkey = m.c_custkey
 |  runtime filters: RF000 <- m.c_custkey
-|  row-size=46B cardinality=1
+|  row-size=46B cardinality=15
 |
 |--00:SCAN HDFS [tpch.customer m]
 |     partitions=1/1 files=1 size=23.08MB row-size=38B cardinality=1
@@ -417,9 +413,11 @@ PLAN-ROOT SINK
 ====
 # Selective filtering on master, broad on detail
 # |M'| = 1
-# |D'| = |D| * .33, uncorrelated with above
-# So, the one master finds ~1/3 of its orders
-# Card = |D'|/|M| = 3
+# |D'| = |D| * 0.33, uncorrelated with above
+# |D.fk'| = |D.fk| * 0.33
+# Since we assume containment: that the smaller key set
+# is a subset of the larger one.
+# Card = |D'| / max(1, |D.fk'|) = 5
 select m.c_custkey, d.o_custkey
 from tpch.customer m,
      tpch.orders d
@@ -432,7 +430,7 @@ PLAN-ROOT SINK
 02:HASH JOIN [INNER JOIN]
 |  hash predicates: d.o_custkey = m.c_custkey
 |  runtime filters: RF000 <- m.c_custkey
-|  row-size=54B cardinality=3
+|  row-size=54B cardinality=15
 |
 |--00:SCAN HDFS [tpch.customer m]
 |     partitions=1/1 files=1 size=23.08MB row-size=38B cardinality=1
@@ -553,7 +551,6 @@ PLAN-ROOT SINK
 # But, filtering is done on the join column, so we want:
 # |lineitem >< partsupp'| = |lineitem| * |partsupp'|
 #                         = (80 * 6M) / 10K = 80 * 600 = 48K
-# Bug: TBD
 select t1.ps_suppkey, t2.l_suppkey
 from tpch.partsupp t1,
      tpch.lineitem t2
@@ -565,7 +562,7 @@ PLAN-ROOT SINK
 02:HASH JOIN [INNER JOIN]
 |  hash predicates: t2.l_suppkey = t1.ps_suppkey
 |  runtime filters: RF000 <- t1.ps_suppkey
-|  row-size=16B cardinality=5
+|  row-size=16B cardinality=50.68K
 |
 |--00:SCAN HDFS [tpch.partsupp t1]
 |     partitions=1/1 files=1 size=112.71MB row-size=8B cardinality=82
@@ -632,8 +629,10 @@ PLAN-ROOT SINK
 # Most general join case
 # |lineitem'| = |lineitem| * 0.33
 # |partsup'| = |partsupp| * 0.33
-# |lineitem' >< partsupp'| = |lineitem'| * |partsupp'| / |suppkey|
-#              = 800K/3 * 6M/3 / 10K = 53M
+# |suppkey'| = |suppkey| * 0.33
+# |lineitem' >< partsupp'| = |lineitem'| * |partsupp'| / |suppkey'|
+#              = 800K/3 * 6M/3 / 3.3K = 161M
+# (Recall the containment assumption above.)
 select t1.ps_suppkey, t2.l_suppkey
 from tpch.partsupp t1,
      tpch.lineitem t2
@@ -646,7 +645,7 @@ PLAN-ROOT SINK
 02:HASH JOIN [INNER JOIN]
 |  hash predicates: t2.l_suppkey = t1.ps_suppkey
 |  runtime filters: RF000 <- t1.ps_suppkey
-|  row-size=28B cardinality=53.83M
+|  row-size=28B cardinality=163.13M
 |
 |--00:SCAN HDFS [tpch.partsupp t1]
 |     partitions=1/1 files=1 size=112.71MB row-size=12B cardinality=264.00K
