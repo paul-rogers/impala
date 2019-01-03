@@ -219,7 +219,6 @@ abstract public class PlanNode extends TreeNode<PlanNode> {
   public Set<ExprId> getAssignedConjuncts() { return assignedConjuncts_; }
   public String displayName() { return displayName_; }
   public double selectivity() { return selectivity_; }
-  public Set<ExprId> conjunctIds() { return new HashSet<>(); }
 
   public void setAssignedConjuncts(Set<ExprId> conjuncts) {
     assignedConjuncts_ = conjuncts;

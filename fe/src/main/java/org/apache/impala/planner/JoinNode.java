@@ -26,7 +26,6 @@ import java.util.Map;
 import org.apache.impala.analysis.Analyzer;
 import org.apache.impala.analysis.BinaryPredicate;
 import org.apache.impala.analysis.Expr;
-import org.apache.impala.analysis.ExprId;
 import org.apache.impala.analysis.JoinOperator;
 import org.apache.impala.analysis.SlotDescriptor;
 import org.apache.impala.analysis.SlotRef;
@@ -282,28 +281,15 @@ public abstract class JoinNode extends PlanNode {
     double probeSelectivity = probeNode.selectivity();
     double buildSelectivity = buildNode.selectivity();
 
-    // Identify conjuncts that apply on both sides.
-    // Clunky nested loop. The assigned conjuncts map is
-    // global, does not apply to just the node.
-    // TODO: Improve this.
-    double sharedSelectivity = 1;
-    for (ExprId conjunctId : probeNode.conjunctIds()) {
-      if (buildNode.conjunctIds().contains(conjunctId)) {
-        Expr expr = analyzer.getConjunct(conjunctId);
-        sharedSelectivity *= expr.getSelectivity();
-      }
-    }
-
     {
       System.out.println(String.format(
-          "%s %s card=%d sel=%.8f >< %s %s card=%d, sel=%.8f; shared=%.8f",
+          "%s %s card=%d sel=%.8f >< %s %s card=%d, sel=%.8f",
           probeNode.displayName(),
           probeNode.getDisplayLabelDetail(),
           probeCard, probeSelectivity,
           buildNode.displayName(),
           buildNode.getDisplayLabelDetail(),
-          buildCard, buildSelectivity,
-          sharedSelectivity));
+          buildCard, buildSelectivity));
     }
     List<EqJoinConjunctScanSlots> joinKeys =
         fkPkEqJoinConjuncts_ .isEmpty() ? eqJoinConjunctSlots : fkPkEqJoinConjuncts_;

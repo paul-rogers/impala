@@ -1274,7 +1274,7 @@ public class SingleNodePlanner {
    * the scan and aggregation.
    */
   private PlanNode createHdfsScanPlan(TableRef hdfsTblRef, AggregateInfo aggInfo,
-      List<Expr> conjuncts, Set<ExprId> conjunctIds, Analyzer analyzer) throws ImpalaException {
+      List<Expr> conjuncts, Analyzer analyzer) throws ImpalaException {
     TupleDescriptor tupleDesc = hdfsTblRef.getDesc();
 
     // Do partition pruning before deciding which slots to materialize because we might
@@ -1324,8 +1324,8 @@ public class SingleNodePlanner {
       return unionNode;
     } else {
       ScanNode scanNode =
-          new HdfsScanNode(ctx_.getNextNodeId(), tupleDesc, conjuncts, conjunctIds,
-              partitions, hdfsTblRef, aggInfo);
+          new HdfsScanNode(ctx_.getNextNodeId(), tupleDesc, conjuncts, partitions,
+              hdfsTblRef, aggInfo);
       scanNode.init(analyzer);
       return scanNode;
     }
@@ -1347,8 +1347,7 @@ public class SingleNodePlanner {
     // Get all predicates bound by the tuple.
     List<Expr> conjuncts = new ArrayList<>();
     TupleId tid = tblRef.getId();
-    Pair<Set<ExprId>, List<Expr>> conjunctPair = analyzer.getBoundPredicatesAndIds(tid);
-    conjuncts.addAll(conjunctPair.second);
+    conjuncts.addAll(analyzer.getBoundPredicates(tid));
 
     // Also add remaining unassigned conjuncts
     List<Expr> unassigned = analyzer.getUnassignedConjuncts(tid.asList());
@@ -1371,8 +1370,7 @@ public class SingleNodePlanner {
     // TODO(todd) introduce FE interfaces for DataSourceTable, HBaseTable, KuduTable
     FeTable table = tblRef.getTable();
     if (table instanceof FeFsTable) {
-      return createHdfsScanPlan(tblRef, aggInfo, conjuncts,
-          conjunctPair.first, analyzer);
+      return createHdfsScanPlan(tblRef, aggInfo, conjuncts, analyzer);
     } else if (table instanceof FeDataSourceTable) {
       scanNode = new DataSourceScanNode(ctx_.getNextNodeId(), tblRef.getDesc(),
           conjuncts);
