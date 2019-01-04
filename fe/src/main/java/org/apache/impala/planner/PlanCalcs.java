@@ -3,7 +3,6 @@ package org.apache.impala.planner;
 import java.util.List;
 
 import org.apache.impala.analysis.Expr;
-import org.apache.impala.common.Pair;
 import org.apache.impala.planner.JoinNode.EqJoinConjunctScanSlots;
 
 public abstract class PlanCalcs {
@@ -81,7 +80,7 @@ public abstract class PlanCalcs {
   public static class JoinCalcs extends PlanCalcs {
     PlanCalcs left;
     PlanCalcs right;
-    List<Pair<KeyCalcs, KeyCalcs>> keys;
+    List<KeyCalcs> keys;
 
     @Override
     public void serialize(StringBuilder buf, String indent) {
