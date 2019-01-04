@@ -70,7 +70,7 @@ PLAN-ROOT SINK
 |
 00:SCAN HDFS [functional.alltypestiny t]
    partitions=4/4 files=4 size=460B row-size=89B cardinality=5
-   predicates: t.id = CAST(10 AS INT) OR t.bool_col = TRUE
+   predicates: t.id = 10 OR t.bool_col = TRUE
 ====
 # IN, card = x/ndv
 select *
@@ -259,4 +259,41 @@ PLAN-ROOT SINK
 00:SCAN HDFS [tpch.customer c]
    partitions=1/1 files=1 size=23.08MB row-size=218B cardinality=28.44K
    predicates: c.c_custkey <= 2345, c.c_custkey >= 1234
+====
+# Partitioned scan.
+# |table| = 11K
+# |partition| = 1000
+# Five patitions match
+# |table'| = 5000
+select *
+from functional.alltypesagg a
+where a.day >= 6
+---- PLAN
+PLAN-ROOT SINK
+|
+00:SCAN HDFS [functional.alltypesagg a]
+   partitions=5/11 files=5 size=372.38KB row-size=95B cardinality=5.00K
+   partition predicates: a.day >= 6
+====
+# Partitioned table, one partition matches
+select *
+from functional.alltypesagg a
+where a.day = 6
+---- PLAN
+PLAN-ROOT SINK
+|
+00:SCAN HDFS [functional.alltypesagg a]
+   partitions=1/11 files=1 size=74.48KB row-size=95B cardinality=1.00K
+   partition predicates: a.day = 6
+====
+# Partitioned table, no partitions match
+select *
+from functional.alltypesagg a
+where a.day = 23
+---- PLAN
+PLAN-ROOT SINK
+|
+00:SCAN HDFS [functional.alltypesagg a]
+   partitions=0/11 files=0 size=0B row-size=95B cardinality=0
+   partition predicates: a.day = 23
 ====

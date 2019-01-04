@@ -1280,7 +1280,8 @@ public class SingleNodePlanner {
     // Do partition pruning before deciding which slots to materialize because we might
     // end up removing some predicates.
     HdfsPartitionPruner pruner = new HdfsPartitionPruner(tupleDesc);
-    List<? extends FeFsPartition> partitions = pruner.prunePartitions(analyzer, conjuncts, false);
+    Pair<List<? extends FeFsPartition>, List<Expr>> pair = pruner.prunePartitions(analyzer, conjuncts, false);
+    List<? extends FeFsPartition> partitions = pair.first;
 
     // Mark all slots referenced by the remaining conjuncts as materialized.
     analyzer.materializeSlots(conjuncts);
@@ -1323,10 +1324,11 @@ public class SingleNodePlanner {
       unionNode.init(analyzer);
       return unionNode;
     } else {
-      ScanNode scanNode =
+      HdfsScanNode scanNode =
           new HdfsScanNode(ctx_.getNextNodeId(), tupleDesc, conjuncts, partitions,
               hdfsTblRef, aggInfo);
       scanNode.init(analyzer);
+      scanNode.setPartitionConjuncts(pair.second);
       return scanNode;
     }
   }

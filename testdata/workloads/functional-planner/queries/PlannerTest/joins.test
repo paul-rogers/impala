@@ -1,3 +1,4 @@
+# testtbl has no stats and no rows
 select *
 from functional.testtbl t1 join functional.testtbl t2 using(id)
 where t1.zip = 94611
@@ -37,6 +38,7 @@ PLAN-ROOT SINK
    runtime filters: RF000 -> t1.id
 ====
 # general exprs on both sides of equi-join predicates
+# testtbl has no rows and no stats
 select *
 from functional.testtbl t1 left outer join functional.testtbl t2
 on (t1.id - 1 = t2.id + 1)
@@ -134,6 +136,11 @@ PLAN-ROOT SINK
 # multiple join predicates;
 # scan predicates get propagated correctly;
 # non-eq join predicates are evaluated as extra conjuncts by the join node
+# |alltypesagg| = 11K
+# 11 partitions, 5 selected, 5000 rows selected
+# |alltypessmall| = 100
+# |alltypesagg.tinyint_col| = 9
+# |alltypessmall.string_col| = 10
 select *
 from functional.alltypesagg a right outer join functional.alltypessmall b using (id, int_col)
 where a.day >= 6
@@ -153,10 +160,12 @@ PLAN-ROOT SINK
 |--01:SCAN HDFS [functional.alltypessmall b]
 |     partitions=2/4 files=2 size=3.17KB row-size=89B cardinality=5
 |     predicates: b.string_col = '15'
+|     partition predicates: b.month > 2
 |
 00:SCAN HDFS [functional.alltypesagg a]
    partitions=5/11 files=5 size=372.38KB row-size=95B cardinality=556
    predicates: a.tinyint_col = 15
+   partition predicates: a.day >= 6
    runtime filters: RF000 -> a.id, RF001 -> a.int_col
 ---- DISTRIBUTEDPLAN
 PLAN-ROOT SINK
@@ -174,12 +183,14 @@ PLAN-ROOT SINK
 |  01:SCAN HDFS [functional.alltypessmall b]
 |     partitions=2/4 files=2 size=3.17KB row-size=89B cardinality=5
 |     predicates: b.string_col = '15'
+|     partition predicates: b.month > 2
 |
 03:EXCHANGE [HASH(a.id,a.int_col)]
 |
 00:SCAN HDFS [functional.alltypesagg a]
    partitions=5/11 files=5 size=372.38KB row-size=95B cardinality=556
    predicates: a.tinyint_col = 15
+   partition predicates: a.day >= 6
    runtime filters: RF000 -> a.id, RF001 -> a.int_col
 ====
 # same as before, with 3 tables;
@@ -211,13 +222,16 @@ PLAN-ROOT SINK
 |  |--01:SCAN HDFS [functional.alltypessmall b]
 |  |     partitions=2/4 files=2 size=3.17KB row-size=89B cardinality=5
 |  |     predicates: b.string_col = '15'
+|  |     partition predicates: b.month > 2
 |  |
 |  00:SCAN HDFS [functional.alltypesagg a]
 |     partitions=5/11 files=5 size=372.38KB row-size=95B cardinality=556
 |     predicates: a.tinyint_col = 15
+|     partition predicates: a.day >= 6
 |
 02:SCAN HDFS [functional.alltypesaggnonulls c]
    partitions=2/10 files=2 size=148.10KB row-size=95B cardinality=2.00K
+   partition predicates: c.day < 3
 ---- DISTRIBUTEDPLAN
 PLAN-ROOT SINK
 |
@@ -233,6 +247,7 @@ PLAN-ROOT SINK
 |  |
 |  02:SCAN HDFS [functional.alltypesaggnonulls c]
 |     partitions=2/10 files=2 size=148.10KB row-size=95B cardinality=2.00K
+|     partition predicates: c.day < 3
 |
 07:EXCHANGE [HASH(a.id,b.string_col)]
 |
@@ -245,6 +260,7 @@ PLAN-ROOT SINK
 |  01:SCAN HDFS [functional.alltypessmall b]
 |     partitions=2/4 files=2 size=3.17KB row-size=89B cardinality=5
 |     predicates: b.string_col = '15'
+|     partition predicates: b.month > 2
 |     runtime filters: RF001 -> b.string_col
 |
 05:EXCHANGE [HASH(a.id,a.int_col)]
@@ -252,6 +268,7 @@ PLAN-ROOT SINK
 00:SCAN HDFS [functional.alltypesagg a]
    partitions=5/11 files=5 size=372.38KB row-size=95B cardinality=556
    predicates: a.tinyint_col = 15
+   partition predicates: a.day >= 6
    runtime filters: RF000 -> a.id
 ====
 # equi join with constants in the on clause are not supported
@@ -348,6 +365,9 @@ PLAN-ROOT SINK
    runtime filters: RF000 -> functional.alltypesagg.id, RF001 -> functional.alltypesagg.int_col
 ====
 # hbase-hdfs join with scan filtering
+# |stringids| = 10K (though the row count estimator will have some other value)
+# |stringids.tinyint_col| = 9
+# |stringids'| = 10K/9 = 1.1K
 select *
 from functional.alltypesagg a join functional_hbase.stringids b
        on (a.id = cast(b.id as int) and a.int_col = b.int_col)
@@ -374,6 +394,7 @@ PLAN-ROOT SINK
 00:SCAN HDFS [functional.alltypesagg a]
    partitions=5/11 files=5 size=372.38KB row-size=95B cardinality=556
    predicates: a.tinyint_col = 15
+   partition predicates: a.day >= 6
    runtime filters: RF000 -> a.int_col, RF001 -> a.id
 ---- SCANRANGELOCATIONS
 NODE 0:

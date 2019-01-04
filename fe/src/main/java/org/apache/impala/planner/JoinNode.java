@@ -295,6 +295,9 @@ public abstract class JoinNode extends PlanNode {
         fkPkEqJoinConjuncts_ .isEmpty() ? eqJoinConjunctSlots : fkPkEqJoinConjuncts_;
     long result = estimateJoinCardinality(joinKeys, probeCard, probeSelectivity,
         buildCard, buildSelectivity);
+    double additionalSelectivity = computeCombinedSelectivity(conjuncts_);
+    result = Math.round(result * additionalSelectivity);
+    selectivity_ *= additionalSelectivity;
     System.out.println(String.format("  --> card=%d, sel=%.8f", result, selectivity_));
     return result;
 //    if (fkPkEqJoinConjuncts_ != null) {
@@ -312,17 +315,11 @@ public abstract class JoinNode extends PlanNode {
    *
    * |R.k'| = min(sel(R) * prod(|R.ki'|), |R'|)
    *
-   * |R.k''| = |R.k'| / ss
+   *                  |L'| * |R'|
+   * |L' >< R'| = -------------------
+   *              max(|L.k'|, |R.k'|)
    *
-   * |R''| = |R'| / ss
-   *
-   *                  |L'| * |R''|
-   * |L' >< R'| = --------------------
-   *              max(|L.k'|, |R.k''|)
-   *
-   *             |L' >< R'|
-   * sel(join) = -----------
-   *             |L'| * |R'|
+   * sel(join) = min(sel(L), sel(R))
    * </pre>
    *
    * Where:
@@ -352,7 +349,6 @@ public abstract class JoinNode extends PlanNode {
    * "https://pdfs.semanticscholar.org/2735/672262940a23cfce8d4cc1e25c0191de7da7.pdf">
    * S & S Paper</a>.
    */
-
   private long estimateJoinCardinality(List<EqJoinConjunctScanSlots> joinKeys,
       long probeCard, double probeSelectivity,
       long buildCard, double buildSelectivity) {
@@ -367,7 +363,7 @@ public abstract class JoinNode extends PlanNode {
     // in the plan; continuing will cause us to work with meaningless numbers.
     if (probeCard == 0 || buildCard == 0) return 0;
 
-    // Compute the joint NDV (cardinality) of the join keys assuming
+    // Compute the joint cardinality (NDV) of the join keys assuming
     // the multiplicative rule, and observing that |key| <= |T|.
     double jointProbeKeyCard = probeSelectivity;
     double jointBuildKeyCard = buildSelectivity;
@@ -378,11 +374,10 @@ public abstract class JoinNode extends PlanNode {
     jointProbeKeyCard = Math.min(jointProbeKeyCard, probeCard);
     jointBuildKeyCard = Math.min(jointBuildKeyCard, buildCard);
 
-    // Common filter has been applied to both table cardinalities.
-    // But, because we divide by only one key cardinality, the
-    // we have sel^2/sel, meaning that the shared selectivity
-    // does not cancel. Adjust the largest key cardinality
-    // to match.
+    // Divide the Cartesian product of the input relations by the
+    // key column with the largest cardinality. The selectivity
+    // of the join is that of the most selective relation, which is
+    // the side with the smallest key cardinality.
     double largestKeyCard;
     if (jointProbeKeyCard > jointBuildKeyCard) {
       largestKeyCard = jointProbeKeyCard;
@@ -393,11 +388,9 @@ public abstract class JoinNode extends PlanNode {
     }
 
     // Apply the cardinality expression
-    double cartesianProduct = (double) probeCard * (double) buildCard;
-    double joinCard =  cartesianProduct / largestKeyCard;
-
     // Clamp the value to the range (1, MAX_LONG)
-    return Math.round(Math.max(1, Math.min(joinCard, Long.MAX_VALUE)));
+    return Math.round(Math.max(1, Math.min(Long.MAX_VALUE,
+        (double) probeCard * (double) buildCard / largestKeyCard)));
   }
 
   /**

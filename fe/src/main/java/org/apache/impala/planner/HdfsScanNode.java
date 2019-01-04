@@ -259,10 +259,13 @@ public class HdfsScanNode extends ScanNode {
   // parquet::Statistics.
   private TupleDescriptor minMaxTuple_;
 
-  // Slot that is used to record the Parquet metatdata for the count(*) aggregation if
+  // Slot that is used to record the Parquet metadata for the count(*) aggregation if
   // this scan node has the count(*) optimization enabled.
   private SlotDescriptor countStarSlot_ = null;
 
+  // Conjuncts used to trim the set of partitions passed to this node.
+  // Used only to display EXPLAIN information.
+  private List<Expr> partitionConjuncts_;
   /**
    * Construct a node to scan given data files into tuples described by 'desc',
    * with 'conjuncts' being the unevaluated conjuncts bound by the tuple and
@@ -1005,11 +1008,13 @@ public class HdfsScanNode extends ScanNode {
   private void computeCardinalities() {
     // Choose between the extrapolated row count and the one based on stored stats.
     extrapolatedNumRows_ = FeFsTable.Utils.getExtrapolatedNumRows(tbl_, totalBytes_);
+    long tableCardinality = tbl_.getTTableStats().getNum_rows();
     long statsNumRows = getStatsNumRows();
     if (extrapolatedNumRows_ != -1) {
       // The extrapolated row count is based on the 'totalBytes_' which already accounts
       // for table sampling, so no additional adjustment for sampling is necessary.
       cardinality_ = extrapolatedNumRows_;
+      tableCardinality = extrapolatedNumRows_;
     } else {
       // Set the cardinality based on table or partition stats.
       cardinality_ = statsNumRows;
@@ -1055,6 +1060,11 @@ public class HdfsScanNode extends ScanNode {
     cardinality_ = capCardinalityAtLimit(cardinality_);
     if (LOG.isTraceEnabled()) {
       LOG.trace("HdfsScan: cardinality_=" + Long.toString(cardinality_));
+    }
+    // Compute the effective selectivity which includes the effect of
+    // partition pruning, etc.
+    if (tableCardinality > 0) {
+      selectivity_ = (double) cardinality_ / tableCardinality;
     }
   }
 
@@ -1240,6 +1250,10 @@ public class HdfsScanNode extends ScanNode {
           output.append(String.format("%spredicates on %s: %s\n", detailPrefix, alias,
               getExplainString(entry.getValue(), detailLevel)));
         }
+      }
+      if (partitionConjuncts_ != null && !partitionConjuncts_.isEmpty()) {
+        output.append(String.format("%spartition predicates: %s\n", detailPrefix,
+            getExplainString(partitionConjuncts_, detailLevel)));
       }
       if (!runtimeFilters_.isEmpty()) {
         output.append(detailPrefix + "runtime filters: ");
@@ -1636,4 +1650,8 @@ public class HdfsScanNode extends ScanNode {
   public boolean hasCorruptTableStats() { return hasCorruptTableStats_; }
 
   public boolean hasMissingDiskIds() { return numScanRangesNoDiskIds_ > 0; }
+
+  public void setPartitionConjuncts(List<Expr> conjuncts) {
+    partitionConjuncts_ = conjuncts;
+  }
 }

@@ -44,6 +44,7 @@ import org.apache.impala.catalog.FeFsTable;
 import org.apache.impala.catalog.PrunablePartition;
 import org.apache.impala.common.AnalysisException;
 import org.apache.impala.common.ImpalaException;
+import org.apache.impala.common.Pair;
 import org.apache.impala.rewrite.BetweenToCompoundRule;
 import org.apache.impala.rewrite.ExprRewriter;
 import org.slf4j.Logger;
@@ -100,13 +101,14 @@ public class HdfsPartitionPruner {
    * that conjuncts used for filtering will be removed from the list 'conjuncts'.
    * If 'allowEmpty' is False, empty partitions are not returned.
    */
-  public List<? extends FeFsPartition> prunePartitions(
+  public Pair<List<? extends FeFsPartition>, List<Expr>> prunePartitions(
       Analyzer analyzer, List<Expr> conjuncts, boolean allowEmpty)
       throws ImpalaException {
     // Start with creating a collection of partition filters for the applicable conjuncts.
     List<HdfsPartitionFilter> partitionFilters = new ArrayList<>();
     // Conjuncts that can be evaluated from the partition key values.
     List<Expr> simpleFilterConjuncts = new ArrayList<>();
+    List<Expr> partitionConjuncts = new ArrayList<>();
 
     // Simple predicates (e.g. binary predicates of the form
     // <SlotRef> <op> <LiteralExpr>) can be used to derive lists
@@ -128,6 +130,7 @@ public class HdfsPartitionPruner {
         } else {
           partitionFilters.add(new HdfsPartitionFilter(clonedConjunct, tbl_, analyzer));
         }
+        partitionConjuncts.add(conjunct);
         it.remove();
       }
     }
@@ -168,7 +171,7 @@ public class HdfsPartitionPruner {
             }
           }));
     }
-    return results;
+    return new Pair<>(results, partitionConjuncts);
   }
 
   /**

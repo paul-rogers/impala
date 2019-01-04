@@ -208,8 +208,8 @@ public class BinaryPredicate extends Predicate {
     // Determine selectivity
     // TODO: Compute selectivity for nested predicates.
     Reference<SlotRef> slotRefRef = new Reference<SlotRef>();
-    if (!isSingleColumnPredicate(slotRefRef, null)) return;
-    long distinctValues = slotRefRef.getRef().getNumDistinctValues();
+    boolean singleCol = isSingleColumnPredicate(slotRefRef, null);
+    long distinctValues = singleCol ? slotRefRef.getRef().getNumDistinctValues() : 0;
     switch (op_) {
     case EQ:
     case NOT_DISTINCT:
