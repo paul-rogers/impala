@@ -20,9 +20,6 @@ package org.apache.impala.planner;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import org.apache.impala.analysis.Analyzer;
 import org.apache.impala.analysis.BinaryPredicate;
 import org.apache.impala.analysis.BoolLiteral;
@@ -58,6 +55,9 @@ import org.apache.impala.thrift.TScanRangeLocation;
 import org.apache.impala.thrift.TScanRangeLocationList;
 import org.apache.impala.thrift.TScanRangeSpec;
 import org.apache.impala.thrift.TStatus;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.google.common.base.Joiner;
 import com.google.common.base.Objects;
 import com.google.common.base.Preconditions;
@@ -278,6 +278,11 @@ public class DataSourceScanNode extends ScanNode {
     numNodes_ = table_.getNumNodes();
     if (LOG.isTraceEnabled()) {
       LOG.trace("computeStats DataSourceScan: #nodes=" + Integer.toString(numNodes_));
+    }
+    // Compute the effective selectivity which includes the effect of
+    // partition pruning, etc.
+    if (numRowsEstimate_ > 0) {
+      selectivity_ = (double) cardinality_ / numRowsEstimate_;
     }
   }
 

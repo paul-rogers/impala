@@ -297,3 +297,95 @@ PLAN-ROOT SINK
    partitions=0/11 files=0 size=0B row-size=95B cardinality=0
    partition predicates: a.day = 23
 ====
+# IS NULL
+# Estimated from null count, which is 0 for TPCH tables.
+# TODO: Add tests for ndv stats but no null counts
+# Impala does not suport NOT NULL fields, so we have to assume the
+# field can be null. That means null is one of the distinct values.
+# sel(mktsegment is null) = 1/NDV = 0.2
+select *
+from tpch.customer c
+where c.c_mktsegment is null
+---- PLAN
+PLAN-ROOT SINK
+|
+00:SCAN HDFS [tpch.customer c]
+   partitions=1/1 files=1 size=23.08MB row-size=218B cardinality=1
+   predicates: c.c_mktsegment IS NULL
+====
+# IS NOT NULL
+# Similar to above.
+select *
+from tpch.customer c
+where c.c_mktsegment is not null
+---- PLAN
+PLAN-ROOT SINK
+|
+00:SCAN HDFS [tpch.customer c]
+   partitions=1/1 files=1 size=23.08MB row-size=218B cardinality=150.00K
+   predicates: c.c_mktsegment IS NOT NULL
+====
+# |alltypesagg| = 11K. Null count of tinyint_col = 2000.
+select *
+from functional.alltypesagg
+where tinyint_col is null
+---- PLAN
+PLAN-ROOT SINK
+|
+00:SCAN HDFS [functional.alltypesagg]
+   partitions=11/11 files=11 size=814.73KB row-size=95B cardinality=2.00K
+   predicates: tinyint_col IS NULL
+====
+# As above.
+select *
+from functional.alltypesagg
+where tinyint_col is not null
+---- PLAN
+PLAN-ROOT SINK
+|
+00:SCAN HDFS [functional.alltypesagg]
+   partitions=11/11 files=11 size=814.73KB row-size=95B cardinality=9.00K
+   predicates: tinyint_col IS NOT NULL
+====
+# IS NULL on an expression. Guess 0.1 selectivity
+select *
+from tpch.customer c
+where concat(c.c_mktsegment, c_comment) is null
+---- PLAN
+PLAN-ROOT SINK
+|
+00:SCAN HDFS [tpch.customer c]
+   partitions=1/1 files=1 size=23.08MB row-size=218B cardinality=15.00K
+   predicates: concat(c.c_mktsegment, c_comment) IS NULL
+====
+# IS NOT NULL. Guess 0.9 selectivity
+select *
+from tpch.customer c
+where concat(c.c_mktsegment, c_comment) is not null
+---- PLAN
+PLAN-ROOT SINK
+|
+00:SCAN HDFS [tpch.customer c]
+   partitions=1/1 files=1 size=23.08MB row-size=218B cardinality=135.00K
+   predicates: concat(c.c_mktsegment, c_comment) IS NOT NULL
+====
+# Scan of a table with no stats and zero rows
+select *
+from functional.alltypesnopart
+---- PLAN
+PLAN-ROOT SINK
+|
+00:SCAN HDFS [functional.alltypesnopart]
+   partitions=1/1 files=0 size=0B row-size=72B cardinality=0
+====
+# Filter on the no-stats table
+select *
+from functional.alltypesnopart
+where int_col = 10
+---- PLAN
+PLAN-ROOT SINK
+|
+00:SCAN HDFS [functional.alltypesnopart]
+   partitions=1/1 files=0 size=0B row-size=72B cardinality=0
+   predicates: int_col = 10
+====

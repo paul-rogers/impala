@@ -37,7 +37,6 @@ import org.apache.impala.thrift.TPlanNodeType;
 import org.apache.impala.thrift.TQueryOptions;
 import org.apache.impala.util.BitUtil;
 
-import com.google.common.base.Joiner;
 import com.google.common.base.Objects;
 import com.google.common.base.Preconditions;
 
@@ -174,14 +173,14 @@ public class HashJoinNode extends JoinNode {
       // Optionally print FK/PK equi-join conjuncts.
       if (joinOp_.isInnerJoin() || joinOp_.isOuterJoin()) {
         if (detailLevel.ordinal() > TExplainLevel.STANDARD.ordinal()) {
-          output.append(detailPrefix + "fk/pk conjuncts: ");
-          if (fkPkEqJoinConjuncts_ == null) {
-            output.append("none");
-          } else if (fkPkEqJoinConjuncts_.isEmpty()) {
-            output.append("assumed fk/pk");
-          } else {
-            output.append(Joiner.on(", ").join(fkPkEqJoinConjuncts_));
-          }
+//          output.append(detailPrefix + "fk/pk conjuncts: ");
+//          if (fkPkEqJoinConjuncts_ == null) {
+//            output.append("none");
+//          } else if (fkPkEqJoinConjuncts_.isEmpty()) {
+//            output.append("assumed fk/pk");
+//          } else {
+//            output.append(Joiner.on(", ").join(fkPkEqJoinConjuncts_));
+//          }
           output.append("\n");
         }
       }

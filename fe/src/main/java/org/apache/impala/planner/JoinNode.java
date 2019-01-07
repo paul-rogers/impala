@@ -19,21 +19,17 @@ package org.apache.impala.planner;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 import org.apache.impala.analysis.Analyzer;
 import org.apache.impala.analysis.BinaryPredicate;
 import org.apache.impala.analysis.Expr;
 import org.apache.impala.analysis.JoinOperator;
 import org.apache.impala.analysis.SlotDescriptor;
-import org.apache.impala.analysis.SlotRef;
 import org.apache.impala.analysis.TupleId;
-import org.apache.impala.catalog.ColumnStats;
+import org.apache.impala.catalog.Column;
 import org.apache.impala.catalog.FeTable;
 import org.apache.impala.common.ImpalaException;
-import org.apache.impala.common.Pair;
 import org.apache.impala.thrift.TExecNodePhase;
 import org.apache.impala.thrift.TJoinDistributionMode;
 import org.apache.impala.thrift.TQueryOptions;
@@ -41,6 +37,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Lists;
 
 /**
  * Logical join operator. Subclasses correspond to implementations of the join operator
@@ -77,20 +74,6 @@ public abstract class JoinNode extends PlanNode {
   // if valid, the rhs input is materialized outside of this node and is assigned
   // joinTableId_
   protected JoinTableId joinTableId_ = JoinTableId.INVALID;
-
-  // List of equi-join conjuncts believed to be involved in a FK/PK relationship.
-  // The conjuncts are grouped by the tuple ids of the joined base table refs. A conjunct
-  // is only included in this list if it is of the form <SlotRef> = <SlotRef> and the
-  // underlying columns and tables on both sides have stats. See getFkPkEqJoinConjuncts()
-  // for more details on the FK/PK detection logic.
-  // The value of this member represents three different states:
-  // - null: There are eligible join conjuncts and we have high confidence that none of
-  //   them represent a FK/PK relationship.
-  // - non-null and empty: There are no eligible join conjuncts. We assume a FK/PK join.
-  // - non-null and non-empty: There are eligible join conjuncts that could represent
-  //   a FK/PK relationship.
-  // Theses conjuncts are printed in the explain plan.
-  protected List<EqJoinConjunctScanSlots> fkPkEqJoinConjuncts_;
 
   public enum DistributionMode {
     NONE("NONE"),
@@ -212,534 +195,559 @@ public abstract class JoinNode extends PlanNode {
         getCombinedChildSmap(), analyzer, false);
   }
 
-  /**
-   * Returns the estimated cardinality of an inner or outer join.
-   *
-   * We estimate the cardinality based on equality join predicates of the form
-   * "L.c = R.d", with L being a table from child(0) and R a table from child(1).
-   * For each set of such join predicates between two tables, we try to determine whether
-   * the tables might have foreign/primary key (FK/PK) relationship, and either use a
-   * special FK/PK estimation or a generic estimation method. Once the estimation method
-   * has been determined we compute the final cardinality based on the single most
-   * selective join predicate. We do not attempt to estimate the joint selectivity of
-   * multiple join predicates to avoid underestimation.
-   * The FK/PK detection logic is based on the assumption that most joins are FK/PK. We
-   * only use the generic estimation method if we have high confidence that there is no
-   * FK/PK relationship. In the absence of relevant stats, we assume FK/PK with a join
-   * selectivity of 1.
-   *
-   * FK/PK estimation:
-   * cardinality = |child(0)| * (|child(1)| / |R|) * (NDV(R.d) / NDV(L.c))
-   * - the cardinality of a FK/PK must be <= |child(0)|
-   * - |child(1)| / |R| captures the reduction in join cardinality due to
-   *   predicates on the PK side
-   * - NDV(R.d) / NDV(L.c) adjusts the join cardinality to avoid underestimation
-   *   due to an independence assumption if the PK side has a higher NDV than the FK
-   *   side. The rationale is that rows filtered from the PK side do not necessarily
-   *   have a match on the FK side, and therefore would not affect the join cardinality.
-   *   TODO: Revisit this pessimistic adjustment that tends to overestimate.
-   *
-   * Generic estimation:
-   * cardinality = |child(0)| * |child(1)| / max(NDV(L.c), NDV(R.d))
-   * - case A: NDV(L.c) <= NDV(R.d)
-   *   every row from child(0) joins with |child(1)| / NDV(R.d) rows
-   * - case B: NDV(L.c) > NDV(R.d)
-   *   every row from child(1) joins with |child(0)| / NDV(L.c) rows
-   * - we adjust the NDVs from both sides to account for predicates that may
-   *   might have reduce the cardinality and NDVs
-   */
-  private long getJoinCardinality(Analyzer analyzer) {
-    Preconditions.checkState(joinOp_.isInnerJoin() || joinOp_.isOuterJoin());
-    fkPkEqJoinConjuncts_ = Collections.emptyList();
-
-    PlanNode probeNode = getChild(0);
-    PlanNode buildNode = getChild(1);
-    long probeCard = probeNode.cardinality_;
-    long buildCard = buildNode.cardinality_;
-    if (probeCard == -1 || buildCard == -1) {
-      // Assume FK/PK with a join selectivity of 1.
-      // See IMPALA-XXXX
-      return probeCard;
+  public List<Expr> boundConjuncts(List<TupleId> tids) {
+    List<Expr> matches = new ArrayList<>();
+    for (Expr expr : conjuncts_) {
+      if (! expr.isBoundByTupleIds(tids)) {
+        matches.add(expr);
+      }
     }
-
-    // Collect join conjuncts that are eligible to participate in cardinality estimation.
-    List<EqJoinConjunctScanSlots> eqJoinConjunctSlots = new ArrayList<>();
-    for (Expr eqJoinConjunct: eqJoinConjuncts_) {
-      EqJoinConjunctScanSlots slots = EqJoinConjunctScanSlots.create(eqJoinConjunct);
-      if (slots != null) eqJoinConjunctSlots.add(slots);
-    }
-
-    if (eqJoinConjunctSlots.isEmpty()) {
-      // There are no eligible equi-join conjuncts. Optimistically assume FK/PK with a
-      // join selectivity of 1.
-      // See IMPALA-XXXX
-      return probeCard;
-    }
-
-    // Retrieve the selectivity of the child nodes. This is combines
-    // the effect of all filters already applied.
-    double probeSelectivity = probeNode.selectivity();
-    double buildSelectivity = buildNode.selectivity();
-
-    {
-      System.out.println(String.format(
-          "%s %s card=%d sel=%.8f >< %s %s card=%d, sel=%.8f",
-          probeNode.displayName(),
-          probeNode.getDisplayLabelDetail(),
-          probeCard, probeSelectivity,
-          buildNode.displayName(),
-          buildNode.getDisplayLabelDetail(),
-          buildCard, buildSelectivity));
-    }
-    List<EqJoinConjunctScanSlots> joinKeys =
-        fkPkEqJoinConjuncts_ .isEmpty() ? eqJoinConjunctSlots : fkPkEqJoinConjuncts_;
-    long result = estimateJoinCardinality(joinKeys, probeCard, probeSelectivity,
-        buildCard, buildSelectivity);
-    double additionalSelectivity = computeCombinedSelectivity(conjuncts_);
-    result = Math.round(result * additionalSelectivity);
-    selectivity_ *= additionalSelectivity;
-    System.out.println(String.format("  --> card=%d, sel=%.8f", result, selectivity_));
-    return result;
-//    if (fkPkEqJoinConjuncts_ != null) {
-//      return getFkPkJoinCardinality(fkPkEqJoinConjuncts_, probeCard, buildCard);
-//    } else {
-//      return getGenericJoinCardinality(eqJoinConjunctSlots, probeCard, buildCard);
-//    }
+    return matches;
   }
 
-  /**
-   * Compute the estimated join cardinality using the expression derived in IMPALA-8014:
-   *
-   * <pre>
-   * |L.k'| = min(sel(L) * prod(|L.ki'|), |L'|)
-   *
-   * |R.k'| = min(sel(R) * prod(|R.ki'|), |R'|)
-   *
-   *                  |L'| * |R'|
-   * |L' >< R'| = -------------------
-   *              max(|L.k'|, |R.k'|)
-   *
-   * sel(join) = min(sel(L), sel(R))
-   * </pre>
-   *
-   * Where:
-   *
-   * * L is the left (probe) table
-   * * R is the right (build) table
-   * * Pki (Bki) is the ith join key on the probe (build) side
-   * * sel(L), sel(R) are the selectivities applies on the input nodes
-   * * prod() is the product function (capital-pi)
-   * * ss is the shared selectivity (which is 1 if no expressions are shared).
-   *
-   * If the join keys are compound (more than one), we assume key independence
-   * and use the multiplicative rule. (See the S&S paper cited below.)
-   *
-   * Shared selectivity occurs if the same conjunct is assigned to both input
-   * tables. To avoid double-counting that reduction, we back it out of the
-   * smaller (build) side.
-   *
-   * @param joinKeys
-   * @param probeScanCard probe (left, lhs, detail) cardinality after
-   * applying filters (generally, the result of some join subtree)
-   * @param buildScanCard build (right, rhs, master) cardinality after
-   * applying filters
-   * @param buildTableCard build side table cardinality
-   * @return estimated cardinality of this join
-   * @see <a href=
-   * "https://pdfs.semanticscholar.org/2735/672262940a23cfce8d4cc1e25c0191de7da7.pdf">
-   * S & S Paper</a>.
-   */
-  private long estimateJoinCardinality(List<EqJoinConjunctScanSlots> joinKeys,
-      long probeCard, double probeSelectivity,
-      long buildCard, double buildSelectivity) {
-    Preconditions.checkState(!joinKeys.isEmpty());
-    Preconditions.checkState(probeCard >= 0);
-    Preconditions.checkState(buildCard >= 0);
-    Preconditions.checkState(probeSelectivity >= 0);
-    Preconditions.checkState(buildSelectivity >= 0);
+  public static class EquiJoinRef {
+     // Cardinality of the base table, |table|
+    private double tableCardinality_;
+    // NDV of the base table column, |col|
+    private double originalNdv_;
+    // Selectivity of the input node: the ratio |table'| / |table|
+    // Should differ per column; but all columns treated the same for now.
+    // (In SELECT * FROM alltypes WHERE int_col = 10
+    // We know that int_col has an NDV of 1, but all other columns have
+    // independent values and should have a higher NDV.
+    // TODO: Revisit this later.
+    private double selectivity_;
+    // Column NDV after applying filtering adjustments, |col'|
+    private double adjustedNdv_;
 
-    // Bail out fast in the |build| = 0 case. We may have an EmptySet node.
-    // But, the NDV of the build columns still have their values from earlier
-    // in the plan; continuing will cause us to work with meaningless numbers.
-    if (probeCard == 0 || buildCard == 0) return 0;
+    private EquiJoinRef(Expr expr) {
+      SlotDescriptor slotDesc_ =  expr.findSrcScanSlot();
+      if (slotDesc_.getColumn() == null) return;
+      // Expression is a column ref. Get stats, which are -1 if unset.
+      FeTable tbl = slotDesc_.getParent().getTable();
+      tableCardinality_ = tbl.getTTableStats().getNum_rows();
+      originalNdv_ = slotDesc_.getStats().getNumDistinctValues();
+      adjustedNdv_ = originalNdv_;
+      selectivity_ = 1;
+      if (tableCardinality_ != -1 && originalNdv_ != -1) {
+        adjustedNdv_ = Math.min(adjustedNdv_, tableCardinality_);
+      }
+    }
+
+    /**
+     * Estimate an NDV based on the classic rule:
+     * sel(c = x) = 0.1, c = column, x = constant
+     * Since sel(c = x) = 1/ndv(c) = 0.1,
+     * ndv(c) = |table| * 0.1
+     */
+    private void updateEstimate(double tableCardinality) {
+      if (tableCardinality_ == -1) {
+        tableCardinality_ = tableCardinality;
+      } else {
+        Preconditions.checkState(Math.round(tableCardinality_) == Math.round(tableCardinality));
+      }
+      if (originalNdv_ == -1)
+        originalNdv_ = tableCardinality_ * 0.1;
+      // TODO: Better estimate for other items
+    }
+
+    private void adjustNdv(double scanCardinality) {
+      if (tableCardinality_ == -1) {
+        selectivity_ = 1;
+        if (originalNdv_ == -1) {
+          // If no original NDV and no table cardinality, we have to make
+          // up a column NDV. Assume selectivity of .1 or
+          // NDV = scanCardinality * 0.1
+          adjustedNdv_ = Math.max(1.0, scanCardinality * 0.1);
+        } else {
+          // We have an original NDV but, oddly, no table NDV.
+          // Don't adjust the NDV and hope for the best.
+          adjustedNdv_ = Math.min(originalNdv_, scanCardinality);
+        }
+      } else if (scanCardinality < tableCardinality_){
+        selectivity_ = scanCardinality / tableCardinality_;
+        // TODO: Per column adjustments based on prior predicates. See comment above.
+        // TODO: Use the urn model from the S&S paper.
+        adjustedNdv_ = Math.max(1, originalNdv_ * selectivity_);
+      }
+    }
+
+    private double tableCardinality() { return tableCardinality_; }
+    private double adjustedNdv() { return adjustedNdv_; }
+  }
+
+  public static class RelationStats {
+    private final PlanNode node_;
+    private double cardinality_;
+    private double selectivity_;
+    private double jointKeyCard_ = 1;
+    private final List<EquiJoinRef> keys_ = new ArrayList<>();
+
+    private RelationStats(PlanNode node) {
+      node_ = node;
+      cardinality_ = node.cardinality_;
+      selectivity_ = node.selectivity();
+      if (selectivity_ == -1) selectivity_ = 1;
+    }
+
+    public void addKey(Expr expr) {
+      keys_.add(new EquiJoinRef(expr));
+    }
+
+    private double cardinality() { return cardinality_; }
+    private double selectivity() { return selectivity_; }
+    private double jointKeyCardinality() { return jointKeyCard_; }
+    private PlanNode node() { return node_; }
+
+    /**
+     * Try getting cardinality from the left join predicate, if only one.
+     * Else, try using the largest column NDV.
+     *
+     * These are hacks and would be better done in the input node itself.
+     * Done here for now to keep changes in one place.
+     */
+    public void estimateCardinality() {
+      if (cardinality_ == 0) { return; }
+      if (cardinality_ > 0) {
+        for (EquiJoinRef key : keys_) {
+          key.adjustNdv(cardinality_);
+        }
+        return;
+      }
+      // Try getting cardinality from the left join predicate, if only one.
+      if (keys_.size() == 1) {
+        cardinality_ = keys_.get(0).tableCardinality();
+      }
+      // Try using the largest column NDV
+      if (cardinality_ == -1) {
+        cardinality_ = estimateCardinalityFromNdv();
+      }
+    }
+
+    /**
+     * Estimate node cardinality using the table cardinality, or
+     * failing that, the highest NDV. Then, adjust with the node
+     * selectivity, if available.
+     *
+     * TODO: This really should be done in the scan node itself as
+     * it is in a better position to handle this case. Done here for now
+     * to minimize code change.
+     *
+     * TODO: Should be based on table size and estimated row width.
+     * Using NDV is a work around that works if the table has a unique
+     * column (and we have column stats.) Best would be to compare
+     * stored and nd actual row counts, then scale NDVs to account for
+     * table growth (or shrinkage).
+     *
+     * @return estimated node cardinality, or -1 if no estimate can
+     * be made.
+     */
+    private double estimateCardinalityFromNdv() {
+      if (!(node_ instanceof ScanNode)) return -1;
+      ScanNode scanNode = (ScanNode) node_;
+      FeTable table = scanNode.getTupleDesc().getTable();
+      if (table == null) return -1;
+      long tableCard = table.getTTableStats().getNum_rows();
+      if (tableCard == -1) {
+        for (Column col : table.getColumns()) {
+          tableCard = Math.max(tableCard, col.getStats().getNumDistinctValues());
+        }
+      }
+      // Apply node selectivity, if known.
+      if (tableCard == -1) return tableCard;
+      if (selectivity_ != -1) tableCard *= selectivity_;
+      return tableCard;
+    }
+
+    /**
+     * If we have only partial information, then guess a selectivity
+     * of 1 to keep the calcs simple. Would be better to have worked
+     * this out in the child node already than to guess it here.
+     */
+    private void guessSelectivity() {
+      if (selectivity_ == -1) selectivity_ = 1.0;
+    }
 
     // Compute the joint cardinality (NDV) of the join keys assuming
     // the multiplicative rule, and observing that |key| <= |T|.
-    double jointProbeKeyCard = probeSelectivity;
-    double jointBuildKeyCard = buildSelectivity;
-    for (EqJoinConjunctScanSlots joinKey : joinKeys) {
-      jointProbeKeyCard *= joinKey.lhsNdv();
-      jointBuildKeyCard *= joinKey.rhsNdv();
-    }
-    jointProbeKeyCard = Math.min(jointProbeKeyCard, probeCard);
-    jointBuildKeyCard = Math.min(jointBuildKeyCard, buildCard);
-
-    // Divide the Cartesian product of the input relations by the
-    // key column with the largest cardinality. The selectivity
-    // of the join is that of the most selective relation, which is
-    // the side with the smallest key cardinality.
-    double largestKeyCard;
-    if (jointProbeKeyCard > jointBuildKeyCard) {
-      largestKeyCard = jointProbeKeyCard;
-      selectivity_ = buildSelectivity;
-    } else {
-      largestKeyCard = jointBuildKeyCard;
-      selectivity_ = probeSelectivity;
+    // If no join conditions, the largest key cardinality will be 1
+    // which turns out to to be what is needed for a Cartesian product.
+    private double calcJointKeyCardinality() {
+      jointKeyCard_ = 1;
+      for (EquiJoinRef key : keys_) {
+        jointKeyCard_ *= key.adjustedNdv();
+      }
+      jointKeyCard_ = Math.min(jointKeyCard_, cardinality_);
+      return jointKeyCard_;
     }
 
-    // Apply the cardinality expression
-    // Clamp the value to the range (1, MAX_LONG)
-    return Math.round(Math.max(1, Math.min(Long.MAX_VALUE,
-        (double) probeCard * (double) buildCard / largestKeyCard)));
-  }
-
-  /**
-   * Returns a list of equi-join conjuncts believed to have a FK/PK relationship based on
-   * whether the right-hand side might be a PK. The conjuncts are grouped by the tuple
-   * ids of the joined base table refs. We prefer to include the conjuncts in the result
-   * unless we have high confidence that a FK/PK relationship is not present. The
-   * right-hand side columns are unlikely to form a PK if their joint NDV is less than
-   * the right-hand side row count. If the joint NDV is close to or higher than the row
-   * count, then it might be a PK.
-   * The given list of eligible join conjuncts must be non-empty.
-   */
-  private List<EqJoinConjunctScanSlots> getFkPkEqJoinConjuncts(
-      List<EqJoinConjunctScanSlots> eqJoinConjunctSlots) {
-    Preconditions.checkState(!eqJoinConjunctSlots.isEmpty());
-    Map<Pair<TupleId, TupleId>, List<EqJoinConjunctScanSlots>> scanSlotsByJoinedTids =
-        EqJoinConjunctScanSlots.groupByJoinedTupleIds(eqJoinConjunctSlots);
-
-    List<EqJoinConjunctScanSlots> result = null;
-    // Iterate over all groups of conjuncts that belong to the same joined tuple id pair.
-    // For each group, we compute the join NDV of the rhs slots and compare it to the
-    // number of rows in the rhs table.
-    for (List<EqJoinConjunctScanSlots> fkPkCandidate: scanSlotsByJoinedTids.values()) {
-      double jointNdv = 1.0;
-      for (EqJoinConjunctScanSlots slots: fkPkCandidate) jointNdv *= slots.rhsNdv();
-      double rhsNumRows = fkPkCandidate.get(0).rhsNumRows();
-      if (jointNdv >= Math.round(rhsNumRows * (1.0 - FK_PK_MAX_STATS_DELTA_PERC))) {
-        // We cannot disprove that the RHS is a PK.
-        if (result == null) result = new ArrayList<>();
-        result.addAll(fkPkCandidate);
+    private void guessCardinality(double cardinality, double selectivity) {
+      Preconditions.checkState(cardinality_ == -1);
+      cardinality_ = cardinality;
+      selectivity_ = selectivity;
+      for (EquiJoinRef key : keys_) {
+        key.updateEstimate(cardinality_);
       }
     }
-    return result;
   }
 
-  /**
-   * Returns the estimated join cardinality of a FK/PK inner or outer join based on the
-   * given list of equi-join conjunct slots and the join input cardinalities.
-   * The returned result is >= 0.
-   * The list of join conjuncts must be non-empty and the cardinalities must be >= 0.
-   */
-  private long getFkPkJoinCardinality(List<EqJoinConjunctScanSlots> eqJoinConjunctSlots,
-      long lhsCard, long rhsCard) {
-    Preconditions.checkState(!eqJoinConjunctSlots.isEmpty());
-    Preconditions.checkState(lhsCard >= 0 && rhsCard >= 0);
+  public static class JoinCalcs {
+    private final JoinNode joinNode_;
+    private final RelationStats probe_;
+    private final RelationStats build_;
+    private double largestKeyCard_;
+    private final List<Expr> skippedPredicates_ = new ArrayList<>();
+    private double cardinality_;
+    private double selectivity_ = 1;
 
-    long result = -1;
-    for (EqJoinConjunctScanSlots slots: eqJoinConjunctSlots) {
-      // Adjust the join selectivity based on the NDV ratio to avoid underestimating
-      // the cardinality if the PK side has a higher NDV than the FK side.
-      double ndvRatio = 1.0;
-      if (slots.lhsNdv() > 0) ndvRatio = slots.rhsNdv() / slots.lhsNdv();
-      double rhsSelectivity = Double.MIN_VALUE;
-      if (slots.rhsNumRows() > 0) rhsSelectivity = rhsCard / slots.rhsNumRows();
-      long joinCard = (long) Math.ceil(lhsCard * rhsSelectivity * ndvRatio);
-      if (result == -1) {
-        result = joinCard;
-      } else {
-        result = Math.min(result, joinCard);
+    private JoinCalcs(JoinNode node) {
+      joinNode_ = node;
+      probe_ = new RelationStats(joinNode_.getChild(0));
+      build_ = new RelationStats(joinNode_.getChild(1));
+    }
+
+    private void calculate() {
+      // Create the join conditions. May be partial at this point.
+      buildJoinTerms();
+      if (!estimateInputCardinalities()) {
+        cardinality_ = -1;
+        return;
+      }
+      // If selectivity is unknown, assume 1.0
+      probe_.guessSelectivity();
+      build_.guessSelectivity();
+      calcJointKeyCardinality();
+      System.out.println(String.format(
+          "  left sel=%.8f, right sel=%.8f, largest key card=%,d",
+          probe_.selectivity(),
+          build_.selectivity(),
+          Math.round(largestKeyCard_)));
+
+      // Calculate the raw join cardinality before additional
+      // predicates beyond equi-join.
+      cardinality_ = calcBaseCardinality();
+
+      // Apply any non-equi-join conditions
+      adjustForExtraPredicates();
+      System.out.println(String.format("  --> card=%,d, sel=%.8f",
+          Math.round(cardinality_), selectivity_));
+    }
+
+    private void buildJoinTerms() {
+      System.out.print("  Conjuncts: ");
+      for (int i = 0; i < joinNode_.eqJoinConjuncts_.size(); ++i) {
+        if (i > 0) System.out.print(", ");
+        System.out.print(joinNode_.eqJoinConjuncts_.get(i).toSql());
+      }
+      System.out.println();
+      // Collect join conjuncts that are eligible to participate in cardinality estimation.
+      for (Expr eqJoinConjunct: joinNode_.eqJoinConjuncts_) {
+        if (!Expr.IS_EQ_BINARY_PREDICATE.apply(eqJoinConjunct)) {
+          skippedPredicates_.add(eqJoinConjunct);
+        } else {
+          probe_.addKey(eqJoinConjunct.getChild(0));
+          build_.addKey(eqJoinConjunct.getChild(1));
+        }
       }
     }
-    // FK/PK join cardinality must be <= the lhs cardinality.
-    result = Math.min(result, lhsCard);
-    Preconditions.checkState(result >= 0);
-    return result;
-  }
 
-  /**
-   * Returns the estimated join cardinality of a generic N:M inner or outer join based
-   * on the given list of equi-join conjunct slots and the join input cardinalities.
-   * The returned result is >= 0.
-   * The list of join conjuncts must be non-empty and the cardinalities must be >= 0.
-   */
-  private long getGenericJoinCardinality(List<EqJoinConjunctScanSlots> eqJoinConjunctSlots,
-      long lhsCard, long rhsCard) {
-    Preconditions.checkState(joinOp_.isInnerJoin() || joinOp_.isOuterJoin());
-    Preconditions.checkState(!eqJoinConjunctSlots.isEmpty());
-    Preconditions.checkState(lhsCard >= 0 && rhsCard >= 0);
-
-    long result = -1;
-    for (EqJoinConjunctScanSlots slots: eqJoinConjunctSlots) {
-      // Adjust the NDVs on both sides to account for predicates. Intuitively, the NDVs
-      // should only decrease. We ignore adjustments that would lead to an increase.
-      double lhsAdjNdv = slots.lhsNdv();
-      if (slots.lhsNumRows() > lhsCard) lhsAdjNdv *= lhsCard / slots.lhsNumRows();
-      double rhsAdjNdv = slots.rhsNdv();
-      if (slots.rhsNumRows() > rhsCard) rhsAdjNdv *= rhsCard / slots.rhsNumRows();
-      // A lower limit of 1 on the max Adjusted Ndv ensures we don't estimate
-      // cardinality more than the max possible. This also handles the case of
-      // null columns on both sides having an Ndv of zero (which would change
-      // after IMPALA-7310 is fixed).
-      long joinCard = Math.round((lhsCard / Math.max(1, Math.max(lhsAdjNdv, rhsAdjNdv))) *
-          rhsCard);
-      if (result == -1) {
-        result = joinCard;
-      } else {
-        result = Math.min(result, joinCard);
+    private boolean estimateInputCardinalities() {
+      probe_.estimateCardinality();
+      build_.estimateCardinality();
+      double probeCard = probe_.cardinality();
+      double buildCard = build_.cardinality();
+      if (probeCard == -1 && buildCard == -1) {
+        // This is a rather sorry state of affairs. We don't know the size
+        // of either table. Should be an error state.
+        return false;
       }
-    }
-    Preconditions.checkState(result >= 0);
-    return result;
-  }
-
-  /**
-   * Holds the source scan slots of a <SlotRef> = <SlotRef> join predicate.
-   * The underlying table and column on both sides have stats.
-   */
-  public static final class EqJoinConjunctScanSlots {
-    private final Expr eqJoinConjunct_;
-    private final SlotDescriptor lhs_;
-    private final SlotDescriptor rhs_;
-
-    private EqJoinConjunctScanSlots(Expr eqJoinConjunct, SlotDescriptor lhs,
-        SlotDescriptor rhs) {
-      eqJoinConjunct_ = eqJoinConjunct;
-      lhs_ = lhs;
-      rhs_ = rhs;
-    }
-
-    // Convenience functions. They return double to avoid excessive casts in callers.
-    public double lhsNdv() {
-      return Math.min(lhs_.getStats().getNumDistinctValues(), lhsNumRows());
-    }
-    public double rhsNdv() {
-      return Math.min(rhs_.getStats().getNumDistinctValues(), rhsNumRows());
-    }
-    public double lhsNumRows() { return lhs_.getParent().getTable().getNumRows(); }
-    public double rhsNumRows() { return rhs_.getParent().getTable().getNumRows(); }
-
-    public TupleId lhsTid() { return lhs_.getParent().getId(); }
-    public TupleId rhsTid() { return rhs_.getParent().getId(); }
-
-    /**
-     * Returns a new EqJoinConjunctScanSlots for the given equi-join conjunct or null if
-     * the given conjunct is not of the form <SlotRef> = <SlotRef> or if the underlying
-     * table/column of at least one side is missing stats.
-     */
-    public static EqJoinConjunctScanSlots create(Expr eqJoinConjunct) {
-      if (!Expr.IS_EQ_BINARY_PREDICATE.apply(eqJoinConjunct)) return null;
-      SlotDescriptor lhsScanSlot = eqJoinConjunct.getChild(0).findSrcScanSlot();
-      if (lhsScanSlot == null || !hasNumRowsAndNdvStats(lhsScanSlot)) return null;
-      SlotDescriptor rhsScanSlot = eqJoinConjunct.getChild(1).findSrcScanSlot();
-      if (rhsScanSlot == null || !hasNumRowsAndNdvStats(rhsScanSlot)) return null;
-      return new EqJoinConjunctScanSlots(eqJoinConjunct, lhsScanSlot, rhsScanSlot);
-    }
-
-    private static boolean hasNumRowsAndNdvStats(SlotDescriptor slotDesc) {
-      if (slotDesc.getColumn() == null) return false;
-      if (!slotDesc.getStats().hasNumDistinctValues()) return false;
-      FeTable tbl = slotDesc.getParent().getTable();
-      if (tbl == null || tbl.getNumRows() == -1) return false;
+      if (probeCard == -1) {
+        // Don't know the probe side, but do know the build side.
+        // Arbitrarily assume a M:N join with group size of 10.
+        // Done to favor true M:1 joins over guesses.
+        probe_.guessCardinality(buildCard * 10, build_.selectivity());
+      } else if (buildCard == -1) {
+        // Symmetrical with above.
+        build_.guessCardinality(probeCard * 10, probe_.selectivity());
+      }
       return true;
     }
 
     /**
-     * Groups the given EqJoinConjunctScanSlots by the lhs/rhs tuple combination
-     * and returns the result as a map.
+     * Compute the joint key cardinality (NDV) for compound keys,
+     * assuming key independence. If keys are not independent, then
+     * their product will generally be larger than the table cardinality,
+     * so we cap at the table cardinality and hope that the user intended
+     * the combination to be more-or-less unique.
+     *
+     * Joint key NDV depends on the adjusted NDV of each column. For now,
+     * the NDV is adjusted linearly. But, we should track predicates and
+     * know that a predicate of the form col = x, where x is constant,
+     * reduces the NDV of col to 1. But, if |col| < |table|, then there
+     * is room for other columns, with independent values, to have a
+     * larger range of NDVs. The urn model tells us how to use probability
+     * to estimate the number. But, that all must come later.
+     *
+     * We also compute the largest of the two key cardinalities for
+     * use in join calcs later.
      */
-    public static Map<Pair<TupleId, TupleId>, List<EqJoinConjunctScanSlots>>
-        groupByJoinedTupleIds(List<EqJoinConjunctScanSlots> eqJoinConjunctSlots) {
-      Map<Pair<TupleId, TupleId>, List<EqJoinConjunctScanSlots>> scanSlotsByJoinedTids =
-          new LinkedHashMap<>();
-      for (EqJoinConjunctScanSlots slots: eqJoinConjunctSlots) {
-        Pair<TupleId, TupleId> tids = Pair.create(slots.lhsTid(), slots.rhsTid());
-        List<EqJoinConjunctScanSlots> scanSlots = scanSlotsByJoinedTids.get(tids);
-        if (scanSlots == null) {
-          scanSlots = new ArrayList<>();
-          scanSlotsByJoinedTids.put(tids, scanSlots);
-        }
-        scanSlots.add(slots);
+    private void calcJointKeyCardinality() {
+      largestKeyCard_ = Math.max(probe_.calcJointKeyCardinality(),
+          build_.calcJointKeyCardinality());
+    }
+
+    private double calcBaseCardinality() {
+      Preconditions.checkState(probe_.cardinality() >= 0);
+      Preconditions.checkState(build_.cardinality() >= 0);
+      switch (joinNode_.joinOp_) {
+      case CROSS_JOIN:
+      case INNER_JOIN:
+        return calcInnerJoin();
+      case FULL_OUTER_JOIN:
+        return calcFullOuterJoin();
+      case LEFT_ANTI_JOIN:
+      case NULL_AWARE_LEFT_ANTI_JOIN:
+        return calcLeftAntiJoin();
+      case LEFT_OUTER_JOIN:
+        return calcLeftOuterJoin();
+      case LEFT_SEMI_JOIN:
+        return calcLeftSemiJoin();
+      case RIGHT_ANTI_JOIN:
+        return calcRightAntiJoin();
+      case RIGHT_OUTER_JOIN:
+        return calcRightOuterJoin();
+      case RIGHT_SEMI_JOIN:
+        return calcRightSemiJoin();
+      default:
+        throw new IllegalStateException();
       }
-      return scanSlotsByJoinedTids;
     }
 
-    @Override
-    public String toString() { return eqJoinConjunct_.toSql(); }
-  }
-
-  /**
-   * Returns the estimated cardinality of a semi join node.
-   * For a left semi join between child(0) and child(1), we look for equality join
-   * conditions "L.c = R.d" (with L being from child(0) and R from child(1)) and use as
-   * the cardinality estimate the minimum of
-   *   |child(0)| * Min(NDV(L.c), NDV(R.d)) / NDV(L.c)
-   * over all suitable join conditions. The reasoning is that:
-   * - each row in child(0) is returned at most once
-   * - the probability of a row in child(0) having a match in R is
-   *   Min(NDV(L.c), NDV(R.d)) / NDV(L.c)
-   *
-   * For a left anti join we estimate the cardinality as the minimum of:
-   *   |L| * Max(NDV(L.c) - NDV(R.d), NDV(L.c)) / NDV(L.c)
-   * over all suitable join conditions. The reasoning is that:
-   * - each row in child(0) is returned at most once
-   * - if NDV(L.c) > NDV(R.d) then the probability of row in L having a match
-   *   in child(1) is (NDV(L.c) - NDV(R.d)) / NDV(L.c)
-   * - otherwise, we conservatively use |L| to avoid underestimation
-   *
-   * We analogously estimate the cardinality for right semi/anti joins, and treat the
-   * null-aware anti join like a regular anti join
-   *
-   * TODO: In order to take into account additional conjuncts in the child child subtrees
-   * adjust NDV(L.c) by |child(0)| / |L| and the NDV(R.d) by |child(1)| / |R|.
-   * The adjustment is currently too dangerous due to the other planner bugs compounding
-   * to bad plans causing perf regressions (IMPALA-976).
-   */
-  private long getSemiJoinCardinality() {
-    Preconditions.checkState(joinOp_.isSemiJoin());
-
-    // Return -1 if the cardinality of the returned side is unknown.
-    long cardinality;
-    if (joinOp_ == JoinOperator.RIGHT_SEMI_JOIN
-        || joinOp_ == JoinOperator.RIGHT_ANTI_JOIN) {
-      if (getChild(1).cardinality_ == -1) return -1;
-      cardinality = getChild(1).cardinality_;
-    } else {
-      if (getChild(0).cardinality_ == -1) return -1;
-      cardinality = getChild(0).cardinality_;
-    }
-    double minSelectivity = 1.0;
-    for (Expr eqJoinPredicate: eqJoinConjuncts_) {
-      long lhsNdv = getNdv(eqJoinPredicate.getChild(0));
-      lhsNdv = Math.min(lhsNdv, getChild(0).cardinality_);
-      long rhsNdv = getNdv(eqJoinPredicate.getChild(1));
-      rhsNdv = Math.min(rhsNdv, getChild(1).cardinality_);
-
-      // Skip conjuncts with unknown NDV on either side.
-      if (lhsNdv == -1 || rhsNdv == -1) continue;
-
-      double selectivity = 1.0;
-      switch (joinOp_) {
-        case LEFT_SEMI_JOIN: {
-          selectivity = (double) Math.min(lhsNdv, rhsNdv) / (double) (lhsNdv);
-          break;
-        }
-        case RIGHT_SEMI_JOIN: {
-          selectivity = (double) Math.min(lhsNdv, rhsNdv) / (double) (rhsNdv);
-          break;
-        }
-        case LEFT_ANTI_JOIN:
-        case NULL_AWARE_LEFT_ANTI_JOIN: {
-          selectivity = (double) Math.max(lhsNdv - rhsNdv, lhsNdv) / (double) lhsNdv;
-          break;
-        }
-        case RIGHT_ANTI_JOIN: {
-          selectivity = (double) Math.max(rhsNdv - lhsNdv, rhsNdv) / (double) rhsNdv;
-          break;
-        }
-        default: Preconditions.checkState(false);
+    /**
+     * Compute the estimated join cardinality using the expression derived in IMPALA-8014:
+     *
+     * <pre>
+     * |L.k'| = min(sel(L) * prod(|L.ki'|), |L'|)
+     *
+     * |R.k'| = min(sel(R) * prod(|R.ki'|), |R'|)
+     *
+     *                  |L'| * |R'|
+     * |L' >< R'| = -------------------
+     *              max(|L.k'|, |R.k'|)
+     *
+     * sel(join) = min(sel(L), sel(R))
+     * </pre>
+     *
+     * Where:
+     *
+     * * L is the left (probe) table
+     * * R is the right (build) table
+     * * Pki (Bki) is the ith join key on the probe (build) side
+     * * sel(L), sel(R) are the selectivities applies on the input nodes
+     * * prod() is the product function (capital-pi)
+     * * ss is the shared selectivity (which is 1 if no expressions are shared).
+     *
+     * If the join keys are compound (more than one), we assume key independence
+     * and use the multiplicative rule. (See the S&S paper cited below.)
+     *
+     * Has known limitations: does not properly estimate column NDVs, nor
+     * handle join-to-table joins. See IMPALA-8048.
+     *
+     * @see <a href=
+     * "https://pdfs.semanticscholar.org/2735/672262940a23cfce8d4cc1e25c0191de7da7.pdf">
+     * S & S Paper</a>.
+     */
+    private double calcInnerJoin() {
+      double probeCard = probe_.cardinality();
+      double buildCard = build_.cardinality();
+      // Bail out fast in the |build| = 0 case. We may have an EmptySet node.
+      // But, the NDV of the build columns still have their values from earlier
+      // in the plan; continuing will cause us to work with meaningless numbers.
+      if (probeCard == 0 || buildCard == 0) {
+        return 0;
       }
-      minSelectivity = Math.min(minSelectivity, selectivity);
+
+      // Assume the least selective table controls column NDVs
+      // Not a great estimate, but all we can do at present.
+      selectivity_ = Math.max(probe_.selectivity(), build_.selectivity());
+      // Apply the cardinality expression
+      // Clamp the value to the range (1, MAX_LONG)
+      return Math.max(1, probeCard * buildCard / largestKeyCard_);
     }
 
-    Preconditions.checkState(cardinality != -1);
-    return Math.round(cardinality * minSelectivity);
-  }
+    /**
+     * Like an inner join but:
+     *
+     * * We assume all right rows appear.
+     * * Join cardinality is reduced by any right-side filters reapplied on
+     *   this node.
+     */
+    private double calcRightOuterJoin() {
+      // If no right rows, then |join| is zero
+      double buildCard = build_.cardinality();
+      if (buildCard == 0) return 0;
 
-  /**
-   * Unwraps the SlotRef in expr and returns the NDVs of it.
-   * Returns -1 if the NDVs are unknown or if expr is not a SlotRef.
-   */
-  private long getNdv(Expr expr) {
-    SlotRef slotRef = expr.unwrapSlotRef(false);
-    if (slotRef == null) return -1;
-    SlotDescriptor slotDesc = slotRef.getDesc();
-    if (slotDesc == null) return -1;
-    ColumnStats stats = slotDesc.getStats();
-    if (!stats.hasNumDistinctValues()) return -1;
-    return stats.getNumDistinctValues();
+      // Compute join assuming at least one left row (for nulls)
+      // and that the result can't be smaller than the right.
+      double probeCard = Math.max(1, probe_.cardinality());
+      double card = Math.max(probeCard * buildCard / largestKeyCard_, buildCard);
+
+      // Reapply child predicates, which will reduce cardinality
+      // below the normally expected outer cardinality. (If we apply foo='bar'
+      // to the joined tuples, we'll eliminate all the null values.)
+      // The resulting selectivity does not count toward join selectivity as it
+      // is already in the build selectivity.
+      //
+      // Note that this is, at best, a poor man's solution to the problem.
+      // If we have foo = 'bar', we know that it will eliminate all the
+      // normally outer rows that would contain null. So the result should be
+      // the same as an inner join. If we have foo is null, then it will
+      // eliminate none of the outer rows, though it might have eliminated
+      // 1/ndv of the inner rows. Bottom line: selectivity should be based
+      // on an awareness of the meaning of the predicate, not just the selectivity
+      // that made sense during the scan.
+      double filterSel = computeCombinedSelectivity(
+          joinNode_.boundConjuncts(build_.node().getTupleIds()));
+      selectivity_ *= build_.selectivity();
+      return card * filterSel;
+    }
+
+    private double calcLeftOuterJoin() {
+      // Symmetrical with the right outer join
+      double probeCard = probe_.cardinality();
+      if (probeCard == 0) return 0;
+      double buildCard = Math.max(1, build_.cardinality());
+      double card = Math.max(probeCard * buildCard / largestKeyCard_, probeCard);
+      double filterSel = computeCombinedSelectivity(
+          joinNode_.boundConjuncts(probe_.node().getTupleIds()));
+      selectivity_ *= probe_.selectivity();
+      return card * filterSel;
+    }
+
+    private double calcFullOuterJoin() {
+      double probeCard = probe_.cardinality();
+      double buildCard = build_.cardinality();
+      // |join| = 0 if both sides are empty
+      if (buildCard == 0 && probeCard == 0) return 0;
+      // Allow extra null row on both sides. Clamp the result to the
+      // larger of the two input relations.
+      double card = Math.max(Math.max(1, probeCard) * Math.max(1, buildCard) / largestKeyCard_,
+          Math.max(probeCard, buildCard));
+      // Reapply filters from both sides.
+      double filterSel = computeCombinedSelectivity(
+              joinNode_.boundConjuncts(probe_.node().getTupleIds())) *
+          computeCombinedSelectivity(
+              joinNode_.boundConjuncts(build_.node().getTupleIds()));
+      selectivity_ = Math.max(probe_.selectivity(), build_.selectivity());
+      return card * filterSel;
+    }
+
+    /**
+     * Returns the estimated cardinality of a semi join node.
+     * For a left semi join between child(0) and child(1), we look for equality join
+     * conditions "L.c = R.d" (with L being from child(0) and R from child(1)) and use as
+     * the cardinality estimate the minimum of
+     *   |child(0)| * Min(NDV(L.c), NDV(R.d)) / NDV(L.c)
+     * over all suitable join conditions. The reasoning is that:
+     * - each row in child(0) is returned at most once
+     * - the probability of a row in child(0) having a match in R is
+     *   Min(NDV(L.c), NDV(R.d)) / NDV(L.c)
+     */
+    private double calcLeftSemiJoin() {
+      selectivity_ = probe_.selectivity();
+      return Math.min(probe_.cardinality(), build_.cardinality());
+    }
+
+    private double calcRightSemiJoin() {
+      selectivity_ = build_.selectivity();
+      return Math.min(probe_.cardinality(), build_.cardinality());
+    }
+
+    /**
+     * For a left anti join we estimate the cardinality as the minimum of:
+     *   |L| * (1 - (smallest NDV) / (largest NDV))
+     * over all suitable join conditions. The reasoning is that:
+     * - each row in child(0) is returned at most once
+     * - if NDV(L.c) > NDV(R.d) then the probability of row in L having a match
+     *   in child(1) is (NDV(L.c) - NDV(R.d)) / NDV(L.c)
+     */
+
+    private double calcLeftAntiJoin() {
+      double unmatched = unmatchedRatio();
+      selectivity_ = probe_.selectivity() * unmatched;
+      return probe_.cardinality() * unmatched;
+    }
+
+    private double calcRightAntiJoin() {
+      double unmatched = unmatchedRatio();
+      selectivity_ = build_.selectivity() * unmatched;
+      return build_.cardinality() * unmatched;
+    }
+
+    private double unmatchedRatio() {
+      double matched = Math.min(probe_.jointKeyCardinality(),
+          build_.jointKeyCardinality()) / largestKeyCard_;
+      // Clamp to range (0.1, 1)
+      // 0.1 ensures that some rows are emitted since the user expects there
+      // to be some. And there can't be more rows than input.
+      return Math.max(0.1, Math.min(1.0, 1 - matched));
+    }
+
+    /**
+     * Adjusts cardinality estimate for non-equi-join predicates, including
+     * predicates excluded removed from the equi-join list and those never
+     * in the list. Does NOT include any predicates re-applied from child nodes,
+     * doing so would cause double accounting for those predicates.
+     */
+    private void adjustForExtraPredicates() {
+      List<Expr> preds = new ArrayList<>();
+      preds.addAll(skippedPredicates_);
+      // Identify conjuncts bound by only the left or right
+      // child. These are conjuncts already evaluated in the
+      // child (with possible repeat here for outer join.)
+      // We can't consider them for join selectivity.
+      List<TupleId> childTids = Lists.newArrayList(joinNode_.nullableTupleIds_);
+      preds.addAll(joinNode_.boundConjuncts(childTids));
+      double extraSelectivity = computeCombinedSelectivity(preds);
+      selectivity_ *= extraSelectivity;
+      cardinality_ *= extraSelectivity;
+    }
+
+    private double joinSelectivity() {
+      Preconditions.checkState(selectivity_ != -1);
+      return selectivity_;
+    }
+
+    private long joinCardinality() {
+      return Math.round(Math.min(cardinality_, Long.MAX_VALUE));
+    }
   }
 
   @Override
   public void computeStats(Analyzer analyzer) {
     super.computeStats(analyzer);
-    if (joinOp_.isSemiJoin()) {
-      cardinality_ = getSemiJoinCardinality();
-    } else if (joinOp_.isInnerJoin() || joinOp_.isOuterJoin()){
-      cardinality_ = getJoinCardinality(analyzer);
-    } else {
-      Preconditions.checkState(joinOp_.isCrossJoin());
-      long leftCard = getChild(0).cardinality_;
-      long rightCard = getChild(1).cardinality_;
-      if (leftCard != -1 && rightCard != -1) {
-        cardinality_ = checkedMultiply(leftCard, rightCard);
-      }
-    }
+    PlanNode probeNode = getChild(0);
+    PlanNode buildNode = getChild(1);
 
-    // Impose lower/upper bounds on the cardinality based on the join type.
-    long leftCard = getChild(0).cardinality_;
-    long rightCard = getChild(1).cardinality_;
-    switch (joinOp_) {
-      case LEFT_SEMI_JOIN: {
-        if (leftCard != -1) {
-          cardinality_ = Math.min(leftCard, cardinality_);
-        }
-        break;
-      }
-      case RIGHT_SEMI_JOIN: {
-        if (rightCard != -1) {
-          cardinality_ = Math.min(rightCard, cardinality_);
-        }
-        break;
-      }
-      case LEFT_OUTER_JOIN: {
-        if (leftCard != -1) {
-          cardinality_ = Math.max(leftCard, cardinality_);
-        }
-        break;
-      }
-      case RIGHT_OUTER_JOIN: {
-        if (rightCard != -1) {
-          cardinality_ = Math.max(rightCard, cardinality_);
-        }
-        break;
-      }
-      case FULL_OUTER_JOIN: {
-        if (leftCard != -1 && rightCard != -1) {
-          long cardinalitySum = checkedAdd(leftCard, rightCard);
-          cardinality_ = Math.max(cardinalitySum, cardinality_);
-        }
-        break;
-      }
-      case LEFT_ANTI_JOIN:
-      case NULL_AWARE_LEFT_ANTI_JOIN: {
-        if (leftCard != -1) {
-          cardinality_ = Math.min(leftCard, cardinality_);
-        }
-        break;
-      }
-      case RIGHT_ANTI_JOIN: {
-        if (rightCard != -1) {
-          cardinality_ = Math.min(rightCard, cardinality_);
-        }
-        break;
-      }
-      case CROSS_JOIN: {
-        if (getChild(0).cardinality_ == -1 || getChild(1).cardinality_ == -1) {
-          cardinality_ = -1;
-        } else {
-          cardinality_ = checkedMultiply(getChild(0).cardinality_,
-              getChild(1).cardinality_);
-        }
-        break;
-      }
-    }
-    cardinality_ = capCardinalityAtLimit(cardinality_);
+    System.out.println(String.format(
+        "Join: %s %s card=%,d, sel=%.8f >< %s %s card=%,d sel=%.8f",
+        probeNode.displayName(),
+        probeNode.getDisplayLabelDetail(),
+        probeNode.cardinality_, probeNode.selectivity(),
+        buildNode.displayName(),
+        buildNode.getDisplayLabelDetail(),
+        buildNode.cardinality_, buildNode.selectivity()));
+
+    JoinCalcs calc = new JoinCalcs(this);
+    calc.calculate();
+    selectivity_ = calc.joinSelectivity();
+    cardinality_ = calc.joinCardinality();
     Preconditions.checkState(hasValidStats());
     if (LOG.isTraceEnabled()) {
       LOG.trace("stats Join: cardinality=" + Long.toString(cardinality_));
     }
+    System.out.println(String.format("  final sel=%.8f, card=%,d",
+        selectivity_, cardinality_));
   }
 
   /**

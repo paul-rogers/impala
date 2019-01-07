@@ -18,6 +18,7 @@
 package org.apache.impala.catalog;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
@@ -65,6 +66,7 @@ import org.apache.impala.thrift.TPrivilegeLevel;
 import org.apache.impala.thrift.TPrivilegeScope;
 import org.apache.impala.thrift.TTableName;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import com.google.common.base.Strings;
@@ -464,7 +466,8 @@ public class CatalogTest {
   // TODO: All Hive-stats related tests are temporarily disabled because of an unknown,
   // sporadic issue causing stats of some columns to be absent in Jenkins runs.
   // Investigate this issue further.
-  //@Test
+  @Ignore("Flaky")
+  @Test
   public void testStats() throws TableLoadingException {
     // make sure the stats for functional.alltypesagg look correct
     HdfsTable table =
@@ -475,14 +478,14 @@ public class CatalogTest {
         PrimitiveType.INT.getSlotSize(),
         PrimitiveType.INT.getSlotSize(), 0.0001);
     assertEquals(idCol.getStats().getMaxSize(), PrimitiveType.INT.getSlotSize());
-    assertTrue(!idCol.getStats().hasNulls());
+    assertFalse(idCol.getStats().hasNulls());
 
     Column boolCol = table.getColumn("bool_col");
     assertEquals(boolCol.getStats().getAvgSerializedSize() -
         PrimitiveType.BOOLEAN.getSlotSize(),
         PrimitiveType.BOOLEAN.getSlotSize(), 0.0001);
     assertEquals(boolCol.getStats().getMaxSize(), PrimitiveType.BOOLEAN.getSlotSize());
-    assertTrue(!boolCol.getStats().hasNulls());
+    assertFalse(boolCol.getStats().hasNulls());
 
     Column tinyintCol = table.getColumn("tinyint_col");
     assertEquals(tinyintCol.getStats().getAvgSerializedSize() -
@@ -543,7 +546,7 @@ public class CatalogTest {
         PrimitiveType.STRING.getSlotSize());
     assertTrue(stringCol.getStats().getAvgSerializedSize() > 0);
     assertTrue(stringCol.getStats().getMaxSize() > 0);
-    assertTrue(!stringCol.getStats().hasNulls());
+    assertFalse(stringCol.getStats().hasNulls());
   }
 
   /**
@@ -554,7 +557,8 @@ public class CatalogTest {
   // TODO: All Hive-stats related tests are temporarily disabled because of an unknown,
   // sporadic issue causing stats of some columns to be absent in Jenkins runs.
   // Investigate this issue further.
-  //@Test
+  @Ignore("Flaky")
+  @Test
   public void testColStatsColTypeMismatch() throws Exception {
     // First load a table that has column stats.
     //catalog_.refreshTable("functional", "alltypesagg", false);
@@ -569,20 +573,20 @@ public class CatalogTest {
           .getTableColumnStatistics("functional", "alltypesagg",
            Lists.newArrayList("string_col")).get(0).getStatsData();
 
-      assertTrue(!table.getColumn("int_col").updateStats(stringColStatsData));
+      assertFalse(table.getColumn("int_col").updateStats(stringColStatsData));
       assertStatsUnknown(table.getColumn("int_col"));
 
-      assertTrue(!table.getColumn("double_col").updateStats(stringColStatsData));
+      assertFalse(table.getColumn("double_col").updateStats(stringColStatsData));
       assertStatsUnknown(table.getColumn("double_col"));
 
-      assertTrue(!table.getColumn("bool_col").updateStats(stringColStatsData));
+      assertFalse(table.getColumn("bool_col").updateStats(stringColStatsData));
       assertStatsUnknown(table.getColumn("bool_col"));
 
       // Do the same thing, but apply bigint stats to a string column.
       ColumnStatisticsData bigIntCol = client.getHiveClient()
           .getTableColumnStatistics("functional", "alltypes",
           Lists.newArrayList("bigint_col")).get(0).getStatsData();
-      assertTrue(!table.getColumn("string_col").updateStats(bigIntCol));
+      assertFalse(table.getColumn("string_col").updateStats(bigIntCol));
       assertStatsUnknown(table.getColumn("string_col"));
 
       // Now try to apply a matching column stats data and ensure it succeeds.
@@ -622,7 +626,7 @@ public class CatalogTest {
         TPartitionStats stats =
             PartitionStatsUtil.partStatsFromCompressedBytes(compressedBytes, null);
         assertNotNull(stats);
-        assertTrue(!stats.isSetIntermediate_col_stats());
+        assertFalse(stats.isSetIntermediate_col_stats());
       } catch (ImpalaException ex) {
         throw new CatalogException("Error deserializing partition stats.", ex);
       }

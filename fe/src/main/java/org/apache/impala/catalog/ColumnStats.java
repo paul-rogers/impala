@@ -162,7 +162,7 @@ public class ColumnStats {
   public double getAvgSerializedSize() { return avgSerializedSize_; }
   public double getAvgSize() { return avgSize_; }
   public long getMaxSize() { return maxSize_; }
-  public boolean hasNulls() { return numNulls_ > 0; }
+  public boolean hasNulls() { return numNulls_ >= 0; }
   public long getNumNulls() { return numNulls_; }
   public boolean hasAvgSize() { return avgSize_ >= 0; }
   public boolean hasAvgSerializedSize() { return avgSerializedSize_ >= 0; }

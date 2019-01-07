@@ -19,15 +19,14 @@ package org.apache.impala.planner;
 
 import java.util.List;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import org.apache.impala.analysis.Analyzer;
 import org.apache.impala.analysis.Expr;
 import org.apache.impala.thrift.TExplainLevel;
 import org.apache.impala.thrift.TPlanNode;
 import org.apache.impala.thrift.TPlanNodeType;
 import org.apache.impala.thrift.TQueryOptions;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.google.common.base.Preconditions;
 
@@ -71,8 +70,9 @@ public class SelectNode extends PlanNode {
     if (getChild(0).cardinality_ == -1) {
       cardinality_ = -1;
     } else {
+      selectivity_ = computeSelectivity();
       cardinality_ =
-          Math.round(((double) getChild(0).cardinality_) * computeSelectivity());
+          Math.round(((double) getChild(0).cardinality_) * selectivity_);
       Preconditions.checkState(cardinality_ >= 0);
     }
     cardinality_ = capCardinalityAtLimit(cardinality_);

@@ -18,6 +18,38 @@ PLAN-ROOT SINK
 01:SCAN HDFS [functional.alltypessmall d]
    partitions=4/4 files=4 size=6.32KB row-size=4B cardinality=100
 ====
+# Cartesian product between table and a no-stats, 0-row table
+select a.id, b.id
+from functional.alltypestiny a,
+     functional.alltypesnopart b
+---- PLAN
+PLAN-ROOT SINK
+|
+02:NESTED LOOP JOIN [CROSS JOIN]
+|  row-size=8B cardinality=0
+|
+|--01:SCAN HDFS [functional.alltypesnopart b]
+|     partitions=1/1 files=0 size=0B row-size=4B cardinality=0
+|
+00:SCAN HDFS [functional.alltypestiny a]
+   partitions=4/4 files=4 size=460B row-size=4B cardinality=8
+====
+# Cartesian product between two empty tables
+select a.id, b.id
+from functional.alltypesnopart a,
+     functional.alltypesnopart b
+---- PLAN
+PLAN-ROOT SINK
+|
+02:NESTED LOOP JOIN [CROSS JOIN]
+|  row-size=8B cardinality=0
+|
+|--01:SCAN HDFS [functional.alltypesnopart b]
+|     partitions=1/1 files=0 size=0B row-size=4B cardinality=0
+|
+00:SCAN HDFS [functional.alltypesnopart a]
+   partitions=1/1 files=0 size=0B row-size=4B cardinality=0
+====
 # Simplest M:1 join, join between a master table (M) and a detail table (D)
 # (small):(tiny)
 # |join| = |D|
@@ -143,7 +175,7 @@ PLAN-ROOT SINK
 # |D| = |orders| = 1.5M
 # |D.fk| = |orders.o_custkey| = 100K
 # |join| = |D| = |orders|
-select m.c_custkey, d.o_custkey
+select m.c_custkey, d.o_orderkey
 from tpch.customer m,
      tpch.orders d
 where m.c_custkey = d.o_custkey
@@ -153,18 +185,58 @@ PLAN-ROOT SINK
 02:HASH JOIN [INNER JOIN]
 |  hash predicates: d.o_custkey = m.c_custkey
 |  runtime filters: RF000 <- m.c_custkey
-|  row-size=16B cardinality=1.50M
+|  row-size=24B cardinality=1.50M
 |
 |--00:SCAN HDFS [tpch.customer m]
 |     partitions=1/1 files=1 size=23.08MB row-size=8B cardinality=150.00K
 |
 01:SCAN HDFS [tpch.orders d]
-   partitions=1/1 files=1 size=162.56MB row-size=8B cardinality=1.50M
+   partitions=1/1 files=1 size=162.56MB row-size=16B cardinality=1.50M
    runtime filters: RF000 -> d.o_custkey
+====
+# Simple join between table and a no-stats, 0-row table
+select a.id, b.id
+from functional.alltypestiny a,
+     functional.alltypesnopart b
+WHERE a.id = b.id
+---- PLAN
+PLAN-ROOT SINK
+|
+02:HASH JOIN [INNER JOIN]
+|  hash predicates: a.id = b.id
+|  runtime filters: RF000 <- b.id
+|  row-size=8B cardinality=0
+|
+|--01:SCAN HDFS [functional.alltypesnopart b]
+|     partitions=1/1 files=0 size=0B row-size=4B cardinality=0
+|
+00:SCAN HDFS [functional.alltypestiny a]
+   partitions=4/4 files=4 size=460B row-size=4B cardinality=8
+   runtime filters: RF000 -> a.id
+====
+# Cartesian product between two empty tables
+select a.id, b.id
+from functional.alltypesnopart a,
+     functional.alltypesnopart b
+WHERE a.id = b.id
+---- PLAN
+PLAN-ROOT SINK
+|
+02:HASH JOIN [INNER JOIN]
+|  hash predicates: a.id = b.id
+|  runtime filters: RF000 <- b.id
+|  row-size=8B cardinality=0
+|
+|--01:SCAN HDFS [functional.alltypesnopart b]
+|     partitions=1/1 files=0 size=0B row-size=4B cardinality=0
+|
+00:SCAN HDFS [functional.alltypesnopart a]
+   partitions=1/1 files=0 size=0B row-size=4B cardinality=0
+   runtime filters: RF000 -> a.id
 ====
 # Selective master filtering
 # |join| = |D|/|D.fk| = 15
-select m.c_custkey, d.o_custkey
+select m.c_custkey, d.o_orderkey
 from tpch.customer m,
      tpch.orders d
 where m.c_custkey = d.o_custkey
@@ -175,19 +247,19 @@ PLAN-ROOT SINK
 02:HASH JOIN [INNER JOIN]
 |  hash predicates: d.o_custkey = m.c_custkey
 |  runtime filters: RF000 <- m.c_custkey
-|  row-size=46B cardinality=15
+|  row-size=54B cardinality=15
 |
 |--00:SCAN HDFS [tpch.customer m]
 |     partitions=1/1 files=1 size=23.08MB row-size=38B cardinality=1
 |     predicates: m.c_name = 'foo'
 |
 01:SCAN HDFS [tpch.orders d]
-   partitions=1/1 files=1 size=162.56MB row-size=8B cardinality=1.50M
+   partitions=1/1 files=1 size=162.56MB row-size=16B cardinality=1.50M
    runtime filters: RF000 -> d.o_custkey
 ====
 # Selective master filtering, column common with detail
 # |join| = |D|/|D.fk| = 15
-select m.c_custkey, d.o_custkey
+select m.c_custkey, d.o_orderkey
 from tpch.customer m,
      tpch.orders d
 where m.c_custkey = d.o_custkey
@@ -198,20 +270,20 @@ PLAN-ROOT SINK
 02:HASH JOIN [INNER JOIN]
 |  hash predicates: d.o_custkey = m.c_custkey
 |  runtime filters: RF000 <- m.c_custkey
-|  row-size=16B cardinality=15
+|  row-size=24B cardinality=15
 |
 |--00:SCAN HDFS [tpch.customer m]
 |     partitions=1/1 files=1 size=23.08MB row-size=8B cardinality=1
 |     predicates: m.c_custkey = 10
 |
 01:SCAN HDFS [tpch.orders d]
-   partitions=1/1 files=1 size=162.56MB row-size=8B cardinality=15
+   partitions=1/1 files=1 size=162.56MB row-size=16B cardinality=15
    predicates: d.o_custkey = 10
    runtime filters: RF000 -> d.o_custkey
 ====
 # Selective detail filtering
 # Card = 1: one detail record finds its master record
-select m.c_custkey, d.o_custkey
+select m.c_custkey, d.o_orderkey
 from tpch.customer m,
      tpch.orders d
 where m.c_custkey = d.o_custkey
@@ -237,7 +309,7 @@ PLAN-ROOT SINK
 # Each master finds all its details
 # |join|= |M'| * |D|/|D.fk| = 50K * 15 = 750K
 # Though |M.pk| > |D.fk|, we assume that filtering eliminated the unmatched keys
-select m.c_custkey, d.o_custkey
+select m.c_custkey, d.o_orderkey
 from tpch.customer m,
      tpch.orders d
 where m.c_custkey = d.o_custkey
@@ -248,21 +320,21 @@ PLAN-ROOT SINK
 02:HASH JOIN [INNER JOIN]
 |  hash predicates: d.o_custkey = m.c_custkey
 |  runtime filters: RF000 <- m.c_custkey
-|  row-size=46B cardinality=754.65K
+|  row-size=54B cardinality=754.65K
 |
 |--00:SCAN HDFS [tpch.customer m]
 |     partitions=1/1 files=1 size=23.08MB row-size=38B cardinality=49.50K
 |     predicates: m.c_name < 'foo'
 |
 01:SCAN HDFS [tpch.orders d]
-   partitions=1/1 files=1 size=162.56MB row-size=8B cardinality=1.50M
+   partitions=1/1 files=1 size=162.56MB row-size=16B cardinality=1.50M
    runtime filters: RF000 -> d.o_custkey
 ====
 # Broad master filtering, column common with detail
 # |D'| = |D| * 0.33 = 500K
 # Each detail finds its master
 # |join| = |D'| = 500K
-select m.c_custkey, d.o_custkey
+select m.c_custkey, d.o_orderkey
 from tpch.customer m,
      tpch.orders d
 where m.c_custkey = d.o_custkey
@@ -273,14 +345,14 @@ PLAN-ROOT SINK
 02:HASH JOIN [INNER JOIN]
 |  hash predicates: d.o_custkey = m.c_custkey
 |  runtime filters: RF000 <- m.c_custkey
-|  row-size=16B cardinality=495.00K
+|  row-size=24B cardinality=495.00K
 |
 |--00:SCAN HDFS [tpch.customer m]
 |     partitions=1/1 files=1 size=23.08MB row-size=8B cardinality=49.50K
 |     predicates: m.c_custkey < 1234
 |
 01:SCAN HDFS [tpch.orders d]
-   partitions=1/1 files=1 size=162.56MB row-size=8B cardinality=495.00K
+   partitions=1/1 files=1 size=162.56MB row-size=16B cardinality=495.00K
    predicates: d.o_custkey < 1234
    runtime filters: RF000 -> d.o_custkey
 ====
@@ -288,7 +360,7 @@ PLAN-ROOT SINK
 # |D'| = |D| * 0.33 = 500K
 # Every detail finds its master
 # Card = 500K
-select m.c_custkey, d.o_custkey
+select m.c_custkey, d.o_orderkey
 from tpch.customer m,
      tpch.orders d
 where m.c_custkey = d.o_custkey
@@ -309,11 +381,80 @@ PLAN-ROOT SINK
    predicates: d.o_orderkey < 1234
    runtime filters: RF000 -> d.o_custkey
 ====
+# Filtering on join between table and a no-stats, 0-row table
+select a.id, b.id
+from functional.alltypestiny a,
+     functional.alltypesnopart b
+WHERE a.id = b.id
+  AND a.id = 10
+---- PLAN
+PLAN-ROOT SINK
+|
+02:HASH JOIN [INNER JOIN]
+|  hash predicates: a.id = b.id
+|  runtime filters: RF000 <- b.id
+|  row-size=8B cardinality=0
+|
+|--01:SCAN HDFS [functional.alltypesnopart b]
+|     partitions=1/1 files=0 size=0B row-size=4B cardinality=0
+|     predicates: b.id = 10
+|
+00:SCAN HDFS [functional.alltypestiny a]
+   partitions=4/4 files=4 size=460B row-size=4B cardinality=1
+   predicates: a.id = 10
+   runtime filters: RF000 -> a.id
+====
+# Filtering on join between table and a no-stats, 0-row table
+select a.id, b.id
+from functional.alltypestiny a,
+     functional.alltypesnopart b
+WHERE a.id = b.id
+  AND b.id = 10
+---- PLAN
+PLAN-ROOT SINK
+|
+02:HASH JOIN [INNER JOIN]
+|  hash predicates: a.id = b.id
+|  runtime filters: RF000 <- b.id
+|  row-size=8B cardinality=0
+|
+|--01:SCAN HDFS [functional.alltypesnopart b]
+|     partitions=1/1 files=0 size=0B row-size=4B cardinality=0
+|     predicates: b.id = 10
+|
+00:SCAN HDFS [functional.alltypestiny a]
+   partitions=4/4 files=4 size=460B row-size=4B cardinality=1
+   predicates: a.id = 10
+   runtime filters: RF000 -> a.id
+====
+# Cartesian product between two empty tables
+select a.id, b.id
+from functional.alltypesnopart a,
+     functional.alltypesnopart b
+WHERE a.id = b.id
+  AND a.id = 10
+---- PLAN
+PLAN-ROOT SINK
+|
+02:HASH JOIN [INNER JOIN]
+|  hash predicates: a.id = b.id
+|  runtime filters: RF000 <- b.id
+|  row-size=8B cardinality=0
+|
+|--01:SCAN HDFS [functional.alltypesnopart b]
+|     partitions=1/1 files=0 size=0B row-size=4B cardinality=0
+|     predicates: b.id = 10
+|
+00:SCAN HDFS [functional.alltypesnopart a]
+   partitions=1/1 files=0 size=0B row-size=4B cardinality=0
+   predicates: a.id = 10
+   runtime filters: RF000 -> a.id
+====
 # Selective filtering on both sides
 # |D'| = 1
 # |C'| = 1
 # |D' >< C'| = 0 or 1, depending whether we're lucky
-select m.c_custkey, d.o_custkey
+select m.c_custkey, d.o_orderkey
 from tpch.customer m,
      tpch.orders d
 where m.c_custkey = d.o_custkey
@@ -338,7 +479,7 @@ PLAN-ROOT SINK
 ====
 # Correlated filtering on master
 # |join| = |D| / |D.fk|
-select m.c_custkey, d.o_custkey
+select m.c_custkey, d.o_orderkey
 from tpch.customer m,
      tpch.orders d
 where m.c_custkey = d.o_custkey
@@ -349,20 +490,20 @@ PLAN-ROOT SINK
 02:HASH JOIN [INNER JOIN]
 |  hash predicates: d.o_custkey = m.c_custkey
 |  runtime filters: RF000 <- m.c_custkey
-|  row-size=16B cardinality=15
+|  row-size=24B cardinality=15
 |
 |--00:SCAN HDFS [tpch.customer m]
 |     partitions=1/1 files=1 size=23.08MB row-size=8B cardinality=1
 |     predicates: m.c_custkey = 10
 |
 01:SCAN HDFS [tpch.orders d]
-   partitions=1/1 files=1 size=162.56MB row-size=8B cardinality=15
+   partitions=1/1 files=1 size=162.56MB row-size=16B cardinality=15
    predicates: d.o_custkey = 10
    runtime filters: RF000 -> d.o_custkey
 ====
 # Correlated filtering on detail
 # |join| = |D| / |D.fk|
-select m.c_custkey, d.o_custkey
+select m.c_custkey, d.o_orderkey
 from tpch.customer m,
      tpch.orders d
 where m.c_custkey = d.o_custkey
@@ -373,20 +514,20 @@ PLAN-ROOT SINK
 02:HASH JOIN [INNER JOIN]
 |  hash predicates: d.o_custkey = m.c_custkey
 |  runtime filters: RF000 <- m.c_custkey
-|  row-size=16B cardinality=15
+|  row-size=24B cardinality=15
 |
 |--00:SCAN HDFS [tpch.customer m]
 |     partitions=1/1 files=1 size=23.08MB row-size=8B cardinality=1
 |     predicates: m.c_custkey = 10
 |
 01:SCAN HDFS [tpch.orders d]
-   partitions=1/1 files=1 size=162.56MB row-size=8B cardinality=15
+   partitions=1/1 files=1 size=162.56MB row-size=16B cardinality=15
    predicates: d.o_custkey = 10
    runtime filters: RF000 -> d.o_custkey
 ====
 # Redundant correlated filtering on both sides
 # Same as above case internally
-select m.c_custkey, d.o_custkey
+select m.c_custkey, d.o_orderkey
 from tpch.customer m,
      tpch.orders d
 where m.c_custkey = d.o_custkey
@@ -399,14 +540,14 @@ PLAN-ROOT SINK
 02:HASH JOIN [INNER JOIN]
 |  hash predicates: d.o_custkey = m.c_custkey
 |  runtime filters: RF000 <- m.c_custkey
-|  row-size=46B cardinality=15
+|  row-size=54B cardinality=15
 |
 |--00:SCAN HDFS [tpch.customer m]
 |     partitions=1/1 files=1 size=23.08MB row-size=38B cardinality=1
 |     predicates: m.c_custkey = 10, m.c_name = 'foo'
 |
 01:SCAN HDFS [tpch.orders d]
-   partitions=1/1 files=1 size=162.56MB row-size=8B cardinality=15
+   partitions=1/1 files=1 size=162.56MB row-size=16B cardinality=15
    predicates: d.o_custkey = 10
    runtime filters: RF000 -> d.o_custkey
 ====
@@ -417,7 +558,7 @@ PLAN-ROOT SINK
 # Since we assume containment: that the smaller key set
 # is a subset of the larger one.
 # Card = |D'| / max(1, |D.fk'|) = 5
-select m.c_custkey, d.o_custkey
+select m.c_custkey, d.o_orderkey
 from tpch.customer m,
      tpch.orders d
 where m.c_custkey = d.o_custkey
@@ -444,7 +585,7 @@ PLAN-ROOT SINK
 # |M'| = |M| * 0.33
 # |D'| = 1
 # 1/3 chance that the detail finds its master, so card = 0 or 1
-select m.c_custkey, d.o_custkey
+select m.c_custkey, d.o_orderkey
 from tpch.customer m,
      tpch.orders d
 where m.c_custkey = d.o_custkey
@@ -561,7 +702,7 @@ PLAN-ROOT SINK
 02:HASH JOIN [INNER JOIN]
 |  hash predicates: t2.l_suppkey = t1.ps_suppkey
 |  runtime filters: RF000 <- t1.ps_suppkey
-|  row-size=16B cardinality=50.68K
+|  row-size=16B cardinality=50.67K
 |
 |--00:SCAN HDFS [tpch.partsupp t1]
 |     partitions=1/1 files=1 size=112.71MB row-size=8B cardinality=82
@@ -655,253 +796,29 @@ PLAN-ROOT SINK
    predicates: t2.l_partkey < 10
    runtime filters: RF000 -> t2.l_suppkey
 ====
-# Three table 1:M join
-# |customer| = 150K
-# |customer.c_custkey| = |customer| = 150K
+# Join with join-level filter predicates
+# |join| = |orders| * sel(c.nationkey + o.o_shippriority = 10)
 # |orders| = 1.5M
-# |orders.o_orderKey| = 100K
-# |lineitem| = 6M
-# |lineitem.l_orderkey| = 1.5M
-# |join| = |lineitem| = 6M
-select c.c_name, o.o_orderkey, i.l_linenumber
+# sel(c.nationkey + o.o_shippriority = 10) = 0.1 (can't use NDV)
+# |join| = 1.5M * .1 = 150K
+select c.c_custkey, o.o_orderkey
 from tpch.customer c,
-     tpch.orders o,
-     tpch.lineitem i
+     tpch.orders o
 where c.c_custkey = o.o_custkey
-  and o.o_orderkey = i.l_orderkey
+  and c.c_nationkey + o.o_shippriority = 10
 ---- PLAN
 PLAN-ROOT SINK
 |
-04:HASH JOIN [INNER JOIN]
+02:HASH JOIN [INNER JOIN]
 |  hash predicates: o.o_custkey = c.c_custkey
+|  other predicates: c.c_nationkey + o.o_shippriority = 10
 |  runtime filters: RF000 <- c.c_custkey
-|  row-size=66B cardinality=5.76M
+|  row-size=30B cardinality=150.00K
 |
 |--00:SCAN HDFS [tpch.customer c]
-|     partitions=1/1 files=1 size=23.08MB row-size=38B cardinality=150.00K
+|     partitions=1/1 files=1 size=23.08MB row-size=10B cardinality=150.00K
 |
-03:HASH JOIN [INNER JOIN]
-|  hash predicates: i.l_orderkey = o.o_orderkey
-|  runtime filters: RF002 <- o.o_orderkey
-|  row-size=28B cardinality=5.76M
-|
-|--01:SCAN HDFS [tpch.orders o]
-|     partitions=1/1 files=1 size=162.56MB row-size=16B cardinality=1.50M
-|     runtime filters: RF000 -> o.o_custkey
-|
-02:SCAN HDFS [tpch.lineitem i]
-   partitions=1/1 files=1 size=718.94MB row-size=12B cardinality=6.00M
-   runtime filters: RF002 -> i.l_orderkey
-====
-# Filter on customer table
-# |join| = 1/3 of above = 2M
-select c.c_name, o.o_orderkey, i.l_linenumber
-from tpch.customer c,
-     tpch.orders o,
-     tpch.lineitem i
-where c.c_custkey = o.o_custkey
-  and o.o_orderkey = i.l_orderkey
-  and c.c_name < 'foo'
----- PLAN
-PLAN-ROOT SINK
-|
-04:HASH JOIN [INNER JOIN]
-|  hash predicates: o.o_custkey = c.c_custkey
-|  runtime filters: RF000 <- c.c_custkey
-|  row-size=66B cardinality=2.90M
-|
-|--00:SCAN HDFS [tpch.customer c]
-|     partitions=1/1 files=1 size=23.08MB row-size=38B cardinality=49.50K
-|     predicates: c.c_name < 'foo'
-|
-03:HASH JOIN [INNER JOIN]
-|  hash predicates: i.l_orderkey = o.o_orderkey
-|  runtime filters: RF002 <- o.o_orderkey
-|  row-size=28B cardinality=5.76M
-|
-|--01:SCAN HDFS [tpch.orders o]
-|     partitions=1/1 files=1 size=162.56MB row-size=16B cardinality=1.50M
-|     runtime filters: RF000 -> o.o_custkey
-|
-02:SCAN HDFS [tpch.lineitem i]
-   partitions=1/1 files=1 size=718.94MB row-size=12B cardinality=6.00M
-   runtime filters: RF002 -> i.l_orderkey
-====
-# Filter on orders table
-# |join| = 1/3 of full join = 2M
-select c.c_name, o.o_orderkey, i.l_linenumber
-from tpch.customer c,
-     tpch.orders o,
-     tpch.lineitem i
-where c.c_custkey = o.o_custkey
-  and o.o_orderkey = i.l_orderkey
-  and o.o_clerk < 'foo'
----- PLAN
-PLAN-ROOT SINK
-|
-04:HASH JOIN [INNER JOIN]
-|  hash predicates: o.o_custkey = c.c_custkey
-|  runtime filters: RF000 <- c.c_custkey
-|  row-size=93B cardinality=1.90M
-|
-|--00:SCAN HDFS [tpch.customer c]
-|     partitions=1/1 files=1 size=23.08MB row-size=38B cardinality=150.00K
-|
-03:HASH JOIN [INNER JOIN]
-|  hash predicates: i.l_orderkey = o.o_orderkey
-|  runtime filters: RF002 <- o.o_orderkey
-|  row-size=55B cardinality=1.90M
-|
-|--01:SCAN HDFS [tpch.orders o]
-|     partitions=1/1 files=1 size=162.56MB row-size=43B cardinality=495.00K
-|     predicates: o.o_clerk < 'foo'
-|     runtime filters: RF000 -> o.o_custkey
-|
-02:SCAN HDFS [tpch.lineitem i]
-   partitions=1/1 files=1 size=718.94MB row-size=12B cardinality=6.00M
-   runtime filters: RF002 -> i.l_orderkey
-====
-# Filter on items table
-# |join| = 1/3 of full join = 2M
-select c.c_name, o.o_orderkey, i.l_linenumber
-from tpch.customer c,
-     tpch.orders o,
-     tpch.lineitem i
-where c.c_custkey = o.o_custkey
-  and o.o_orderkey = i.l_orderkey
-  and i.l_suppkey < 1234
----- PLAN
-PLAN-ROOT SINK
-|
-04:HASH JOIN [INNER JOIN]
-|  hash predicates: o.o_custkey = c.c_custkey
-|  runtime filters: RF000 <- c.c_custkey
-|  row-size=74B cardinality=1.98M
-|
-|--00:SCAN HDFS [tpch.customer c]
-|     partitions=1/1 files=1 size=23.08MB row-size=38B cardinality=150.00K
-|
-03:HASH JOIN [INNER JOIN]
-|  hash predicates: i.l_orderkey = o.o_orderkey
-|  runtime filters: RF002 <- o.o_orderkey
-|  row-size=36B cardinality=1.98M
-|
-|--01:SCAN HDFS [tpch.orders o]
-|     partitions=1/1 files=1 size=162.56MB row-size=16B cardinality=1.50M
-|     runtime filters: RF000 -> o.o_custkey
-|
-02:SCAN HDFS [tpch.lineitem i]
-   partitions=1/1 files=1 size=718.94MB row-size=20B cardinality=1.98M
-   predicates: i.l_suppkey < 1234
-   runtime filters: RF002 -> i.l_orderkey
-====
-# Correlated filter on two columns
-# |join| = Ave. line items per customer
-# |lineitem| / |o.custkey| = 6M / 100K = 60
-select c.c_name, o.o_orderkey, i.l_linenumber
-from tpch.customer c,
-     tpch.orders o,
-     tpch.lineitem i
-where c.c_custkey = o.o_custkey
-  and o.o_orderkey = i.l_orderkey
-  and c.c_custkey = 10
----- PLAN
-PLAN-ROOT SINK
-|
-04:HASH JOIN [INNER JOIN]
-|  hash predicates: o.o_custkey = c.c_custkey
-|  runtime filters: RF000 <- c.c_custkey
-|  row-size=66B cardinality=58
-|
-|--00:SCAN HDFS [tpch.customer c]
-|     partitions=1/1 files=1 size=23.08MB row-size=38B cardinality=1
-|     predicates: c.c_custkey = 10
-|
-03:HASH JOIN [INNER JOIN]
-|  hash predicates: i.l_orderkey = o.o_orderkey
-|  runtime filters: RF002 <- o.o_orderkey
-|  row-size=28B cardinality=58
-|
-|--01:SCAN HDFS [tpch.orders o]
-|     partitions=1/1 files=1 size=162.56MB row-size=16B cardinality=15
-|     predicates: o.o_custkey = 10
-|     runtime filters: RF000 -> o.o_custkey
-|
-02:SCAN HDFS [tpch.lineitem i]
-   partitions=1/1 files=1 size=718.94MB row-size=12B cardinality=6.00M
-   runtime filters: RF002 -> i.l_orderkey
-====
-# Correlated filter on two columns
-# |join| = Ave. line items per customer
-# |lineitem| / |o.orderkey| = 6M / 1.5M = 4
-select c.c_name, o.o_orderkey, i.l_linenumber
-from tpch.customer c,
-     tpch.orders o,
-     tpch.lineitem i
-where c.c_custkey = o.o_custkey
-  and o.o_orderkey = i.l_orderkey
-  and o.o_orderkey = 10
----- PLAN
-PLAN-ROOT SINK
-|
-04:HASH JOIN [INNER JOIN]
-|  hash predicates: o.o_orderkey = i.l_orderkey
-|  runtime filters: RF000 <- i.l_orderkey
-|  row-size=66B cardinality=4
-|
-|--02:SCAN HDFS [tpch.lineitem i]
-|     partitions=1/1 files=1 size=718.94MB row-size=12B cardinality=4
-|     predicates: i.l_orderkey = 10
-|
-03:HASH JOIN [INNER JOIN]
-|  hash predicates: c.c_custkey = o.o_custkey
-|  runtime filters: RF002 <- o.o_custkey
-|  row-size=54B cardinality=1
-|
-|--01:SCAN HDFS [tpch.orders o]
-|     partitions=1/1 files=1 size=162.56MB row-size=16B cardinality=1
-|     predicates: o.o_orderkey = 10
-|     runtime filters: RF000 -> o.o_orderkey
-|
-00:SCAN HDFS [tpch.customer c]
-   partitions=1/1 files=1 size=23.08MB row-size=38B cardinality=150.00K
-   runtime filters: RF002 -> c.c_custkey
-====
-# Correlated filter on two pairs of columns
-# |join| = Ave. line items per customer
-# |lineitem| / |o.orderkey| = 6M / 1.5M = 4
-select c.c_name, o.o_orderkey, i.l_linenumber
-from tpch.customer c,
-     tpch.orders o,
-     tpch.lineitem i
-where c.c_custkey = o.o_custkey
-  and o.o_orderkey = i.l_orderkey
-  and o.o_orderkey = 10
-  and c.c_custkey = 20
----- PLAN
-PLAN-ROOT SINK
-|
-04:HASH JOIN [INNER JOIN]
-|  hash predicates: o.o_custkey = c.c_custkey
-|  runtime filters: RF000 <- c.c_custkey
-|  row-size=66B cardinality=4
-|
-|--00:SCAN HDFS [tpch.customer c]
-|     partitions=1/1 files=1 size=23.08MB row-size=38B cardinality=1
-|     predicates: c.c_custkey = 20
-|
-03:HASH JOIN [INNER JOIN]
-|  hash predicates: i.l_orderkey = o.o_orderkey
-|  runtime filters: RF002 <- o.o_orderkey
-|  row-size=28B cardinality=4
-|
-|--01:SCAN HDFS [tpch.orders o]
-|     partitions=1/1 files=1 size=162.56MB row-size=16B cardinality=1
-|     predicates: o.o_orderkey = 10, o.o_custkey = 20
-|     runtime filters: RF000 -> o.o_custkey
-|
-02:SCAN HDFS [tpch.lineitem i]
-   partitions=1/1 files=1 size=718.94MB row-size=12B cardinality=4
-   predicates: i.l_orderkey = 10
-   runtime filters: RF002 -> i.l_orderkey
+01:SCAN HDFS [tpch.orders o]
+   partitions=1/1 files=1 size=162.56MB row-size=20B cardinality=1.50M
+   runtime filters: RF000 -> o.o_custkey
 ====

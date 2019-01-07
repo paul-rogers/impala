@@ -17,6 +17,7 @@
 
 package org.apache.impala.analysis;
 
+import org.apache.impala.catalog.ColumnStats;
 import org.apache.impala.catalog.Db;
 import org.apache.impala.catalog.FeTable;
 import org.apache.impala.catalog.Function;
@@ -28,12 +29,15 @@ import org.apache.impala.common.AnalysisException;
 import org.apache.impala.common.Reference;
 import org.apache.impala.thrift.TExprNode;
 import org.apache.impala.thrift.TExprNodeType;
+
 import com.google.common.base.Objects;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 
 public class IsNullPredicate extends Predicate {
   private final boolean isNotNull_;
+
+  private ColumnStats stats;
 
   private static final String IS_NULL = "is_null_pred";
   private static final String IS_NOT_NULL = "is_not_null_pred";
@@ -138,22 +142,27 @@ public class IsNullPredicate extends Predicate {
     // determine selectivity
     // TODO: increase this to make sure we don't end up favoring broadcast joins
     // due to underestimated cardinalities?
+    double isNullSel = -1;
     Reference<SlotRef> slotRefRef = new Reference<SlotRef>();
     if (isSingleColumnPredicate(slotRefRef, null)) {
       SlotDescriptor slotDesc = slotRefRef.getRef().getDesc();
-      if (!slotDesc.getStats().hasNulls()) return;
-      FeTable table = slotDesc.getParent().getTable();
-      if (table != null && table.getNumRows() > 0) {
-        long numRows = table.getNumRows();
-        if (isNotNull_) {
-          selectivity_ =
-              (double) (numRows - slotDesc.getStats().getNumNulls()) / (double) numRows;
-        } else {
-          selectivity_ = (double) slotDesc.getStats().getNumNulls() / (double) numRows;
+      stats = slotDesc.getStats();
+      if (stats.hasNulls()) {
+        // Use null count for accurate estimate
+        FeTable table = slotDesc.getParent().getTable();
+        if (table != null && table.getNumRows() > 0) {
+          long numRows = table.getNumRows();
+          long nullRows = Math.min(table.getNumRows(), stats.getNumNulls());
+          isNullSel = (double) nullRows / numRows;
         }
-        selectivity_ = Math.max(0.0, Math.min(1.0, selectivity_));
+      } else if (stats.hasNumDistinctValues()) {
+        // Approximate with 1/NDV (with null as one of the values)
+        isNullSel = 1.0D / stats.getNumDistinctValues();
       }
     }
+    // Fail back to a default .1
+    if (isNullSel == -1) { isNullSel = 0.1; }
+    selectivity_ = isNotNull_ ? 1 - isNullSel : isNullSel;
   }
 
   @Override

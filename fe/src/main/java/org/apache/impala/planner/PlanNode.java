@@ -122,7 +122,9 @@ abstract public class PlanNode extends TreeNode<PlanNode> {
   protected long cardinality_;
 
   // Selectivity estimated for this node. Used in join cardinality
-  // calculations.
+  // calculations. Temporary. We really want the adjusted NDV, but
+  // the present code can't provide that yet, so this is a partial
+  // fix.
   protected double selectivity_ = -1;
 
   // number of nodes on which the plan tree rooted at this node would execute;
@@ -524,7 +526,7 @@ abstract public class PlanNode extends TreeNode<PlanNode> {
   }
 
   /**
-   * Returns an smap that combines the childrens' smaps.
+   * Returns an smap that combines the children's smaps.
    */
   protected ExprSubstitutionMap getCombinedChildSmap() {
     if (getChildren().size() == 0) return new ExprSubstitutionMap();
@@ -623,8 +625,7 @@ abstract public class PlanNode extends TreeNode<PlanNode> {
   }
 
   protected double computeSelectivity() {
-    selectivity_ = computeCombinedSelectivity(conjuncts_);
-    return selectivity_;
+    return computeCombinedSelectivity(conjuncts_);
   }
 
   // Convert this plan node into msg (excluding children), which requires setting

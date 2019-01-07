@@ -509,6 +509,11 @@ public class SingleNodePlanner {
         }
 
         analyzer.setAssignedConjuncts(root.getAssignedConjuncts());
+        System.out.println(String.format("Candidate: %s %s >< %s %s",
+            root.getDisplayLabel(),
+            root.getDisplayLabelDetail(),
+            entry.second.getDisplayLabel(),
+            entry.second.getDisplayLabelDetail()));
         PlanNode candidate = createJoinNode(root, entry.second, ref, analyzer);
         if (candidate == null) continue;
         if (LOG.isTraceEnabled()) {

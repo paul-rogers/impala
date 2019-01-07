@@ -250,6 +250,7 @@ public class AggregationNode extends PlanNode {
       }
     }
     cardinality_ = capCardinalityAtLimit(cardinality_);
+    selectivity_ = 1.0;
   }
 
   /**

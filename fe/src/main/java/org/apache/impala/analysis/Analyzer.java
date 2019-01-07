@@ -1248,7 +1248,7 @@ public class Analyzer {
    */
   public List<Expr> getUnassignedConjuncts(List<TupleId> tupleIds) {
     List<Expr> result = new ArrayList<>();
-    for (Expr e: getUnassignedConjuncts(tupleIds, true)) {
+    for (Expr e : getUnassignedConjuncts(tupleIds, true)) {
       if (canEvalPredicate(tupleIds, e)) result.add(e);
     }
     return result;

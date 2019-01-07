@@ -76,6 +76,7 @@ PLAN-ROOT SINK
 ====
 # test that on-clause predicates referring to multiple tuple ids
 # get registered as eq join conjuncts
+# |join| = Cartesian product reduced by 0.1 = 6
 select t1.*
 from (select * from functional.alltypestiny) t1
   join (select * from functional.alltypestiny) t2 on (t1.id = t2.id)
@@ -86,7 +87,7 @@ PLAN-ROOT SINK
 04:HASH JOIN [INNER JOIN]
 |  hash predicates: coalesce(functional.alltypestiny.id, functional.alltypestiny.id) = t3.id
 |  runtime filters: RF000 <- t3.id
-|  row-size=97B cardinality=8
+|  row-size=97B cardinality=6
 |
 |--02:SCAN HDFS [functional.alltypestiny t3]
 |     partitions=4/4 files=4 size=460B row-size=4B cardinality=8
@@ -111,7 +112,7 @@ PLAN-ROOT SINK
 04:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: coalesce(functional.alltypestiny.id, functional.alltypestiny.id) = t3.id
 |  runtime filters: RF000 <- t3.id
-|  row-size=97B cardinality=8
+|  row-size=97B cardinality=6
 |
 |--06:EXCHANGE [BROADCAST]
 |  |
@@ -155,7 +156,7 @@ PLAN-ROOT SINK
 |  hash predicates: a.id = b.id, a.int_col = b.int_col
 |  other predicates: a.tinyint_col = 15, a.day >= 6, a.tinyint_col + b.tinyint_col < 15
 |  runtime filters: RF000 <- b.id, RF001 <- b.int_col
-|  row-size=184B cardinality=5
+|  row-size=184B cardinality=2
 |
 |--01:SCAN HDFS [functional.alltypessmall b]
 |     partitions=2/4 files=2 size=3.17KB row-size=89B cardinality=5
@@ -176,7 +177,7 @@ PLAN-ROOT SINK
 |  hash predicates: a.id = b.id, a.int_col = b.int_col
 |  other predicates: a.tinyint_col = 15, a.day >= 6, a.tinyint_col + b.tinyint_col < 15
 |  runtime filters: RF000 <- b.id, RF001 <- b.int_col
-|  row-size=184B cardinality=5
+|  row-size=184B cardinality=2
 |
 |--04:EXCHANGE [HASH(b.id,b.int_col)]
 |  |
@@ -364,10 +365,17 @@ PLAN-ROOT SINK
    partitions=11/11 files=11 size=814.73KB row-size=95B cardinality=11.00K
    runtime filters: RF000 -> functional.alltypesagg.id, RF001 -> functional.alltypesagg.int_col
 ====
-# hbase-hdfs join with scan filtering
 # |stringids| = 10K (though the row count estimator will have some other value)
-# |stringids.tinyint_col| = 9
-# |stringids'| = 10K/9 = 1.1K
+# Equality predicate on unique ID, so |stringids'| = 1
+# |alltypesagg.int_col| = 957
+# |a.int_col'| = |a.int_col| * |alltypesagg'| / |alltypesagg|
+#              = 957 * 556 / 11000 = 48
+# |s.int_col'| = |s.int_col| * |stringids'| / |stringids|
+#              = 957 * 1/10K = 1
+# Meanwhile, |stringids.int_col| = 957
+# sel(a.tinyint_col + b.tinyint_col < 15) = 0.33
+# |join| = (|stringids'| * |alltypesagg'| / |tinyint_col'|) * sel(join preds)
+#        = 1 * 556 * / 48 * .33 = 4
 select *
 from functional.alltypesagg a join functional_hbase.stringids b
        on (a.id = cast(b.id as int) and a.int_col = b.int_col)
@@ -383,7 +391,7 @@ PLAN-ROOT SINK
 |  hash predicates: a.int_col = b.int_col, a.id = CAST(b.id AS INT)
 |  other predicates: a.tinyint_col + b.tinyint_col < 15
 |  runtime filters: RF000 <- b.int_col, RF001 <- CAST(b.id AS INT)
-|  row-size=202B cardinality=1
+|  row-size=202B cardinality=4
 |
 |--01:SCAN HBASE [functional_hbase.stringids b]
 |     start key: 5
@@ -414,7 +422,7 @@ PLAN-ROOT SINK
 |  hash predicates: a.int_col = b.int_col, a.id = CAST(b.id AS INT)
 |  other predicates: a.tinyint_col + b.tinyint_col < 15
 |  runtime filters: RF000 <- b.int_col, RF001 <- CAST(b.id AS INT)
-|  row-size=202B cardinality=1
+|  row-size=202B cardinality=4
 |
 |--03:EXCHANGE [BROADCAST]
 |  |
@@ -427,6 +435,7 @@ PLAN-ROOT SINK
 00:SCAN HDFS [functional.alltypesagg a]
    partitions=5/11 files=5 size=372.38KB row-size=95B cardinality=556
    predicates: a.tinyint_col = 15
+   partition predicates: a.day >= 6
    runtime filters: RF000 -> a.int_col, RF001 -> a.id
 ====
 # hbase-hdfs join with scan filtering (bogus)

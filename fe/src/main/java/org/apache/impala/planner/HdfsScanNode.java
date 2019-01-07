@@ -1009,6 +1009,8 @@ public class HdfsScanNode extends ScanNode {
     // Choose between the extrapolated row count and the one based on stored stats.
     extrapolatedNumRows_ = FeFsTable.Utils.getExtrapolatedNumRows(tbl_, totalBytes_);
     long tableCardinality = tbl_.getTTableStats().getNum_rows();
+    // Despite the name, this is not the (table) stats num rows; it is the extrapolated
+    // rows based on partition pruning (from partition stats.)
     long statsNumRows = getStatsNumRows();
     if (extrapolatedNumRows_ != -1) {
       // The extrapolated row count is based on the 'totalBytes_' which already accounts
@@ -1063,7 +1065,9 @@ public class HdfsScanNode extends ScanNode {
     }
     // Compute the effective selectivity which includes the effect of
     // partition pruning, etc.
-    if (tableCardinality > 0) {
+    if (tableCardinality == 0) {
+      selectivity_ = 0;
+    } else if (tableCardinality > 0) {
       selectivity_ = (double) cardinality_ / tableCardinality;
     }
   }
