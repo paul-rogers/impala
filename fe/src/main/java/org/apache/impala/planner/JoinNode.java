@@ -198,7 +198,7 @@ public abstract class JoinNode extends PlanNode {
   public List<Expr> boundConjuncts(List<TupleId> tids) {
     List<Expr> matches = new ArrayList<>();
     for (Expr expr : conjuncts_) {
-      if (! expr.isBoundByTupleIds(tids)) {
+      if (expr.isBoundByTupleIds(tids)) {
         matches.add(expr);
       }
     }
@@ -583,20 +583,21 @@ public abstract class JoinNode extends PlanNode {
      *   this node.
      */
     private double calcRightOuterJoin() {
-      // If no right rows, then |join| is zero
+      // If no right (build) rows, then |join| is zero
       double buildCard = build_.cardinality();
       if (buildCard == 0) return 0;
 
-      // Compute join assuming at least one left row (for nulls)
+      // Compute join assuming at least one left (probe) row (for nulls)
       // and that the result can't be smaller than the right.
       double probeCard = Math.max(1, probe_.cardinality());
       double card = Math.max(probeCard * buildCard / largestKeyCard_, buildCard);
+      selectivity_ *= build_.selectivity();
 
-      // Reapply child predicates, which will reduce cardinality
+      // Reapply inner predicates, which will reduce cardinality
       // below the normally expected outer cardinality. (If we apply foo='bar'
       // to the joined tuples, we'll eliminate all the null values.)
       // The resulting selectivity does not count toward join selectivity as it
-      // is already in the build selectivity.
+      // is already in the probe selectivity.
       //
       // Note that this is, at best, a poor man's solution to the problem.
       // If we have foo = 'bar', we know that it will eliminate all the
@@ -607,8 +608,7 @@ public abstract class JoinNode extends PlanNode {
       // on an awareness of the meaning of the predicate, not just the selectivity
       // that made sense during the scan.
       double filterSel = computeCombinedSelectivity(
-          joinNode_.boundConjuncts(build_.node().getTupleIds()));
-      selectivity_ *= build_.selectivity();
+          joinNode_.boundConjuncts(probe_.node().getTupleIds()));
       return card * filterSel;
     }
 
@@ -618,9 +618,9 @@ public abstract class JoinNode extends PlanNode {
       if (probeCard == 0) return 0;
       double buildCard = Math.max(1, build_.cardinality());
       double card = Math.max(probeCard * buildCard / largestKeyCard_, probeCard);
-      double filterSel = computeCombinedSelectivity(
-          joinNode_.boundConjuncts(probe_.node().getTupleIds()));
       selectivity_ *= probe_.selectivity();
+      double filterSel = computeCombinedSelectivity(
+          joinNode_.boundConjuncts(build_.node().getTupleIds()));
       return card * filterSel;
     }
 
@@ -633,12 +633,14 @@ public abstract class JoinNode extends PlanNode {
       // larger of the two input relations.
       double card = Math.max(Math.max(1, probeCard) * Math.max(1, buildCard) / largestKeyCard_,
           Math.max(probeCard, buildCard));
-      // Reapply filters from both sides.
-      double filterSel = computeCombinedSelectivity(
-              joinNode_.boundConjuncts(probe_.node().getTupleIds())) *
-          computeCombinedSelectivity(
-              joinNode_.boundConjuncts(build_.node().getTupleIds()));
       selectivity_ = Math.max(probe_.selectivity(), build_.selectivity());
+      // Reapply filters from both sides.
+      List<TupleId> tids = new ArrayList<>();
+      tids.addAll(joinNode_.nullableTupleIds_);
+      // Note that, due to exponential back-off, the result is not linear.
+      // We're assuming some correlation between columns, even if from distinct
+      // tables. Might require further thought.
+      double filterSel = computeCombinedSelectivity(joinNode_.boundConjuncts(tids));
       return card * filterSel;
     }
 
@@ -707,7 +709,11 @@ public abstract class JoinNode extends PlanNode {
       // child (with possible repeat here for outer join.)
       // We can't consider them for join selectivity.
       List<TupleId> childTids = Lists.newArrayList(joinNode_.nullableTupleIds_);
-      preds.addAll(joinNode_.boundConjuncts(childTids));
+      for (Expr expr : joinNode_.conjuncts_) {
+        if (! expr.isBoundByTupleIds(childTids)) {
+          preds.add(expr);
+        }
+      }
       double extraSelectivity = computeCombinedSelectivity(preds);
       selectivity_ *= extraSelectivity;
       cardinality_ *= extraSelectivity;

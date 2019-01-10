@@ -228,7 +228,7 @@ public class HdfsScanNode extends ScanNode {
       new LinkedHashMap<>();
 
   // Number of partitions that have the row count statistic.
-  private int numPartitionsWithNumRows_ = 0;
+  private int numPartitionsWithNumRows_;
 
   // Indicates corrupt table stats based on the number of non-empty scan ranges and
   // numRows set to 0. Set in computeStats().
@@ -236,13 +236,13 @@ public class HdfsScanNode extends ScanNode {
 
   // Number of header lines to skip at the beginning of each file of this table. Only set
   // to values > 0 for hdfs text files.
-  private int skipHeaderLineCount_ = 0;
+  private int skipHeaderLineCount_;
 
   // Number of scan-ranges/files/partitions that have missing disk ids. Reported in the
   // explain plan.
-  private int numScanRangesNoDiskIds_ = 0;
-  private int numFilesNoDiskIds_ = 0;
-  private int numPartitionsNoDiskIds_ = 0;
+  private int numScanRangesNoDiskIds_;
+  private int numFilesNoDiskIds_;
+  private int numPartitionsNoDiskIds_;
 
   // List of conjuncts for min/max values of parquet::Statistics, that are used to skip
   // data when scanning Parquet files.
@@ -261,7 +261,7 @@ public class HdfsScanNode extends ScanNode {
 
   // Slot that is used to record the Parquet metadata for the count(*) aggregation if
   // this scan node has the count(*) optimization enabled.
-  private SlotDescriptor countStarSlot_ = null;
+  private SlotDescriptor countStarSlot_;
 
   // Conjuncts used to trim the set of partitions passed to this node.
   // Used only to display EXPLAIN information.
@@ -301,6 +301,9 @@ public class HdfsScanNode extends ScanNode {
     }
     return helper.addValue(super.debugString()).toString();
   }
+
+  @Override
+  public String toString() { return debugString(); }
 
   /**
    * Adds a new slot descriptor to the tuple descriptor of this scan. The new slot will be
