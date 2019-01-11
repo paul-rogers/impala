@@ -37,7 +37,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.google.common.base.Preconditions;
-import com.google.common.collect.Lists;
+
+import avro.shaded.com.google.common.base.Objects;
 
 /**
  * Logical join operator. Subclasses correspond to implementations of the join operator
@@ -297,7 +298,7 @@ public abstract class JoinNode extends PlanNode {
     private double cardinality() { return cardinality_; }
     private double selectivity() { return selectivity_; }
     private double jointKeyCardinality() { return jointKeyCard_; }
-    private PlanNode node() { return node_; }
+    private List<TupleId> tupleIds() { return node_.getTupleIds(); }
 
     /**
      * Try getting cardinality from the left join predicate, if only one.
@@ -336,7 +337,7 @@ public abstract class JoinNode extends PlanNode {
      * TODO: Should be based on table size and estimated row width.
      * Using NDV is a work around that works if the table has a unique
      * column (and we have column stats.) Best would be to compare
-     * stored and nd actual row counts, then scale NDVs to account for
+     * stored and actual row counts, then scale NDVs to account for
      * table growth (or shrinkage).
      *
      * @return estimated node cardinality, or -1 if no estimate can
@@ -375,7 +376,11 @@ public abstract class JoinNode extends PlanNode {
     private double calcJointKeyCardinality() {
       jointKeyCard_ = 1;
       for (EquiJoinRef key : keys_) {
-        jointKeyCard_ *= key.adjustedNdv();
+        // Ignore keys with no data. In the worst case, the
+        // joint key cardinality may be 1 (the default), which
+        // really should only occur if the table cardinality is 0.
+        double keyNdv = key.adjustedNdv();
+        if (keyNdv > 0) jointKeyCard_ *= keyNdv;
       }
       jointKeyCard_ = Math.min(jointKeyCard_, cardinality_);
       return jointKeyCard_;
@@ -388,6 +393,22 @@ public abstract class JoinNode extends PlanNode {
       for (EquiJoinRef key : keys_) {
         key.updateEstimate(cardinality_);
       }
+    }
+
+    private double filterSelectivity(JoinNode joinNode) {
+      return computeCombinedSelectivity(
+          joinNode.boundConjuncts(node_.getTupleIds()));
+    }
+
+    @Override
+    public String toString() {
+      return Objects.toStringHelper(this)
+      .add("relation", node_.displayName() + " " +
+        node_.getDisplayLabelDetail())
+      .add("cardinality", cardinality_)
+      .add("selectivity", selectivity_)
+      .add("key cardinality", jointKeyCard_)
+      .toString();
     }
   }
 
@@ -502,19 +523,25 @@ public abstract class JoinNode extends PlanNode {
       switch (joinNode_.joinOp_) {
       case CROSS_JOIN:
       case INNER_JOIN:
+        // Assume the least selective table controls column NDVs
+        // Not a great estimate, but all we can do at present.
+        selectivity_ = Math.max(probe_.selectivity(), build_.selectivity());
         return calcInnerJoin();
       case FULL_OUTER_JOIN:
+        selectivity_ = Math.max(probe_.selectivity(), build_.selectivity());
         return calcFullOuterJoin();
       case LEFT_ANTI_JOIN:
       case NULL_AWARE_LEFT_ANTI_JOIN:
         return calcLeftAntiJoin();
       case LEFT_OUTER_JOIN:
+        selectivity_ *= probe_.selectivity();
         return calcLeftOuterJoin();
       case LEFT_SEMI_JOIN:
         return calcLeftSemiJoin();
       case RIGHT_ANTI_JOIN:
         return calcRightAntiJoin();
       case RIGHT_OUTER_JOIN:
+        selectivity_ *= build_.selectivity();
         return calcRightOuterJoin();
       case RIGHT_SEMI_JOIN:
         return calcRightSemiJoin();
@@ -563,13 +590,8 @@ public abstract class JoinNode extends PlanNode {
       // Bail out fast in the |build| = 0 case. We may have an EmptySet node.
       // But, the NDV of the build columns still have their values from earlier
       // in the plan; continuing will cause us to work with meaningless numbers.
-      if (probeCard == 0 || buildCard == 0) {
-        return 0;
-      }
+      if (probeCard == 0 || buildCard == 0) return 0;
 
-      // Assume the least selective table controls column NDVs
-      // Not a great estimate, but all we can do at present.
-      selectivity_ = Math.max(probe_.selectivity(), build_.selectivity());
       // Apply the cardinality expression
       // Clamp the value to the range (1, MAX_LONG)
       return Math.max(1, probeCard * buildCard / largestKeyCard_);
@@ -583,16 +605,32 @@ public abstract class JoinNode extends PlanNode {
      *   this node.
      */
     private double calcRightOuterJoin() {
+      return calcOuterJoin(build_, probe_);
+    }
+
+    private double calcLeftOuterJoin() {
+      return calcOuterJoin(probe_, build_);
+    }
+
+    private double calcOuterJoin(RelationStats outer, RelationStats inner) {
       // If no right (build) rows, then |join| is zero
-      double buildCard = build_.cardinality();
-      if (buildCard == 0) return 0;
+      if (outer.cardinality() == 0) return 0;
 
-      // Compute join assuming at least one left (probe) row (for nulls)
-      // and that the result can't be smaller than the right.
-      double probeCard = Math.max(1, probe_.cardinality());
-      double card = Math.max(probeCard * buildCard / largestKeyCard_, buildCard);
-      selectivity_ *= build_.selectivity();
+      // Outer join is the inner join plus unmatched outer rows.
+      // Venn diagram:
+      // (outer-only (inner & outer) -inner-only-)
+      return calcInnerJoin() + calcOuterOnly(outer, inner);
+    }
 
+    private double calcOuterOnly(RelationStats outer, RelationStats inner) {
+      // We adopt the Containment assumption from S&S: if the outer
+      // has fewer keys than the inner, all the outer keys find a match.
+      // If the outer has more keys than the inner, then the outer-only
+      // is the ratio of unmatched keys to the total key cardinality,
+      // but reduced by the predicates reapplied from the inner child
+      // node to the newly generated null columns.
+      double outerOnly = outer.cardinality() *
+          (1 - inner.jointKeyCardinality() / largestKeyCard_);
       // Reapply inner predicates, which will reduce cardinality
       // below the normally expected outer cardinality. (If we apply foo='bar'
       // to the joined tuples, we'll eliminate all the null values.)
@@ -607,41 +645,15 @@ public abstract class JoinNode extends PlanNode {
       // 1/ndv of the inner rows. Bottom line: selectivity should be based
       // on an awareness of the meaning of the predicate, not just the selectivity
       // that made sense during the scan.
-      double filterSel = computeCombinedSelectivity(
-          joinNode_.boundConjuncts(probe_.node().getTupleIds()));
-      return card * filterSel;
-    }
-
-    private double calcLeftOuterJoin() {
-      // Symmetrical with the right outer join
-      double probeCard = probe_.cardinality();
-      if (probeCard == 0) return 0;
-      double buildCard = Math.max(1, build_.cardinality());
-      double card = Math.max(probeCard * buildCard / largestKeyCard_, probeCard);
-      selectivity_ *= probe_.selectivity();
-      double filterSel = computeCombinedSelectivity(
-          joinNode_.boundConjuncts(build_.node().getTupleIds()));
-      return card * filterSel;
+      outerOnly *= inner.filterSelectivity(joinNode_);
+      return outerOnly;
     }
 
     private double calcFullOuterJoin() {
-      double probeCard = probe_.cardinality();
-      double buildCard = build_.cardinality();
-      // |join| = 0 if both sides are empty
-      if (buildCard == 0 && probeCard == 0) return 0;
-      // Allow extra null row on both sides. Clamp the result to the
-      // larger of the two input relations.
-      double card = Math.max(Math.max(1, probeCard) * Math.max(1, buildCard) / largestKeyCard_,
-          Math.max(probeCard, buildCard));
-      selectivity_ = Math.max(probe_.selectivity(), build_.selectivity());
-      // Reapply filters from both sides.
-      List<TupleId> tids = new ArrayList<>();
-      tids.addAll(joinNode_.nullableTupleIds_);
-      // Note that, due to exponential back-off, the result is not linear.
-      // We're assuming some correlation between columns, even if from distinct
-      // tables. Might require further thought.
-      double filterSel = computeCombinedSelectivity(joinNode_.boundConjuncts(tids));
-      return card * filterSel;
+      // Venn diagram:
+      // (probe only (both) build only)
+      return calcOuterOnly(probe_, build_) + calcOuterOnly(build_, probe_) +
+        calcInnerJoin();
     }
 
     /**
@@ -708,11 +720,10 @@ public abstract class JoinNode extends PlanNode {
       // child. These are conjuncts already evaluated in the
       // child (with possible repeat here for outer join.)
       // We can't consider them for join selectivity.
-      List<TupleId> childTids = Lists.newArrayList(joinNode_.nullableTupleIds_);
       for (Expr expr : joinNode_.conjuncts_) {
-        if (! expr.isBoundByTupleIds(childTids)) {
-          preds.add(expr);
-        }
+        if (expr.isBoundByTupleIds(build_.tupleIds())) continue;
+        if (expr.isBoundByTupleIds(probe_.tupleIds())) continue;
+        preds.add(expr);
       }
       double extraSelectivity = computeCombinedSelectivity(preds);
       selectivity_ *= extraSelectivity;

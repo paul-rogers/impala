@@ -58,13 +58,16 @@ public class PlannerTest extends PlannerTestBase {
   }
 
   /**
-   * Continue planner cardinality propagation with various join scenarios.
+   * Continue planner cardinality propagation with various inner join scenarios.
    */
   @Test
   public void testInnerJoinCardinality() {
     runPlannerTestFile("card-inner-join");
   }
 
+  /**
+   * More planner cardinality testing: outer joins
+   */
   @Test
   public void testOuterJoinCardinality() {
     runPlannerTestFile("card-outer-join");
