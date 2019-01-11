@@ -259,7 +259,7 @@ public abstract class JoinNode extends PlanNode {
           // If no original NDV and no table cardinality, we have to make
           // up a column NDV. Assume selectivity of .1 or
           // NDV = scanCardinality * 0.1
-          adjustedNdv_ = Math.max(1.0, scanCardinality * 0.1);
+          adjustedNdv_ = scanCardinality * 0.1;
         } else {
           // We have an original NDV but, oddly, no table NDV.
           // Don't adjust the NDV and hope for the best.
@@ -269,8 +269,9 @@ public abstract class JoinNode extends PlanNode {
         selectivity_ = scanCardinality / tableCardinality_;
         // TODO: Per column adjustments based on prior predicates. See comment above.
         // TODO: Use the urn model from the S&S paper.
-        adjustedNdv_ = Math.max(1, originalNdv_ * selectivity_);
+        adjustedNdv_ = originalNdv_ * selectivity_;
       }
+      adjustedNdv_ = Math.max(1, adjustedNdv_);
     }
 
     private double tableCardinality() { return tableCardinality_; }

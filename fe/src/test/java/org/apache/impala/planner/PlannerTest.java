@@ -78,10 +78,10 @@ public class PlannerTest extends PlannerTestBase {
     runPlannerTestFile("card-multi-join");
   }
 
-  @Test
-  public void testAdHoc() {
-    runPlannerTestFile("ad-hoc");
-  }
+//  @Test
+//  public void testAdHoc() {
+//    runPlannerTestFile("ad-hoc");
+//  }
 
   @Test
   public void testPredicatePropagation() {

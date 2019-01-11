@@ -214,11 +214,11 @@ PLAN-ROOT SINK
 04:HASH JOIN [LEFT OUTER JOIN]
 |  hash predicates: c.id = a.id, c.string_col = b.string_col
 |  other predicates: a.tinyint_col = 15, b.string_col = '15', a.day >= 6, b.month > 2, a.float_col - c.double_col < 0, a.tinyint_col + b.tinyint_col < 15, (b.double_col * c.tinyint_col > 1000 OR c.tinyint_col < 1000)
-|  row-size=279B cardinality=2.00K
+|  row-size=279B cardinality=141
 |
 |--03:HASH JOIN [FULL OUTER JOIN]
 |  |  hash predicates: a.id = b.id, a.int_col = b.int_col
-|  |  row-size=184B cardinality=561
+|  |  row-size=184B cardinality=556
 |  |
 |  |--01:SCAN HDFS [functional.alltypessmall b]
 |  |     partitions=2/4 files=2 size=3.17KB row-size=89B cardinality=5
@@ -242,7 +242,7 @@ PLAN-ROOT SINK
 |  hash predicates: a.id = c.id, b.string_col = c.string_col
 |  other predicates: a.tinyint_col = 15, b.string_col = '15', a.day >= 6, b.month > 2, a.float_col - c.double_col < 0, a.tinyint_col + b.tinyint_col < 15, (b.double_col * c.tinyint_col > 1000 OR c.tinyint_col < 1000)
 |  runtime filters: RF000 <- c.id, RF001 <- c.string_col
-|  row-size=279B cardinality=2.00K
+|  row-size=279B cardinality=141
 |
 |--08:EXCHANGE [HASH(c.id,c.string_col)]
 |  |
@@ -254,7 +254,7 @@ PLAN-ROOT SINK
 |
 03:HASH JOIN [FULL OUTER JOIN, PARTITIONED]
 |  hash predicates: a.id = b.id, a.int_col = b.int_col
-|  row-size=184B cardinality=561
+|  row-size=184B cardinality=556
 |
 |--06:EXCHANGE [HASH(b.id,b.int_col)]
 |  |
