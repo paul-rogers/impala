@@ -93,6 +93,47 @@ public class CardinalityTest extends PlannerTestBase {
         "SELECT COUNT(*) FROM functional.alltypes GROUP BY bool_col", 2);
   }
 
+  /**
+   * Test tables with all-null columns. After IMPALA-7310,
+   * NDV of an all-null column should be 1. (Before NDV was undefined,
+   * so cardinality was undefined.)
+   */
+  @Test
+  public void testNulls() {
+    verifyCardinality("SELECT d FROM functional.nullrows", 26);
+    // a has unique values, so NDV = 26, card = 26/26 = 1
+    verifyCardinality("SELECT d FROM functional.nullrows WHERE a = 'x'", 1);
+    // f repeats for 5 rows, so NDV=7, 26/7 =~ 4
+    verifyCardinality("SELECT d FROM functional.nullrows WHERE f = 'x'", 4);
+    // Revised use of nulls per IMPALA-7310
+    // c is all nulls, NDV = 1, selectivity = 1/1, cardinality = 26
+    verifyCardinality("SELECT d FROM functional.nullrows WHERE c = 'x'", 26);
+  }
+
+  @Test
+  public void testGroupBy() {
+    String baseStmt = "SELECT COUNT(*) " +
+                      "FROM functional.nullrows " +
+                      "GROUP BY ";
+    // NDV(a) = 26
+    verifyCardinality(baseStmt + "a", 26);
+    // f has NDV=3
+    verifyCardinality(baseStmt + "f", 6);
+    // b has NDV=1 (plus 1 for nulls)
+    verifyCardinality(baseStmt + "b", 2);
+    // c is all nulls
+    verifyCardinality(baseStmt + "c", 1);
+    // NDV(a) * ndv(c) = 26 * 1 = 26
+    verifyCardinality(baseStmt + "a, c", 26);
+    // NDV(a) * ndv(f) = 26 * 3 = 78, capped at row count = 26
+    verifyCardinality(baseStmt + "a, f", 26);
+  }
+
+  /**
+   * Compute join cardinality using a table without
+   * stats. We estimate row count. Combine with an
+   * all-nulls column.
+   */
   @Test
   public void testNullColumnJoinCardinality() throws ImpalaException {
     // IMPALA-7565: Make sure there is no division by zero during cardinality calculation
@@ -100,6 +141,37 @@ public class CardinalityTest extends PlannerTestBase {
     String query = "select * from functional.nulltable t1 "
         + "inner join [shuffle] functional.nulltable t2 on t1.d = t2.d";
     checkCardinality(query, 1, 1);
+  }
+
+  /**
+   * Compute join cardinality using a table without
+   * stats. We estimate row count. Combine with an
+   * all-nulls column.
+   */
+  @Test
+  public void testJoinWithoutStats() {
+    // NDV multiplied out on group by
+    verifyCardinality(
+        "SELECT d FROM functional.alltypes, functional.nullrows", 7300 * 26);
+    // With that as the basis, add a GROUP BY
+    String baseStmt = "SELECT COUNT(*) " +
+                      "FROM functional.alltypes, functional.nullrows " +
+                      "GROUP BY ";
+    // Unique values, one group per row
+    verifyCardinality(baseStmt + "id", 7300);
+    // NDV(a) = 26
+    verifyCardinality(baseStmt + "a", 26);
+    // b has NDV=1, but adjust for nulls
+    verifyCardinality(baseStmt + "b", 2);
+    // f has NDV=6
+    verifyCardinality(baseStmt + "f", 6);
+    // c is all nulls
+    verifyCardinality(baseStmt + "c", 1);
+    // NDV(a) = 26 * ndv(c) = 1
+    verifyCardinality(baseStmt + "a, c", 26);
+    // NDV(a) = 26 * ndv(f) = 156
+    // Planner does not know that a determines f
+    verifyCardinality(baseStmt + "a, f", 156);
   }
 
   /**
