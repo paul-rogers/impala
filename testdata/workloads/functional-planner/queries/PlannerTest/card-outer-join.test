@@ -766,7 +766,11 @@ PLAN-ROOT SINK
    partitions=1/1 files=1 size=162.56MB row-size=20B cardinality=1.50M
 ====
 # Full outer with left, right and join predicate
-# Net effect is pretty much the same as an inner join
+# |customers'| = |customers| * sel(left pred) = 50K
+# |orders'| = |orders| * sel(right pred) = 500K
+# |join| = |orders'| * sel(join pred) * sel(children) = 16K
+# sel(children) = 0.33
+# The c.c_name < 'foo' is reapplied after the join
 select c.c_custkey, o.o_orderkey
 from tpch.customer c
 full outer join tpch.orders o on c.c_custkey = o.o_custkey
