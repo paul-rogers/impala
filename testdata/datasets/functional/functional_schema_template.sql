@@ -1353,18 +1353,18 @@ partition by hash(a) partitions 3 stored as kudu;
 -- Table with varying ratios of nulls. Used to test NDV with nulls
 -- Also useful to test null counts as the count varies from 0 to
 -- some to all rows.
--- Schema is the same as the usefull "alltypes" table
 functional
 ---- BASE_TABLE_NAME
 nullrows
 ---- COLUMNS
-a string
-b string
-c string
-d int
-e double
-f string
-g string
+id string
+blank string
+null_str string
+null_int int
+null_double double
+group_str string
+some_nulls string
+bool_nulls boolean
 ---- ROW_FORMAT
 delimited fields terminated by ','
 ---- DEPENDENT_LOAD
