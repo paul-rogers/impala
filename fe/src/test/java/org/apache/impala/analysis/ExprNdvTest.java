@@ -171,12 +171,23 @@ public class ExprNdvTest extends FrontendTestBase {
     // NDV(f) = 6
     verifyNdvStmt("SELECT f FROM functional.nullrows", 6);
     // NDV(c) = 0 (all nulls), but add 1 for nulls
-    verifyNdvStmt("SELECT c FROM functional.nullrows", 1);
+    // Bug: See IMPALA-7310, IMPALA-8094
+    //verifyNdvStmt("SELECT c FROM functional.nullrows", 1);
+    verifyNdvStmt("SELECT c FROM functional.nullrows", 0);
     // NDV(b) = 1, add 1 for nulls
-    verifyNdvStmt("SELECT b FROM functional.nullrows", 2);
-    // Same schema, one row, no stats
-    verifyNdvStmt("SELECT a FROM functional.nulltable", -1);
-    verifyNdvStmt("SELECT c FROM functional.nulltable", -1);
+    // Bug: Same as above
+    //verifyNdvStmt("SELECT b FROM functional.nullrows", 2);
+    verifyNdvStmt("SELECT b FROM functional.nullrows", 1);
+
+    // Same schema, one row
+    verifyNdvStmt("SELECT a FROM functional.nulltable", 1);
+    // Bug: Same as above
+    //verifyNdvStmt("SELECT c FROM functional.nulltable", 1);
+    verifyNdvStmt("SELECT c FROM functional.nulltable", 0);
+
+    // 11K rows, no stats
+    // Bug: Should come up with some estimate from size
+    verifyNdvStmt("SELECT id FROM functional.manynulls", -1);
 
     // Table with 8 rows, NDV(year) = 1,
     // null count for year is 0, so no adjustment.
@@ -186,6 +197,8 @@ public class ExprNdvTest extends FrontendTestBase {
     // NDV value from stats not increased by one here.
     verifyNdvStmt("SELECT id FROM functional_kudu.alltypestiny", 8);
     // But, is increased for a nullable column.
-    verifyNdvStmt("SELECT year FROM functional_kudu.alltypestiny", 2);
+    // Bug: Same as above
+    //verifyNdvStmt("SELECT year FROM functional_kudu.alltypestiny", 2);
+    verifyNdvStmt("SELECT year FROM functional_kudu.alltypestiny", 1);
   }
 }
