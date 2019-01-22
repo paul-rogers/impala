@@ -99,16 +99,16 @@ public class CardinalityTest extends PlannerTestBase {
    */
   @Test
   public void testNulls() {
-    verifyCardinality("SELECT d FROM functional.nullrows", 26);
+    verifyCardinality("SELECT null_int FROM functional.nullrows", 26);
     // a has unique values, so NDV = 26, card = 26/26 = 1
-    verifyCardinality("SELECT d FROM functional.nullrows WHERE a = 'x'", 1);
+    verifyCardinality("SELECT null_int FROM functional.nullrows WHERE id = 'x'", 1);
     // f repeats for 5 rows, so NDV=7, 26/7 =~ 4
-    verifyCardinality("SELECT d FROM functional.nullrows WHERE f = 'x'", 4);
+    verifyCardinality("SELECT null_int FROM functional.nullrows WHERE group_str = 'x'", 4);
     // Revised use of nulls per IMPALA-7310
-    // c is all nulls, NDV = 1, selectivity = 1/1, cardinality = 26
+    // null_str is all nulls, NDV = 1, selectivity = 1/1, cardinality = 26
     // BUG: At present selectivity is assumed to be 0.1
-    //verifyCardinality("SELECT d FROM functional.nullrows WHERE c = 'x'", 26);
-    verifyCardinality("SELECT d FROM functional.nullrows WHERE c = 'x'", 3);
+    //verifyCardinality("SELECT null_int FROM functional.nullrows WHERE null_str = 'x'", 26);
+    verifyCardinality("SELECT null_int FROM functional.nullrows WHERE null_str = 'x'", 3);
   }
 
   @Test
@@ -117,23 +117,23 @@ public class CardinalityTest extends PlannerTestBase {
                       "FROM functional.nullrows " +
                       "GROUP BY ";
     // NDV(a) = 26
-    verifyCardinality(baseStmt + "a", 26);
+    verifyCardinality(baseStmt + "id", 26);
     // f has NDV=3
-    verifyCardinality(baseStmt + "f", 6);
+    verifyCardinality(baseStmt + "group_str", 6);
     // b has NDV=1 (plus 1 for nulls)
     // Bug: Nulls not counted in NDV
-    //verifyCardinality(baseStmt + "b", 2);
-    verifyCardinality(baseStmt + "b", 1);
+    //verifyCardinality(baseStmt + "blank", 2);
+    verifyCardinality(baseStmt + "blank", 1);
     // c is all nulls
     // Bug: Nulls not counted in NDV
-    //verifyCardinality(baseStmt + "c", 1);
-    verifyCardinality(baseStmt + "c", 0);
+    //verifyCardinality(baseStmt + "null_str", 1);
+    verifyCardinality(baseStmt + "null_str", 0);
     // NDV(a) * ndv(c) = 26 * 1 = 26
     // Bug: Nulls not counted in NDV
-    //verifyCardinality(baseStmt + "a, c", 26);
-    verifyCardinality(baseStmt + "a, c", 0);
+    //verifyCardinality(baseStmt + "id, null_str", 26);
+    verifyCardinality(baseStmt + "id, null_str", 0);
     // NDV(a) * ndv(f) = 26 * 3 = 78, capped at row count = 26
-    verifyCardinality(baseStmt + "a, f", 26);
+    verifyCardinality(baseStmt + "id, group_str", 26);
   }
 
   /**
@@ -150,40 +150,40 @@ public class CardinalityTest extends PlannerTestBase {
   }
 
   /**
-   * Compute join cardinality using a table without stats. We estimate row count.
-   * Combine with an all-nulls column.
+   * Compute join cardinality using a table with stats.
+   * Focus on an all-nulls column.
    */
   @Test
-  public void testJoinWithoutStats() {
+  public void testJoinWithStats() {
     // NDV multiplied out on group by
     verifyCardinality(
-        "SELECT d FROM functional.alltypes, functional.nullrows", 7300 * 26);
+        "SELECT null_int FROM functional.alltypes, functional.nullrows", 7300 * 26);
     // With that as the basis, add a GROUP BY
     String baseStmt = "SELECT COUNT(*) " +
                       "FROM functional.alltypes, functional.nullrows " +
                       "GROUP BY ";
     // Unique values, one group per row
-    verifyCardinality(baseStmt + "id", 7300);
-    // NDV(a) = 26
-    verifyCardinality(baseStmt + "a", 26);
-    // b has NDV=1, but adjust for nulls
+    verifyCardinality(baseStmt + "alltypes.id", 7300);
+    // NDV(id) = 26
+    verifyCardinality(baseStmt + "nullrows.id", 26);
+    // blank has NDV=1, but adjust for nulls
     // Bug: Nulls not counted in NDV
-    //verifyCardinality(baseStmt + "b", 2);
-    verifyCardinality(baseStmt + "b", 1);
-    // f has NDV=6
-    verifyCardinality(baseStmt + "f", 6);
-    // c is all nulls
+    //verifyCardinality(baseStmt + "blank", 2);
+    verifyCardinality(baseStmt + "blank", 1);
+    // group_str has NDV=6
+    verifyCardinality(baseStmt + "group_str", 6);
+    // null_str is all nulls
     // Bug: Nulls not counted in NDV
-    //verifyCardinality(baseStmt + "c", 1);
-    verifyCardinality(baseStmt + "c", 0);
-    // NDV(a) = 26 * ndv(c) = 1
+    //verifyCardinality(baseStmt + "null_str", 1);
+    verifyCardinality(baseStmt + "null_str", 0);
+    // NDV(id) = 26 * ndv(null_str) = 1
     // Bug: Nulls not counted in NDV
     // Here and for similar bugs: see IMPALA-7310 and IMPALA-8094
-    //verifyCardinality(baseStmt + "a, c", 26);
-    verifyCardinality(baseStmt + "a, c", 0);
-    // NDV(a) = 26 * ndv(f) = 156
-    // Planner does not know that a determines f
-    verifyCardinality(baseStmt + "a, f", 156);
+    //verifyCardinality(baseStmt + "id, null_str", 26);
+    verifyCardinality(baseStmt + "nullrows.id, null_str", 0);
+    // NDV(id) = 26 * ndv(group_str) = 156
+    // Planner does not know that id determines group_str
+    verifyCardinality(baseStmt + "nullrows.id, group_str", 156);
   }
 
   /**

@@ -23,6 +23,27 @@ import org.junit.Test;
  * Tests expression cardinality and selectivity, both of which are
  * important inputs to scan and join cardinality estimates. See
  * also {@link ExprNdvTest}, {@link CardinalityTest}.
+ *
+ * In the comments below, the notation |x| means the cardinality of
+ * x. If x is a table, then it is the row count of x. If x is a column,
+ * then it is the number of distinct values (the cardinality of the
+ * domain of the column), also known as NDV.
+ *
+ * This test focuses on cardinality and the selectivity that determines
+ * derived cardinality. If |T| is the cardinality of table T, then
+ * |T'| is defined as the cardinality of table T after applying a selection s.
+ * Selectivity is defined as:
+ *
+ * sel(s) = |T'|/|T|
+ *
+ * Or
+ *
+ * |T'| = |T| * sel(s)
+ *
+ * Though not used here, it can be helpful to think of the selectivity as
+ * the probability p that some row r appears in the output after selection:
+ *
+ * sel(s) = p(r in |T'|)
  */
 public class ExprCardinalityTest {
   private static AnalysisSessionFixture session_ = new AnalysisSessionFixture();
@@ -79,12 +100,13 @@ public class ExprCardinalityTest {
     // Table with stats and nulls
     Table nullrows = db.getTable("nullrows");
     assertEquals(26, nullrows.getTTableStats().getNum_rows());
-    verifyTableCol(nullrows, "a", 26, 0);
+    verifyTableCol(nullrows, "id", 26, 0);
     // Bug: NDV should be 1 to include nulls
-    verifyTableCol(nullrows, "c", 0, 26);
-    verifyTableCol(nullrows, "f", 6, 0);
-    // Enable after data reload
-    //checkColumn(nullrows, "g", 7, 20);
+    verifyTableCol(nullrows, "null_str", 0, 26);
+    verifyTableCol(nullrows, "group_str", 6, 0);
+    verifyTableCol(nullrows, "some_nulls", 6, 20);
+    // Oddly, boolean columns DO include nulls in NDV.
+    verifyTableCol(nullrows, "bool_nulls", 3, 15);
 
     // Table without stats
     Table manynulls = db.getTable("manynulls");
@@ -135,12 +157,13 @@ public class ExprCardinalityTest {
     verifySelectExpr("alltypes", "month", -1, -1);
 
     // Stats, with null values
-    verifySelectCol("nullrows", "a", 26, 0);
+    verifySelectCol("nullrows", "id", 26, 0);
     // Bug: NDV should be 1 to include nulls
-    verifySelectCol("nullrows", "c", 0, 26);
-    verifySelectCol("nullrows", "f", 6, 0);
-    // Enable after data reload
-    //verifySelectCol("nullrows", "g", 7, 20);
+    verifySelectCol("nullrows", "null_str", 0, 26);
+    verifySelectCol("nullrows", "group_str", 6, 0);
+    verifySelectCol("nullrows", "some_nulls", 6, 20);
+    // Oddly, boolean columns DO include nulls in NDV.
+    verifySelectCol("nullrows", "bool_nulls", 3, 15);
 
     // No stats
     verifySelectCol("manynulls", "id", -1, -1);
@@ -187,13 +210,13 @@ public class ExprCardinalityTest {
     verifySelectExpr("alltypes", "bool_col = true", 3, 1.0/2);
     verifySelectExpr("alltypes", "int_col = 10", 3, 1.0/10);
 
-    verifySelectExpr("nullrows", "a = 'foo'", 3, 1.0/26);
+    verifySelectExpr("nullrows", "id = 'foo'", 3, 1.0/26);
     // Bug: All nulls, so NDV should = 1, so Sel should be 1.0/1
     //verifySelectExpr("nullrows", "c = 'foo'", 3, 1.0/1);
-    verifySelectExpr("nullrows", "c = 'foo'", 3, -1);
-    verifySelectExpr("nullrows", "f = 'foo'", 3, 1.0/6);
-    // Enable after data reload
-    //verifySelectExpr("nullrows", "g = 10", 3, 1.0/7);
+    verifySelectExpr("nullrows", "null_str = 'foo'", 3, -1);
+    verifySelectExpr("nullrows", "group_str = 'foo'", 3, 1.0/6);
+    //verifySelectExpr("nullrows", "some_nulls = 'foo'", 3, 1.0/7);
+    verifySelectExpr("nullrows", "some_nulls = 'foo'", 3, 1.0/6);
 
     // Bug: Sel should default to good old 0.1
     verifySelectExpr("manynulls", "id = 10", 3, -1);
@@ -219,18 +242,18 @@ public class ExprCardinalityTest {
     //verifySelectExpr("alltypes", "int_col is not distinct from null", 2, 0);
     verifySelectExpr("alltypes", "int_col is not distinct from null", 3, 1.0/10);
 
-    verifySelectExpr("nullrows", "a is not distinct from 'foo'", 3, 1.0/26);
-    //verifySelectExpr("nullrows", "a is not distinct from null", 2, 0);
-    verifySelectExpr("nullrows", "a is not distinct from null", 3, 1.0/26);
+    verifySelectExpr("nullrows", "id is not distinct from 'foo'", 3, 1.0/26);
+    //verifySelectExpr("nullrows", "id is not distinct from null", 2, 0);
+    verifySelectExpr("nullrows", "id is not distinct from null", 3, 1.0/26);
     // Bug: All nulls, so NDV should = 1, so Sel should be 1.0/1
-    //verifySelectExpr("nullrows", "c is not distinct from 'foo'", 2, 1.0/1);
-    verifySelectExpr("nullrows", "c is not distinct from 'foo'", 3, -1);
-    verifySelectExpr("nullrows", "c is not distinct from null", 3, -1);
-    verifySelectExpr("nullrows", "f is not distinct from 'foo'", 3, 1.0/6);
-    //verifySelectExpr("nullrows", "f is not distinct from null", 2, 1);
-    verifySelectExpr("nullrows", "f is not distinct from null", 3, 1.0/6);
-    // Enable after data reload
-    //verifySelectExpr("nullrows", "g is not distinct from 10", 3, 1.0/7);
+    //verifySelectExpr("nullrows", "null_str is not distinct from 'foo'", 2, 1.0/1);
+    verifySelectExpr("nullrows", "null_str is not distinct from 'foo'", 3, -1);
+    verifySelectExpr("nullrows", "null_str is not distinct from null", 3, -1);
+    verifySelectExpr("nullrows", "group_str is not distinct from 'foo'", 3, 1.0/6);
+    //verifySelectExpr("nullrows", "group_str is not distinct from null", 2, 1);
+    verifySelectExpr("nullrows", "group_str is not distinct from null", 3, 1.0/6);
+    //verifySelectExpr("nullrows", "some_nulls is not distinct from 'foo'", 3, 1.0/7);
+    verifySelectExpr("nullrows", "some_nulls is not distinct from 'foo'", 3, 1.0/6);
 
     // Bug: Sel should default to good old 0.1
     verifySelectExpr("manynulls", "id is not distinct from 10", 3, -1);
@@ -249,15 +272,15 @@ public class ExprCardinalityTest {
     //verifySelectExpr("alltypes", "int_col != 10", 3, 1 - 1.0/10);
     verifySelectExpr("alltypes", "int_col != 10", 3, -1);
 
-    //verifySelectExpr("nullrows", "a != 'foo'", 3, 1 - 1.0/26);
-    verifySelectExpr("nullrows", "a != 'foo'", 3, -1);
+    //verifySelectExpr("nullrows", "id != 'foo'", 3, 1 - 1.0/26);
+    verifySelectExpr("nullrows", "id != 'foo'", 3, -1);
     // Bug: All nulls, so NDV should = 1, so Sel should be 1 - 1.0/1
-    //verifySelectExpr("nullrows", "c != 'foo'", 3, 1 - 1.0/1);
-    verifySelectExpr("nullrows", "c != 'foo'", 3, -1);
-    //verifySelectExpr("nullrows", "f != 'foo'", 3, 1 - 1.0/6);
-    verifySelectExpr("nullrows", "f != 'foo'", 3, -1);
-    // Enable after data reload
-    //verifySelectExpr("nullrows", "g != 10", 3, 1 - 1.0/7);
+    //verifySelectExpr("nullrows", "null_str != 'foo'", 3, 1 - 1.0/1);
+    verifySelectExpr("nullrows", "null_str != 'foo'", 3, -1);
+    //verifySelectExpr("nullrows", "group_str != 'foo'", 3, 1 - 1.0/6);
+    verifySelectExpr("nullrows", "group_str != 'foo'", 3, -1);
+    //verifySelectExpr("nullrows", "some_nulls != 'foo'", 3, 1 - 1.0/7);
+    verifySelectExpr("nullrows", "some_nulls != 'foo'", 3, -1);
 
     // Bug: Sel should default to 1 - good old 0.1
     verifySelectExpr("manynulls", "id != 10", 3, -1);
@@ -286,20 +309,20 @@ public class ExprCardinalityTest {
     //verifySelectExpr("alltypes", "int_col is distinct from null", 2, 1);
     verifySelectExpr("alltypes", "int_col is distinct from null", 3, -1);
 
-    //verifySelectExpr("nullrows", "a is distinct from 'foo'", 3, 1 - 1.0/26);
-    verifySelectExpr("nullrows", "a is distinct from 'foo'", 3, -1);
-    //verifySelectExpr("nullrows", "a is distinct from null", 2, 1);
-    verifySelectExpr("nullrows", "a is distinct from null", 3, -1);
+    //verifySelectExpr("nullrows", "id is distinct from 'foo'", 3, 1 - 1.0/26);
+    verifySelectExpr("nullrows", "id is distinct from 'foo'", 3, -1);
+    //verifySelectExpr("nullrows", "id is distinct from null", 2, 1);
+    verifySelectExpr("nullrows", "id is distinct from null", 3, -1);
     // Bug: All nulls, so NDV should = 1, so Sel should be 1.0/1
-    //verifySelectExpr("nullrows", "c is distinct from 'foo'", 2, 1 - 1.0/1);
-    verifySelectExpr("nullrows", "c is distinct from 'foo'", 3, -1);
-    verifySelectExpr("nullrows", "c is distinct from null", 3, -1);
-    //verifySelectExpr("nullrows", "f is distinct from 'foo'", 3, 1 - 1.0/6);
-    verifySelectExpr("nullrows", "f is distinct from 'foo'", 3, -1);
-    //verifySelectExpr("nullrows", "f is distinct from null", 2, 0);
-    verifySelectExpr("nullrows", "f is distinct from null", 3, -1);
-    // Enable after data reload
-    //verifySelectExpr("nullrows", "g is not distinct from 10", 3, 1 - 1.0/7);
+    //verifySelectExpr("nullrows", "null_str is distinct from 'foo'", 2, 1 - 1.0/1);
+    verifySelectExpr("nullrows", "null_str is distinct from 'foo'", 3, -1);
+    verifySelectExpr("nullrows", "null_str is distinct from null", 3, -1);
+    //verifySelectExpr("nullrows", "group_str is distinct from 'foo'", 3, 1 - 1.0/6);
+    verifySelectExpr("nullrows", "group_str is distinct from 'foo'", 3, -1);
+    //verifySelectExpr("nullrows", "group_str is distinct from null", 2, 0);
+    verifySelectExpr("nullrows", "group_str is distinct from null", 3, -1);
+    //verifySelectExpr("nullrows", "some_nulls is not distinct from 'foo'", 3, 1 - 1.0/7);
+    verifySelectExpr("nullrows", "some_nulls is not distinct from 'foo'", 3, 1.0/6);
 
     // Bug: Sel should default to 1 - good old 0.1
     verifySelectExpr("manynulls", "id is distinct from 10", 3, -1);
@@ -320,11 +343,10 @@ public class ExprCardinalityTest {
     verifyInequalitySel("alltypes", "id", "10");
     verifyInequalitySel("alltypes", "int_col", "10");
 
-    verifyInequalitySel("nullrows", "a", "'foo'");
-    verifyInequalitySel("nullrows", "c", "'foo'");
-    verifyInequalitySel("nullrows", "f", "'foo'");
-    // Enable after data reload
-    //testInequalitySel("nullrows", "g", "'foo'");
+    verifyInequalitySel("nullrows", "id", "'foo'");
+    verifyInequalitySel("nullrows", "null_str", "'foo'");
+    verifyInequalitySel("nullrows", "group_str", "'foo'");
+    verifyInequalitySel("nullrows", "some_nulls", "'foo'");
 
     // Bug: Sel should default to 1 - good old 0.1
     verifyInequalitySel("manynulls", "id", "10");
@@ -347,14 +369,15 @@ public class ExprCardinalityTest {
     //verifySelectExpr("alltypes", "int_col is null", 2, 0);
     verifySelectExpr("alltypes", "int_col is null", 3, -1);
 
-    //verifySelectExpr("nullrows", "a is null", 2, 0);
-    verifySelectExpr("nullrows", "a is null", 3, -1);
-     //verifySelectExpr("nullrows", "c is null", 2, 1);
-    verifySelectExpr("nullrows", "c is null", 3, 1);
-    //verifySelectExpr("nullrows", "f is null", 2, 0);
-    verifySelectExpr("nullrows", "f is null", 3, -1);
-    // Enable after data reload
-    //verifySelectExpr("nullrows", "g is null", 2, 20.0/26);
+    //verifySelectExpr("nullrows", "id is null", 2, 0);
+    verifySelectExpr("nullrows", "id is null", 3, -1);
+     //verifySelectExpr("nullrows", "null_str is null", 2, 1);
+    verifySelectExpr("nullrows", "null_str is null", 3, 1);
+    //verifySelectExpr("nullrows", "group_str is null", 2, 0);
+    verifySelectExpr("nullrows", "group_str is null", 3, -1);
+    //verifySelectExpr("nullrows", "some_nulls is null", 2, 20.0/26);
+    verifySelectExpr("nullrows", "some_nulls is null", 3, 20.0/26);
+    verifySelectExpr("nullrows", "bool_nulls is not null", 3, 1 - 15.0/26);
 
     // Bug: Sel should default to good old 0.1
     verifySelectExpr("manynulls", "id is null", 3, -1);
@@ -377,14 +400,15 @@ public class ExprCardinalityTest {
     //verifySelectExpr("alltypes", "int_col is not null", 2, 1);
     verifySelectExpr("alltypes", "int_col is not null", 3, -1);
 
-    //verifySelectExpr("nullrows", "a is not null", 2, 1);
-    verifySelectExpr("nullrows", "a is not null", 3, -1);
-     //verifySelectExpr("nullrows", "c is not null", 2, 0);
-    verifySelectExpr("nullrows", "c is not null", 3, 0);
-    //verifySelectExpr("nullrows", "f is not null", 2, 1);
-    verifySelectExpr("nullrows", "f is not null", 3, -1);
-    // Enable after data reload
-    //verifySelectExpr("nullrows", "g is not null", 2, 1 - 20.0/26);
+    //verifySelectExpr("nullrows", "id is not null", 2, 1);
+    verifySelectExpr("nullrows", "id is not null", 3, -1);
+     //verifySelectExpr("nullrows", "null_str is not null", 2, 0);
+    verifySelectExpr("nullrows", "null_str is not null", 3, 0);
+    //verifySelectExpr("nullrows", "group_str is not null", 2, 1);
+    verifySelectExpr("nullrows", "group_str is not null", 3, -1);
+    //verifySelectExpr("nullrows", "some_nulls is not null", 2, 1 - 20.0/26);
+    verifySelectExpr("nullrows", "some_nulls is not null", 3, 1 - 20.0/26);
+    verifySelectExpr("nullrows", "bool_nulls is not null", 3, 1 - 15.0/26);
 
     // Bug: Sel should default to good old 0.1
     verifySelectExpr("manynulls", "id is not null", 3, -1);
@@ -414,12 +438,13 @@ public class ExprCardinalityTest {
     verifySelectExpr("alltypes", "int_col in (1, 2, 3)", 3, 3.0/10);
     verifySelectExpr("alltypes", "int_col in (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12)", 3, 1);
 
-    verifySelectExpr("nullrows", "a in ('a', 'b', 'c')", 3, 3.0/26);
+    verifySelectExpr("nullrows", "id in ('a', 'b', 'c')", 3, 3.0/26);
     // Bug: Why -1?
-    //verifySelectExpr("nullrows", "c in ('a', 'b', 'c')", 3, 1);
-    verifySelectExpr("nullrows", "c in ('a', 'b', 'c')", 3, -1);
-    verifySelectExpr("nullrows", "f in ('a', 'b', 'c')", 3, 3.0/6);
-    //verifySelectExpr("nullrows", "g in ('a', 'b', 'c')", 3, 3.0/7);
+    //verifySelectExpr("nullrows", "null_str in ('a', 'b', 'c')", 3, 1);
+    verifySelectExpr("nullrows", "null_str in ('a', 'b', 'c')", 3, -1);
+    verifySelectExpr("nullrows", "group_str in ('a', 'b', 'c')", 3, 3.0/6);
+    //verifySelectExpr("nullrows", "some_nulls in ('a', 'b', 'c')", 3, 3.0/7);
+    verifySelectExpr("nullrows", "some_nulls in ('a', 'b', 'c')", 3, 3.0/6);
 
     // Bug: Sel should default to good old 0.1
     verifySelectExpr("manynulls", "id in (1, 3, 3)", 3, -1);
@@ -441,12 +466,13 @@ public class ExprCardinalityTest {
     verifySelectExpr("alltypes", "int_col not in (1, 2, 3)", 3, 1 - 3.0/10);
     verifySelectExpr("alltypes", "int_col not in (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12)", 3, 0);
 
-    verifySelectExpr("nullrows", "a not in ('a', 'b', 'c')", 3, 1 - 3.0/26);
+    verifySelectExpr("nullrows", "id not in ('a', 'b', 'c')", 3, 1 - 3.0/26);
     // Bug: Why -1?
-    //verifySelectExpr("nullrows", "c not in ('a', 'b', 'c')", 3, 1);
-    verifySelectExpr("nullrows", "c not in ('a', 'b', 'c')", 3, -1);
-    verifySelectExpr("nullrows", "f not in ('a', 'b', 'c')", 3, 1 - 3.0/6);
-    //verifySelectExpr("nullrows", "g not in ('a', 'b', 'c')", 3, 1 - 3.0/7);
+    //verifySelectExpr("nullrows", "null_str not in ('a', 'b', 'c')", 3, 1);
+    verifySelectExpr("nullrows", "null_str not in ('a', 'b', 'c')", 3, -1);
+    verifySelectExpr("nullrows", "group_str not in ('a', 'b', 'c')", 3, 1 - 3.0/6);
+    //verifySelectExpr("nullrows", "some_nulls not in ('a', 'b', 'c')", 3, 1 - 3.0/7);
+    verifySelectExpr("nullrows", "some_nulls not in ('a', 'b', 'c')", 3, 1 - 3.0/6);
 
     // Bug: Sel should default to 1 - good old 0.1
     verifySelectExpr("manynulls", "id not in (1, 3, 3)", 3, -1);
