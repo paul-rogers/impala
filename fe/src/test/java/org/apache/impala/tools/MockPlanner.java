@@ -39,6 +39,7 @@ import org.apache.impala.common.ImpalaException;
 import org.apache.impala.service.Frontend.PlanCtx;
 import org.apache.impala.testutil.TestUtils;
 import org.apache.impala.thrift.TExecRequest;
+import org.apache.impala.thrift.TExplainLevel;
 import org.apache.impala.thrift.TPartitionStats;
 import org.apache.impala.thrift.TQueryCtx;
 import org.apache.impala.thrift.TTableStats;
@@ -105,8 +106,8 @@ public class MockPlanner extends FrontendTestBase {
     TQueryCtx queryCtx = TestUtils.createQueryContext(
         "default", System.getProperty("user.name"));
     queryCtx.client_request.setStmt(query);
+    queryCtx.client_request.getQuery_options().setExplain_level(TExplainLevel.EXTENDED);
     PlanCtx planCtx = new PlanCtx(queryCtx);
-    planCtx.becomeMock();
     TExecRequest execRequest = frontend_.createExecRequest(planCtx);
     String explainStr = planCtx.getExplainString();
 
