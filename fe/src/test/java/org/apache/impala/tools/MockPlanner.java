@@ -74,8 +74,14 @@ public class MockPlanner extends FrontendTestBase {
 		}
 	}
 
+  /**
+   * Loads metadata for the Prudential (CDH-76446) plans from the export text files,
+   * then runs the provided queries extracted from text profiles.
+   * @throws IOException
+   * @throws ImpalaException
+   */
   @Test
-  public void testSql() throws IOException, ImpalaException {
+  public void testCDH_76446Sql() throws IOException, ImpalaException {
     File dir = new File("/home/progers/data/Prudential");
     CatalogBuilder cb = new CatalogBuilder(this);
     StmtCleaner cleaner = new StmtCleaner() {
@@ -99,6 +105,30 @@ public class MockPlanner extends FrontendTestBase {
     testQuery(new File(dir, "old_profile2.txt"));
   }
 
+  @Test
+  public void testCDH_76446Cardinality() throws FileNotFoundException, IOException {
+    File dir = new File("/home/progers/data/Prudential");
+
+    analyzeProfile(new File(dir, "old_profile2.txt"), "Without Hint");
+    analyzeProfile(new File(dir, "profile2.txt"), "With Hint");
+  }
+
+  public void analyzeProfile(File profile, String label) throws FileNotFoundException, IOException {
+    ProfileParser pp = new ProfileParser(profile);
+    CardinalityModel model = new CardinalityModel(pp);
+    System.out.print(profile.getName());
+    System.out.print(" - ");
+    System.out.print(pp.version());
+    System.out.print(" (");
+    System.out.print(label);
+    System.out.println(")");
+    System.out.println("Basic model");
+    System.out.println(model.toString());
+    System.out.println("Error model");
+    System.out.println(PlanAnalysisUtils.cardinalityErrorTable(pp.summary()));
+    System.out.println();
+  }
+
   public void testQuery(File file) throws FileNotFoundException, IOException, ImpalaException {
     File dir = file.getParentFile();
     ProfileParser pp = new ProfileParser(file);
@@ -108,6 +138,7 @@ public class MockPlanner extends FrontendTestBase {
     queryCtx.client_request.setStmt(query);
     queryCtx.client_request.getQuery_options().setExplain_level(TExplainLevel.EXTENDED);
     PlanCtx planCtx = new PlanCtx(queryCtx);
+    planCtx.becomeMock();
     TExecRequest execRequest = frontend_.createExecRequest(planCtx);
     String explainStr = planCtx.getExplainString();
 
