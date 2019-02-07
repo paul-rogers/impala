@@ -23,6 +23,7 @@ import static org.junit.Assert.fail;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import org.apache.impala.analysis.AnalysisContext;
 import org.apache.impala.analysis.AnalysisContext.AnalysisResult;
@@ -38,6 +39,7 @@ import org.apache.impala.analysis.QueryStmt;
 import org.apache.impala.analysis.StatementBase;
 import org.apache.impala.analysis.StmtMetadataLoader;
 import org.apache.impala.analysis.StmtMetadataLoader.StmtTableCache;
+import org.apache.impala.analysis.TableDef;
 import org.apache.impala.authorization.AuthorizationConfig;
 import org.apache.impala.catalog.AggregateFunction;
 import org.apache.impala.catalog.Catalog;
@@ -59,6 +61,7 @@ import org.apache.impala.testutil.TestUtils;
 import org.apache.impala.thrift.TFunctionBinaryType;
 import org.apache.impala.thrift.TQueryCtx;
 import org.apache.impala.thrift.TQueryOptions;
+import org.apache.impala.thrift.TTableStats;
 import org.apache.impala.util.EventSequence;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -76,8 +79,8 @@ import com.google.common.collect.Lists;
  */
 // TODO: Revise to leverage AnalysisFixure
 public class FrontendTestBase {
-  protected static ImpaladTestCatalog catalog_ = new ImpaladTestCatalog();
-  protected static Frontend frontend_ = new Frontend(
+  public static ImpaladTestCatalog catalog_ = new ImpaladTestCatalog();
+  public static Frontend frontend_ = new Frontend(
       AuthorizationConfig.createAuthDisabledConfig(), catalog_);
 
   // Test-local list of test databases and tables. These are cleaned up in @After.
@@ -139,7 +142,7 @@ public class FrontendTestBase {
    * Returns the new dummy database.
    * The database is registered in testDbs_ and removed in the @After method.
    */
-  protected Db addTestDb(String dbName, String comment) {
+  public Db addTestDb(String dbName, String comment) {
     Db db = catalog_.getDb(dbName);
     Preconditions.checkState(db == null, "Test db must not already exist.");
     db = new Db(dbName, new org.apache.hadoop.hive.metastore.api.Database(
@@ -164,11 +167,30 @@ public class FrontendTestBase {
    */
   protected Table addTestTable(String createTableSql) {
     CreateTableStmt createTableStmt = (CreateTableStmt) AnalyzesOk(createTableSql);
+    return addTestTable(createTableSql, createTableStmt);
+  }
+
+
+  public static TTableStats makeStats(TableDef tableDef_) {
+    TTableStats stats = new TTableStats();
+    Map<String, String> props = tableDef_.getTableProperties();
+    if (props != null) {
+      String value = props.get("numRows");
+      if (value != null) stats.setNum_rows(Long.parseLong(value));
+      value = props.get("totalSize");
+      if (value != null) stats.setTotal_file_bytes(Long.parseLong(value));
+    }
+    return stats;
+  }
+
+  public Table addTestTable(String createTableSql, CreateTableStmt createTableStmt) {
     Db db = catalog_.getDb(createTableStmt.getDb());
     Preconditions.checkNotNull(db, "Test tables must be created in an existing db.");
     org.apache.hadoop.hive.metastore.api.Table msTbl =
         CatalogOpExecutor.createMetaStoreTable(createTableStmt.toThrift());
     Table dummyTable = Table.fromMetastoreTable(db, msTbl);
+    TTableStats stats = makeStats(createTableStmt.getTableDef());
+    dummyTable.setTableStats(stats);
     if (dummyTable instanceof HdfsTable) {
       List<ColumnDef> columnDefs = Lists.newArrayList(
           createTableStmt.getPartitionColumnDefs());
@@ -181,6 +203,7 @@ public class FrontendTestBase {
       }
       try {
         HdfsTable hdfsTable = (HdfsTable) dummyTable;
+        hdfsTable.initTempTable(msTbl);
         hdfsTable.setPrototypePartition(msTbl.getSd());
       } catch (CatalogException e) {
         e.printStackTrace();
@@ -302,7 +325,7 @@ public class FrontendTestBase {
     return AnalyzesOk(stmt, createAnalysisCtx(), expectedWarning);
   }
 
-  protected AnalysisContext createAnalysisCtx() {
+  public AnalysisContext createAnalysisCtx() {
     return createAnalysisCtx(Catalog.DEFAULT_DB);
   }
 

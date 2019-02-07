@@ -312,12 +312,10 @@ struct TQueryOptions {
   // See comment in ImpalaService.thrift
   74: optional string client_identifier;
 
-  // See comment in ImpalaService.thrift
   75: optional double resource_trace_ratio = 0;
 
-  // See comment in ImpalaService.thrift.
-  // The default value is set to 3 as this is the default value of HDFS replicas.
-  76: optional i32 num_remote_executor_candidates = 3;
+  // See comment in ImpalaService.thrift
+  76: optional bool planner_testcase_mode = false;
 }
 
 // Impala currently has two types of sessions: Beeswax and HiveServer2
