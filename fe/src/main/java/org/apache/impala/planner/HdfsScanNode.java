@@ -1354,7 +1354,7 @@ public class HdfsScanNode extends ScanNode {
   protected String getTableStatsExplainString(String prefix) {
     StringBuilder output = new StringBuilder();
     TTableStats tblStats = desc_.getTable().getTTableStats();
-    String numRows = String.valueOf(tblStats.num_rows);
+    String numRows = PrintUtils.printMetric(tblStats.num_rows);
     if (tblStats.num_rows == -1) numRows = "unavailable";
     String totalBytes = PrintUtils.printBytes(tblStats.total_file_bytes);
     if (tblStats.total_file_bytes == -1) totalBytes = "unavailable";
