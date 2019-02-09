@@ -61,6 +61,7 @@ public class PrintUtils {
    * (none), K, M, G or T. Value has two digits past the decimal point.
    */
   public static String printMetric(long value) {
+    if (value == -1) return "unavailable";
     double result = value;
     if (value >= TERA) return new DecimalFormat(".00T").format(result / TERA);
     if (value >= GIGA) return new DecimalFormat(".00G").format(result / GIGA);

@@ -109,16 +109,16 @@ public class DumpParser {
     ANY_FIELD);        // Location
 
     public final TableName tableName_;
-    public final String partitionName_;
+    public final List<String> keyCols_;
     public final long rowCount_;
     public final long fileCount_;
     public final long sizeBytes_;
     public final List<DirectoryDetails> dirs_;
 
-    public PartitionDetails(TableName tableName, String partName,
+    public PartitionDetails(TableName tableName, List<String> keyCols,
         String totalLine, List<DirectoryDetails> dirs) {
       tableName_ = tableName;
-      partitionName_ = partName;
+      keyCols_ = keyCols;
       dirs_ = dirs;
       if (totalLine == null) {
         rowCount_ = 0;
@@ -136,7 +136,8 @@ public class DumpParser {
       }
     }
 
-    public boolean isPartitioned() { return partitionName_ != null; }
+    public boolean isPartitioned() { return keyCols_ != null; }
+    public List<String> keyCols() { return keyCols_; }
 
     public long rowCount() {
       if (rowCount_ > 0) return rowCount_;
@@ -152,21 +153,7 @@ public class DumpParser {
   }
 
   public static class DirectoryDetails {
-    private static final String FIELDS =
-        NUMBER_FIELD +      // row count
-        NUMBER_FIELD +      // fileCount
-        TEXT_FIELD +        // Size
-        ANY_FIELD + ANY_FIELD + // bytes cached, cache replication
-        TEXT_FIELD +        // Format
-        TEXT_FIELD +        // Incremental Stats
-        TEXT_FIELD;        // Location
-    private static final Pattern PART_PATTERN = Pattern.compile(
-        BAR + TEXT_FIELD +  // Partition name
-        FIELDS);
-    private static final Pattern UNPART_PATTERN = Pattern.compile(
-        BAR + FIELDS);
-
-    public final String key_;
+    public final List<String> key_;
     public final long rowCount_;
     public final int fileCount_;
     public final long sizeBytes_;
@@ -174,14 +161,12 @@ public class DumpParser {
     public final boolean incrementalStats_;
     public final String location_;
 
-    public DirectoryDetails(boolean partitioned, String line) {
-      Pattern p = partitioned ? PART_PATTERN : UNPART_PATTERN;
-      Matcher m = p.matcher(line);
-      if (! m.matches()) {
-        throw new IllegalStateException(line);
-      }
+    public DirectoryDetails(int keyCount, Matcher m) {
+      key_ = keyCount == 0 ? null : new ArrayList<>();
       int i = 1;
-      key_ = partitioned ? m.group(i++) : null;
+      for (int j = 0; j < keyCount; j++) {
+        key_.add(m.group(i++));
+      }
       rowCount_ = Long.parseLong(m.group(i++));
       fileCount_ = Integer.parseInt(m.group(i++));
       sizeBytes_ = ParseUtils.parseMem(m.group(i++));
@@ -255,7 +240,7 @@ public class DumpParser {
   private final DumpListener listener_;
   private BufferedReader in_;
   private TableName currentTable_;
-  private String currentPartition_;
+  private List<String> headerFields_ = new ArrayList<>();
 
   public DumpParser(DumpListener listener) throws FileNotFoundException {
     listener_ = listener;
@@ -321,13 +306,17 @@ public class DumpParser {
     if (line == null) return BlockType.EOF;
     line = in_.readLine();
     if (line == null) return BlockType.EOF;
-    Pattern p = Pattern.compile("^\\| (\\S+) ");
+    Pattern p = Pattern.compile("\\| (\\S+) ");
     Matcher m = p.matcher(line);
-    if (! m.find()) {
+    headerFields_.clear();
+    while (m.find()) {
+      headerFields_.add(m.group(1));
+    }
+    if (headerFields_.isEmpty()) {
       throw new IllegalStateException(line);
     }
     DumpParser.BlockType type;
-    switch(m.group(1)) {
+    switch(headerFields_.get(0)) {
     case "result":
       type = BlockType.STMT;
       break;
@@ -352,7 +341,6 @@ public class DumpParser {
       break;
     default:
       if (line.contains("| #Rows") && line.contains("| Format ")) {
-        currentPartition_ = m.group(1);
         type = BlockType.PART_DIRS;
       } else {
         throw new IllegalStateException(m.group(1));
@@ -405,7 +393,7 @@ public class DumpParser {
     return parts;
   }
 
-  private void skipRepeatHeader(String expectedHeader) throws IOException {
+  private void skipRepeatHeader() throws IOException {
     String line = in_.readLine();
     if (line == null) {
       throw new IllegalStateException();
@@ -417,9 +405,9 @@ public class DumpParser {
     if (line == null) {
       throw new IllegalStateException();
     }
-    if (!line.startsWith("| " + expectedHeader)) {
-      throw new IllegalStateException(line);
-    }
+//    if (!line.startsWith("| " + expectedHeader)) {
+//      throw new IllegalStateException(line);
+//    }
     line = in_.readLine();
     if (line == null) {
       throw new IllegalStateException();
@@ -429,7 +417,39 @@ public class DumpParser {
     }
   }
 
+  private static final String FIELDS =
+      NUMBER_FIELD +      // row count
+      NUMBER_FIELD +      // fileCount
+      TEXT_FIELD +        // Size
+      ANY_FIELD + ANY_FIELD + // bytes cached, cache replication
+      TEXT_FIELD +        // Format
+      TEXT_FIELD +        // Incremental Stats
+      TEXT_FIELD;        // Location
+  private static final Pattern UNPART_PATTERN = Pattern.compile(
+      BAR + FIELDS);
+
   private PartitionDetails parseDirs(boolean partitioned) throws IOException {
+    List<String> keyCols;
+    int keyCount;
+    Pattern p;
+    if (partitioned) {
+      keyCols = new ArrayList<>();
+      for (String header : headerFields_) {
+        if (header.equals("#Rows")) break;
+        keyCols.add(header);
+      }
+      keyCount = keyCols.size();
+      String pattern = BAR;
+      for (int i = 0; i < keyCount; i++) {
+        pattern += TEXT_FIELD;
+      }
+      pattern += FIELDS;
+      p = Pattern.compile(pattern);
+    } else {
+      keyCols = null;
+      keyCount = 0;
+      p = UNPART_PATTERN;
+    }
     List<DirectoryDetails> dirs = new ArrayList<>();
     String line;
     while ((line = in_.readLine()) != null) {
@@ -438,13 +458,17 @@ public class DumpParser {
       if (line.startsWith("+---")) {
         if (!partitioned) break;
         // Repetition of headers
-        skipRepeatHeader(currentPartition_);
+        skipRepeatHeader();
         continue;
       }
-      dirs.add(new DirectoryDetails(partitioned, line));
+      Matcher m = p.matcher(line);
+      if (! m.matches()) {
+        throw new IllegalStateException(line);
+      }
+      dirs.add(new DirectoryDetails(keyCount, m));
     }
     PartitionDetails details = new PartitionDetails(currentTable_,
-        partitioned ? currentPartition_ : null,
+        keyCols,
         partitioned ? line : null, dirs);
     if (partitioned) {
     line = in_.readLine();

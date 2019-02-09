@@ -232,6 +232,7 @@ public class PlanAnalysisUtils {
     }
   }
 
+  public static final String PLAN = "Plan:";
   public static final String ROOT = "PLAN-ROOT SINK";
   public static final String WARNING = "WARNING: ";
 
@@ -245,6 +246,8 @@ public class PlanAnalysisUtils {
   public static String reduce(String fullPlan) {
     StringBuilder buf = new StringBuilder();
     Pattern p = Pattern.compile("([-| ]*)((F?\\d+:)?(.*))?");
+
+    // Skip to PLAN_ROOT SINK
     try (BufferedReader in = new BufferedReader(new StringReader(fullPlan))) {
       String line;
       while ((line = in.readLine()) != null) {
@@ -252,19 +255,24 @@ public class PlanAnalysisUtils {
           buf.append(line).append("\n");
           break;
         }
-        if (line.startsWith(WARNING)) {
+        if (line.startsWith(WARNING)) { break; }
+        // 5.4 has no root
+        if (line.isEmpty()) {
+          buf.append(line).append("\n");
           break;
         }
+      }
+      if (line == null) {
+        throw new IllegalStateException("Malformed profile");
       }
       if (line.startsWith(WARNING)) {
         buf.append(line).append("\n");
         while ((line = in.readLine()) != null) {
           buf.append(line).append("\n");
-          if (line.equals(ROOT)) {
-            break;
-          }
+          if (line.equals(ROOT) || line.isEmpty()) { break; }
         }
       }
+      // Parse plan lines
       String prefix = null;
       boolean skip = false;
       while ((line = in.readLine()) != null) {
@@ -285,13 +293,20 @@ public class PlanAnalysisUtils {
           if (op.startsWith("Per-Host")) continue;
           if (op.contains("stats:")) continue;
           if (op.startsWith("stats")) continue;
-          if (op.startsWith("tuple-ids")) continue;
-          if (op.startsWith("mem-est")) continue;
-          if (op.startsWith("runtime filters")) continue;
+          if (op.startsWith("in pipelines:")) continue;
+          if (op.startsWith("mem-estimate=")) continue;
+          if (op.startsWith("runtime filters:")) continue;
           if (op.startsWith("predicates")) continue;
-          if (op.startsWith("hash predicates")) continue;
-          if (op.startsWith("output")) continue;
+          if (op.startsWith("partition predicates:")) continue;
+          if (op.startsWith("hash predicates:")) continue;
+          if (op.startsWith("fk/pk conjuncts:")) continue;
+          if (op.startsWith("output:")) continue;
           if (op.startsWith("group by")) continue;
+          if (op.startsWith("partitions:")) continue;
+          if (op.startsWith("columns:")) continue;
+          if (op.startsWith("extrapolated-rows=")) continue;
+          if (op.startsWith("parquet statistics predicates:")) continue;
+          if (op.startsWith("parquet dictionary predicates:")) continue;
           buf.append(lead).append(op).append("\n");
           continue;
         }

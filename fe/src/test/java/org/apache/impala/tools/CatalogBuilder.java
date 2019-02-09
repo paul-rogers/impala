@@ -84,6 +84,7 @@ public class CatalogBuilder {
 
   public void runStmt(String sql) throws ImpalaException {
     AnalysisContext ctx = test_.createAnalysisCtx();
+    ctx.getQueryCtx().getClient_request().getQuery_options().setPlanner_testcase_mode(true);
     StatementBase parsedStmt;
     try {
       parsedStmt = Parser.parse(sql, ctx.getQueryOptions());
@@ -287,7 +288,7 @@ public class CatalogBuilder {
     long rowCount = table.getTTableStats().getNum_rows();
     Collection<? extends PrunablePartition> partitions = fsTable.getPartitions();
     if (partitions.isEmpty()) {
-      // Unpartitioned table. Create the dummy parition and one dummy file.
+      // Unpartitioned table. Create the dummy partition and one dummy file.
       long partSize = rowCount * rowWidth;
       HdfsPartition partition = makePartition(fsTable, "", new ArrayList<>());
       partition.setFileDescriptors(Lists.newArrayList(

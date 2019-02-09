@@ -143,7 +143,7 @@ public class HdfsPartitionPruner {
 
     // Evaluate the partition filters from the partition key values.
     // The result is the intersection of the associated partition id sets.
-    for (Expr filter: simpleFilterConjuncts) {
+    for (Expr filter : simpleFilterConjuncts) {
       // Evaluate the filter
       Set<Long> matchingIds = evalSlotBindingFilter(filter);
       if (matchingPartitionIds == null) {

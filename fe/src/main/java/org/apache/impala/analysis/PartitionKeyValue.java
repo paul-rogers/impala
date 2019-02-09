@@ -40,6 +40,9 @@ public class PartitionKeyValue {
   public PartitionKeyValue(String colName, Expr value) {
     this.colName_ = colName.toLowerCase();
     this.value_ = value;
+    if (Expr.IS_LITERAL.apply(value_)) {
+      literalValue_ = (LiteralExpr) value_;
+    }
   }
 
   public void analyze(Analyzer analyzer) throws AnalysisException {

@@ -309,6 +309,8 @@ public class Analyzer {
     // Expr rewriter for normalizing and rewriting expressions.
     private final ExprRewriter exprRewriter_;
 
+    private FileSystemProxy fsProxy_;
+
     public GlobalState(StmtTableCache stmtTableCache, TQueryCtx queryCtx,
         AuthorizationConfig authzConfig) {
       this.stmtTableCache = stmtTableCache;
@@ -334,6 +336,11 @@ public class Analyzer {
         rules.add(SimplifyDistinctFromRule.INSTANCE);
       }
       exprRewriter_ = new ExprRewriter(rules);
+      if (queryCtx.getClient_request().getQuery_options().isPlanner_testcase_mode()) {
+        fsProxy_ = new MockFileSystemProxy();
+      } else {
+        fsProxy_ = new HdfsFileSystemProxy();
+      }
     }
   };
 
@@ -381,6 +388,11 @@ public class Analyzer {
     ancestors_ = new ArrayList<>();
     globalState_ = new GlobalState(stmtTableCache, queryCtx, authzConfig);
     user_ = new User(TSessionStateUtil.getEffectiveUser(queryCtx.session));
+  }
+
+  public static Analyzer createMock(StmtTableCache stmtTableCache, TQueryCtx queryCtx,
+      AuthorizationConfig authzConfig) {
+    return new Analyzer(stmtTableCache, queryCtx, authzConfig);
   }
 
   /**
@@ -2689,4 +2701,6 @@ public class Analyzer {
     return getAuthzConfig().isEnabled() ? getAuthzConfig().getServerName().intern() :
         null;
   }
+
+  public FileSystemProxy fsProxy() { return globalState_.fsProxy_; }
 }

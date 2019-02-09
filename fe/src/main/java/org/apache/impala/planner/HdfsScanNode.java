@@ -17,7 +17,6 @@
 
 package org.apache.impala.planner;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -26,14 +25,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.FileSystem;
 import org.apache.impala.analysis.AggregateInfo;
 import org.apache.impala.analysis.Analyzer;
 import org.apache.impala.analysis.BinaryPredicate;
 import org.apache.impala.analysis.DescriptorTable;
 import org.apache.impala.analysis.Expr;
 import org.apache.impala.analysis.ExprSubstitutionMap;
+import org.apache.impala.analysis.FileSystemProxy.BlockSizeReport;
 import org.apache.impala.analysis.FunctionCallExpr;
 import org.apache.impala.analysis.FunctionName;
 import org.apache.impala.analysis.FunctionParams;
@@ -56,7 +54,6 @@ import org.apache.impala.catalog.HdfsFileFormat;
 import org.apache.impala.catalog.HdfsPartition.FileBlock;
 import org.apache.impala.catalog.HdfsPartition.FileDescriptor;
 import org.apache.impala.catalog.Type;
-import org.apache.impala.common.FileSystemUtil;
 import org.apache.impala.common.ImpalaException;
 import org.apache.impala.common.ImpalaRuntimeException;
 import org.apache.impala.common.InternalException;
@@ -128,8 +125,6 @@ import com.google.common.collect.Lists;
 public class HdfsScanNode extends ScanNode {
   private final static Logger LOG = LoggerFactory.getLogger(HdfsScanNode.class);
 
-  private static final Configuration CONF = new Configuration();
-
   // Maximum number of I/O buffers per thread executing this scan.
   // TODO: it's unclear how this was chosen - this seems like a very high number
   private static final long MAX_IO_BUFFERS_PER_THREAD = 10;
@@ -171,16 +166,16 @@ public class HdfsScanNode extends ScanNode {
 
   // Number of partitions, files and bytes scanned. Set in computeScanRangeLocations().
   // Might not match 'partitions_' due to table sampling.
-  private int numPartitions_ = 0;
-  private long totalFiles_ = 0;
-  private long totalBytes_ = 0;
+  private int numPartitions_;
+  private long totalFiles_;
+  private long totalBytes_;
 
   // File formats scanned. Set in computeScanRangeLocations().
   private Set<HdfsFileFormat> fileFormats_;
 
   // Number of bytes in the largest scan range (i.e. hdfs split). Set in
   // computeScanRangeLocations().
-  private long largestScanRangeBytes_ = 0;
+  private long largestScanRangeBytes_;
 
   // Input cardinality based on the partition row counts or extrapolation. -1 if invalid.
   // Both values can be valid to report them in the explain plan, but only one of them is
@@ -189,7 +184,7 @@ public class HdfsScanNode extends ScanNode {
   private long extrapolatedNumRows_ = -1;
 
   // Number of scan ranges that will be generated for all TFileSplitGeneratorSpec's.
-  private long generatedScanRangeCount_ = 0;
+  private long generatedScanRangeCount_;
 
   // Estimated row count of the largest scan range. -1 if no stats are available.
   // Set in computeScanRangeLocations()
@@ -228,7 +223,7 @@ public class HdfsScanNode extends ScanNode {
       new LinkedHashMap<>();
 
   // Number of partitions that have the row count statistic.
-  private int numPartitionsWithNumRows_ = 0;
+  private int numPartitionsWithNumRows_;
 
   // Indicates corrupt table stats based on the number of non-empty scan ranges and
   // numRows set to 0. Set in computeStats().
@@ -236,13 +231,13 @@ public class HdfsScanNode extends ScanNode {
 
   // Number of header lines to skip at the beginning of each file of this table. Only set
   // to values > 0 for hdfs text files.
-  private int skipHeaderLineCount_ = 0;
+  private int skipHeaderLineCount_;
 
   // Number of scan-ranges/files/partitions that have missing disk ids. Reported in the
   // explain plan.
-  private int numScanRangesNoDiskIds_ = 0;
-  private int numFilesNoDiskIds_ = 0;
-  private int numPartitionsNoDiskIds_ = 0;
+  private int numScanRangesNoDiskIds_;
+  private int numFilesNoDiskIds_;
+  private int numPartitionsNoDiskIds_;
 
   // List of conjuncts for min/max values of parquet::Statistics, that are used to skip
   // data when scanning Parquet files.
@@ -794,18 +789,10 @@ public class HdfsScanNode extends ScanNode {
       Preconditions.checkState(partition.getId() >= 0);
       // Missing disk id accounting is only done for file systems that support the notion
       // of disk/storage ids.
-      FileSystem partitionFs;
-      try {
-        partitionFs = partition.getLocationPath().getFileSystem(CONF);
-      } catch (IOException e) {
-        throw new ImpalaRuntimeException("Error determining partition fs type", e);
-      }
-      boolean fsHasBlocks = FileSystemUtil.supportsStorageIds(partitionFs);
-      if (!fsHasBlocks) {
+      BlockSizeReport report = analyzer.fsProxy().maxBlockSize(partition.getLocationPath());
+      if (!report.hasBlocks_) {
         // Limit the scan range length if generating scan ranges.
-        long maxBlockSize =
-            Math.max(partitionFs.getDefaultBlockSize(partition.getLocationPath()),
-                FileDescriptor.MIN_SYNTHETIC_BLOCK_SIZE);
+        long maxBlockSize = report.maxBlockSize_;
         if (scanRangeBytesLimit > 0) {
           scanRangeBytesLimit = Math.min(scanRangeBytesLimit, maxBlockSize);
         } else {
@@ -824,14 +811,14 @@ public class HdfsScanNode extends ScanNode {
               "Scanning of HDFS erasure-coded file (%s/%s) is not supported",
               partition.getLocation(), fileDesc.getFileName()));
         }
-        if (!fsHasBlocks) {
+        if (!report.hasBlocks_) {
           Preconditions.checkState(fileDesc.getNumFileBlocks() == 0);
           generateScanRangeSpecs(partition, fileDesc, scanRangeBytesLimit);
         } else {
           // Skips files that have no associated blocks.
           if (fileDesc.getNumFileBlocks() == 0) continue;
           Pair<Boolean, Long> result = transformBlocksToScanRanges(
-              partition, fileDesc, fsHasBlocks, scanRangeBytesLimit, analyzer);
+              partition, fileDesc, report.hasBlocks_, scanRangeBytesLimit, analyzer);
           partitionMaxScanRangeBytes =
               Math.max(partitionMaxScanRangeBytes, result.second);
           if (result.first) partitionMissingDiskIds = true;
@@ -1009,6 +996,10 @@ public class HdfsScanNode extends ScanNode {
    */
   private void computeCardinalities() {
     // Choose between the extrapolated row count and the one based on stored stats.
+    System.out.println(String.format(
+        "computeCard: %s %s |table|=%s",
+        getDisplayLabel(), getDisplayLabelDetail(),
+        PrintUtils.printMetric(tbl_.getNumRows())));
     extrapolatedNumRows_ = FeFsTable.Utils.getExtrapolatedNumRows(tbl_, totalBytes_);
     long statsNumRows = getStatsNumRows();
     if (extrapolatedNumRows_ != -1) {
@@ -1056,6 +1047,10 @@ public class HdfsScanNode extends ScanNode {
       cardinality_ = Math.round(cardinality_ * computeSelectivity());
       // IMPALA-2165: Avoid setting the cardinality to 0 after rounding.
       cardinality_ = Math.max(cardinality_, 1);
+      System.out.println(String.format(
+          "  sel=%.3f, |scan|=%s",
+          computeSelectivity(),
+          PrintUtils.printMetric(cardinality_)));
     }
     cardinality_ = capCardinalityAtLimit(cardinality_);
     if (LOG.isTraceEnabled()) {
@@ -1092,6 +1087,10 @@ public class HdfsScanNode extends ScanNode {
           ++numPartitionsWithNumRows_;
         }
       }
+      System.out.println(String.format(
+          "  parts=%d, valid parts=%d, |parts|=%s",
+          partitions_.size(), numPartitionsWithNumRows_,
+          PrintUtils.printMetric(partitionNumRows_)));
       if (numPartitionsWithNumRows_ > 0) return partitionNumRows_;
     }
     // Table is unpartitioned or the table is partitioned but no partitions have stats.
@@ -1647,4 +1646,7 @@ public class HdfsScanNode extends ScanNode {
   public boolean hasCorruptTableStats() { return hasCorruptTableStats_; }
 
   public boolean hasMissingDiskIds() { return numScanRangesNoDiskIds_ > 0; }
+
+  @Override
+  public String toString() { return this.tbl_.getFullName(); }
 }

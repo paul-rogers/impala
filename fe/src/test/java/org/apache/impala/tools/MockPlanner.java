@@ -24,6 +24,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.commons.io.FilenameUtils;
+import org.apache.curator.shaded.com.google.common.base.Preconditions;
 import org.apache.hadoop.fs.Path;
 import org.apache.impala.analysis.LiteralExpr;
 import org.apache.impala.analysis.PartitionKeyValue;
@@ -97,8 +98,8 @@ public class MockPlanner extends FrontendTestBase {
     destFile = new File(dir, baseName + "-outline-I31.txt");
     PrintUtils.writeFile(destFile, PlanAnalysisUtils.reduce(explainStr));
 
-//    destFile = new File(dir, baseName + "-outline.txt");
-//    PrintUtils.writeFile(destFile, PlanAnalysisUtils.reduce(pp.plan()));
+    destFile = new File(dir, baseName + "-outline.txt");
+    PrintUtils.writeFile(destFile, PlanAnalysisUtils.reduce(pp.plan()));
   }
 
   public static class CatalogBuilderListener implements DumpListener {
@@ -148,18 +149,26 @@ public class MockPlanner extends FrontendTestBase {
     @Override
     public void partitionDirs(PartitionDetails details) throws ImpalaException {
       Table table = cb.getTable(details.tableName_);
-      if (table == null) {
-        throw new IllegalStateException();
-      }
+      Preconditions.checkNotNull(table);
+      System.out.println(String.format(
+          "partDirs: table=%s, rows=%s, bytes=%s, dirs=%d",
+          details.tableName_,
+          org.apache.impala.common.PrintUtils.printMetric(details.rowCount()),
+          org.apache.impala.common.PrintUtils.printBytes(details.sizeBytes()),
+          details.dirs_.size()));
       TTableStats stats = table.getTTableStats();
       stats.setNum_rows(details.rowCount());
       stats.setTotal_file_bytes(details.sizeBytes());
       HdfsTable fsTable = (HdfsTable) table;
-      Column keyCol = table.getColumns().get(0);
+      List<Column> keyCols = table.getClusteringColumns();
+      if (keyCols.size() == 0) {
+        Preconditions.checkState(details.keyCols() == null);
+      } else {
+        Preconditions.checkState(details.keyCols().size() == keyCols.size());
+      }
       for (DirectoryDetails dir : details.dirs_) {
-        String key = dir.key_;
         HdfsPartition partition;
-        if (key == null || key.isEmpty()) {
+        if (!details.isPartitioned()) {
           if (fsTable.getPartitions().isEmpty()) {
             partition = cb.makePartition(fsTable, dir.location_, new ArrayList<>());
             fsTable.addPartition(partition);
@@ -167,9 +176,12 @@ public class MockPlanner extends FrontendTestBase {
             partition = (HdfsPartition) fsTable.getPartitions().iterator().next();
           }
         } else {
-          LiteralExpr expr = LiteralExpr.create(key, keyCol.getType());
-          List<PartitionKeyValue> keyValues = Lists.newArrayList(
-              new PartitionKeyValue(keyCol.getName(), expr));
+          List<PartitionKeyValue> keyValues = new ArrayList<>();
+          for (int i = 0; i < keyCols.size(); i++) {
+            LiteralExpr expr = LiteralExpr.create(dir.key_.get(i), keyCols.get(i).getType());
+            keyValues.add(
+              new PartitionKeyValue(keyCols.get(i).getName(), expr));
+          }
           partition = fsTable.getPartition(keyValues);
         }
         TPartitionStats pStats = new TPartitionStats();
@@ -182,6 +194,7 @@ public class MockPlanner extends FrontendTestBase {
         } catch (TException e) {
           throw new IllegalStateException(e);
         }
+        partition.setNumRows(dir.rowCount_);
         long fileSize = dir.sizeBytes_ / dir.fileCount_;
         List<FileDescriptor> files = new ArrayList<>();
         for (int i = 0; i < dir.fileCount_; i++) {
