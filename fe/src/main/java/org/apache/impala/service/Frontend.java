@@ -99,6 +99,7 @@ import org.apache.impala.compat.MetastoreShim;
 import org.apache.impala.planner.HdfsScanNode;
 import org.apache.impala.planner.PlanFragment;
 import org.apache.impala.planner.Planner;
+import org.apache.impala.planner.Planner.QueryPlan;
 import org.apache.impala.planner.ScanNode;
 import org.apache.impala.thrift.TAlterDbParams;
 import org.apache.impala.thrift.TCatalogOpRequest;
@@ -107,6 +108,7 @@ import org.apache.impala.thrift.TCatalogServiceRequestHeader;
 import org.apache.impala.thrift.TColumn;
 import org.apache.impala.thrift.TColumnValue;
 import org.apache.impala.thrift.TCommentOnParams;
+import org.apache.impala.thrift.TCopyTestCaseReq;
 import org.apache.impala.thrift.TCreateDropRoleParams;
 import org.apache.impala.thrift.TDdlExecRequest;
 import org.apache.impala.thrift.TDdlType;
@@ -122,7 +124,6 @@ import org.apache.impala.thrift.TGrantRevokeRoleParams;
 import org.apache.impala.thrift.TLineageGraph;
 import org.apache.impala.thrift.TLoadDataReq;
 import org.apache.impala.thrift.TLoadDataResp;
-import org.apache.impala.thrift.TCopyTestCaseReq;
 import org.apache.impala.thrift.TMetadataOpRequest;
 import org.apache.impala.thrift.TPlanExecInfo;
 import org.apache.impala.thrift.TPlanFragment;
@@ -188,11 +189,11 @@ public class Frontend {
     protected final TQueryCtx queryCtx_;
     // The explain string built from the query plan.
     protected final StringBuilder explainBuf_;
-    // Flag to indicate whether to capture (return) the plan.
-    protected boolean capturePlan_;
     // The physical plan, divided by fragment, before conversion to
     // Thrift. For unit testing.
-    protected List<PlanFragment> plan_;
+    protected QueryPlan plan_;
+    public StatementBase stmt_;
+    public List<PlanFragment> planRoots_;
 
     public PlanCtx(TQueryCtx qCtx) {
       queryCtx_ = qCtx;
@@ -204,18 +205,14 @@ public class Frontend {
       explainBuf_ = describe;
     }
 
-    /**
-     * Request to capture the plan tree for unit tests.
-     */
-    public void requestPlanCapture() { capturePlan_ = true; }
-    public boolean planCaptureRequested() { return capturePlan_; }
     public TQueryCtx getQueryContext() { return queryCtx_; }
 
     /**
      * @return the captured plan tree. Used only for unit tests
      */
     @VisibleForTesting
-    public List<PlanFragment> getPlan() { return plan_; }
+    public List<PlanFragment> getPlan() { return planRoots_; }
+    public QueryPlan plan() { return plan_; }
 
     /**
      * @return the captured describe string
@@ -1171,14 +1168,14 @@ public class Frontend {
     TQueryExecRequest result = new TQueryExecRequest();
     if (isMtExec) {
       LOG.trace("create mt plan");
-      planRoots.addAll(planner.createParallelPlans());
+      planCtx.plan_ = planner.createParallelPlans();
+      planRoots.addAll(planCtx.plan_.parallelPlan());
     } else {
       LOG.trace("create plan");
-      planRoots.add(planner.createPlan().get(0));
+      planCtx.plan_ = planner.createPlan();
+      planRoots.add(planCtx.plan_.physicalPlan().get(0));
     }
-    if (planCtx.planCaptureRequested()) {
-      planCtx.plan_ = planRoots;
-    }
+    planCtx.planRoots_ = planRoots;
 
     // Compute resource requirements of the final plans.
     planner.computeResourceReqs(planRoots, queryCtx, result);

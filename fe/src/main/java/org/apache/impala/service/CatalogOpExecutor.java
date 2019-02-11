@@ -1003,7 +1003,8 @@ public class CatalogOpExecutor {
    * name to column stats. Missing or new columns as a result of concurrent table
    * alterations are ignored.
    */
-  private static ColumnStatistics createHiveColStats(
+  @VisibleForTesting
+  public static ColumnStatistics createHiveColStats(
       TAlterTableUpdateStatsParams params, Table table) {
     Preconditions.checkState(params.isSetColumn_stats());
     // Collection of column statistics objects to be returned.
@@ -2146,7 +2147,8 @@ public class CatalogOpExecutor {
    * Sets the given params in the metastore table as appropriate for a
    * create view operation.
    */
-  private void setCreateViewAttributes(TCreateOrAlterViewParams params,
+  @VisibleForTesting
+  public static void setCreateViewAttributes(TCreateOrAlterViewParams params,
       org.apache.hadoop.hive.metastore.api.Table view) {
     view.setTableType(TableType.VIRTUAL_VIEW.toString());
     view.setViewOriginalText(params.getOriginal_view_def());

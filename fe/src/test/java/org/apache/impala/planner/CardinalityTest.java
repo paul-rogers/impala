@@ -250,7 +250,6 @@ public class CardinalityTest extends PlannerTestBase {
     // Plan the query, discard the actual execution plan, and
     // return the plan tree.
     PlanCtx planCtx = new PlanCtx(queryCtx);
-    planCtx.requestPlanCapture();
     try {
       frontend_.createExecRequest(planCtx);
     } catch (ImpalaException e) {

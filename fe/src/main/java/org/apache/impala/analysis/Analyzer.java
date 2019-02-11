@@ -308,6 +308,10 @@ public class Analyzer {
     // Expr rewriter for normalizing and rewriting expressions.
     private final ExprRewriter exprRewriter_;
 
+    // Abstract concrete file system operations to allow simulated
+    // test mode versions.
+    private FileSystemFacade fsFacade_;
+
     public GlobalState(StmtTableCache stmtTableCache, TQueryCtx queryCtx,
         AuthorizationConfig authzConfig) {
       this.stmtTableCache = stmtTableCache;
@@ -333,6 +337,11 @@ public class Analyzer {
         rules.add(SimplifyDistinctFromRule.INSTANCE);
       }
       exprRewriter_ = new ExprRewriter(rules);
+      if (queryCtx.getClient_request().getQuery_options().isPlanner_testcase_mode()) {
+        fsFacade_ = new MockFileSystemFacade();
+      } else {
+        fsFacade_ = new HdfsFileSystemFacade();
+      }
     }
   };
 
@@ -380,6 +389,11 @@ public class Analyzer {
     ancestors_ = new ArrayList<>();
     globalState_ = new GlobalState(stmtTableCache, queryCtx, authzConfig);
     user_ = new User(TSessionStateUtil.getEffectiveUser(queryCtx.session));
+  }
+
+  public static Analyzer createMock(StmtTableCache stmtTableCache, TQueryCtx queryCtx,
+      AuthorizationConfig authzConfig) {
+    return new Analyzer(stmtTableCache, queryCtx, authzConfig);
   }
 
   /**
@@ -2686,4 +2700,6 @@ public class Analyzer {
     return getAuthzConfig().isEnabled() ? getAuthzConfig().getServerName().intern() :
         null;
   }
+
+  public FileSystemFacade fsFacade() { return globalState_.fsFacade_; }
 }

@@ -394,8 +394,14 @@ public class AnalysisContext {
     public boolean userHasProfileAccess() { return userHasProfileAccess_; }
   }
 
+  public boolean isMock() {
+    return queryCtx_.getClient_request().getQuery_options().isPlanner_testcase_mode();
+  }
+
   public Analyzer createAnalyzer(StmtTableCache stmtTableCache) {
-    Analyzer result = new Analyzer(stmtTableCache, queryCtx_, authzConfig_);
+    Analyzer result;
+    if (isMock()) result = Analyzer.createMock(stmtTableCache, queryCtx_, authzConfig_);
+    else result = new Analyzer(stmtTableCache, queryCtx_, authzConfig_);
     result.setUseHiveColLabels(useHiveColLabels_);
     return result;
   }

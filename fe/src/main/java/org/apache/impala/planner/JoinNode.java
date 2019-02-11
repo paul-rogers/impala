@@ -34,6 +34,7 @@ import org.apache.impala.catalog.ColumnStats;
 import org.apache.impala.catalog.FeTable;
 import org.apache.impala.common.ImpalaException;
 import org.apache.impala.common.Pair;
+import org.apache.impala.common.PrintUtils;
 import org.apache.impala.thrift.TExecNodePhase;
 import org.apache.impala.thrift.TJoinDistributionMode;
 import org.apache.impala.thrift.TQueryOptions;
@@ -254,6 +255,15 @@ public abstract class JoinNode extends PlanNode {
 
     long lhsCard = getChild(0).cardinality_;
     long rhsCard = getChild(1).cardinality_;
+    System.out.println(String.format(
+        "getJoinCard: lhs = %s %s, |lhs|=%s, rhs=%s %s, |rhs|=%s",
+        getChild(0).getDisplayLabel(),
+        getChild(0).getDisplayLabelDetail(),
+        PrintUtils.printMetric(lhsCard),
+        getChild(1).getDisplayLabel(),
+        getChild(01).getDisplayLabelDetail(),
+        PrintUtils.printMetric(rhsCard)));
+
     if (lhsCard == -1 || rhsCard == -1) {
       // Assume FK/PK with a join selectivity of 1.
       return lhsCard;
@@ -338,10 +348,18 @@ public abstract class JoinNode extends PlanNode {
       } else {
         result = Math.min(result, joinCard);
       }
+      System.out.println(String.format("  key: ndv ratio=%.3f lhs=%s, |lhs|=%s, rhs=%s, |rhs|=%s, |join|=%s",
+          ndvRatio,
+          slots.lhs_.getColumn().getName(),
+          PrintUtils.printMetric(Math.round(slots.lhsNdv())),
+          slots.rhs_.getColumn().getName(),
+          PrintUtils.printMetric(Math.round(slots.rhsNdv())),
+          PrintUtils.printMetric(joinCard)));
     }
     // FK/PK join cardinality must be <= the lhs cardinality.
     result = Math.min(result, lhsCard);
     Preconditions.checkState(result >= 0);
+    System.out.println(String.format("  fk/pk, |join|=%s", PrintUtils.printMetric(result)));
     return result;
   }
 
@@ -376,8 +394,17 @@ public abstract class JoinNode extends PlanNode {
       } else {
         result = Math.min(result, joinCard);
       }
+      System.out.println(String.format("  key: lhs=%s, |lhs|=%s, |lhs'|=%s, rhs=%s, |rhs|=%s, |rhs'|=%s, |join|=%s",
+          slots.lhs_.getColumn().getName(),
+          PrintUtils.printMetric(Math.round(slots.lhsNdv())),
+          PrintUtils.printMetric(Math.round(lhsAdjNdv)),
+          slots.rhs_.getColumn().getName(),
+          PrintUtils.printMetric(Math.round(slots.rhsNdv())),
+          PrintUtils.printMetric(Math.round(rhsAdjNdv)),
+          PrintUtils.printMetric(joinCard)));
     }
     Preconditions.checkState(result >= 0);
+    System.out.println(String.format("  generic, |join|=%s", PrintUtils.printMetric(result)));
     return result;
   }
 

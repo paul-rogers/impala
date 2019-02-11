@@ -40,6 +40,7 @@ import org.apache.impala.thrift.THdfsFileFormat;
 import org.apache.impala.thrift.TQueryOptions;
 import org.apache.impala.util.MetaStoreUtil;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
@@ -60,7 +61,8 @@ import com.google.common.collect.Lists;
  * - CACHED IN
  * - SORT BY
  */
-class TableDef {
+@VisibleForTesting
+public class TableDef {
   // Name of the new table
   private final TableName tableName_;
 
@@ -175,6 +177,7 @@ class TableDef {
   public TableName getTblName() {
     return fqTableName_ != null ? fqTableName_ : tableName_;
   }
+
   public String getTbl() { return tableName_.getTbl(); }
   public boolean isAnalyzed() { return isAnalyzed_; }
   List<ColumnDef> getColumnDefs() { return columnDefs_; }
@@ -194,10 +197,12 @@ class TableDef {
   boolean isExternal() { return isExternal_; }
   boolean getIfNotExists() { return ifNotExists_; }
   Map<String, String> getGeneratedKuduProperties() { return generatedKuduProperties_; }
+
   void putGeneratedKuduProperty(String key, String value) {
     Preconditions.checkNotNull(key);
     generatedKuduProperties_.put(key, value);
   }
+
   List<KuduPartitionParam> getKuduPartitionParams() {
     return dataLayout_.getKuduPartitionParams();
   }
@@ -205,6 +210,7 @@ class TableDef {
     Preconditions.checkNotNull(options);
     options_ = options;
   }
+
   List<String> getSortColumns() { return options_.sortCols; }
   String getComment() { return options_.comment; }
   Map<String, String> getTblProperties() { return options_.tblProperties; }
@@ -213,6 +219,7 @@ class TableDef {
   Map<String, String> getSerdeProperties() { return options_.serdeProperties; }
   THdfsFileFormat getFileFormat() { return options_.fileFormat; }
   RowFormat getRowFormat() { return options_.rowFormat; }
+  public Map<String, String> getTableProperties() { return options_.tblProperties; }
 
   /**
    * Analyzes the parameters of a CREATE TABLE statement.
