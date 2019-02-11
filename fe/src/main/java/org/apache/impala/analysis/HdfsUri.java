@@ -17,17 +17,14 @@
 
 package org.apache.impala.analysis;
 
-import java.io.IOException;
-
-import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.permission.FsAction;
 
+import org.apache.impala.authorization.AuthorizeableUri;
 import org.apache.impala.authorization.Privilege;
 import org.apache.impala.authorization.PrivilegeRequestBuilder;
 import org.apache.impala.common.AnalysisException;
-import org.apache.impala.common.FileSystemUtil;
-import org.apache.impala.util.FsPermissionChecker;
+
 import com.google.common.base.Preconditions;
 
 /**
@@ -85,40 +82,7 @@ public class HdfsUri {
       throw new AnalysisException("URI path must be absolute: " + uriPath_);
     }
 
-    uriPath_ = FileSystemUtil.createFullyQualifiedPath(uriPath_);
-
-    // Check if parent path exists and if impala is allowed to access it.
-    Path parentPath = uriPath_.getParent();
-    try {
-      FileSystem fs = uriPath_.getFileSystem(FileSystemUtil.getConfiguration());
-      if (pathMustExist && !fs.exists(uriPath_)) {
-        throw new AnalysisException(String.format("Path does not exist: %s", uriPath_));
-      }
-      boolean parentPathExists = false;
-      StringBuilder errorMsg = new StringBuilder();
-      try {
-        parentPathExists = fs.exists(parentPath);
-        if (!parentPathExists) {
-          errorMsg.append("Path does not exist.");
-        }
-      } catch (Exception e) {
-        errorMsg.append(e.getMessage());
-      }
-      if (!parentPathExists) {
-        analyzer.addWarning(String.format("Path '%s' cannot be reached: %s",
-            parentPath, errorMsg.toString()));
-      } else if (perm != FsAction.NONE) {
-        FsPermissionChecker checker = FsPermissionChecker.getInstance();
-        if (!checker.getPermissions(fs, parentPath).checkPermissions(perm)) {
-          analyzer.addWarning(String.format(
-              "Impala does not have %s access to path '%s'",
-              perm.toString(), parentPath));
-        }
-      }
-    } catch (IOException e) {
-      throw new AnalysisException(e.getMessage(), e);
-    }
-
+    uriPath_ = analyzer.fsFacade().validatePath(analyzer, uriPath_, perm, pathMustExist);
     if (registerPrivReq) {
       analyzer.registerPrivReq(new PrivilegeRequestBuilder()
           .onUri(uriPath_.toString()).allOf(privilege).build());

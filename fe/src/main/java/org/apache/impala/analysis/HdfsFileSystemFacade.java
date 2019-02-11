@@ -6,7 +6,6 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.permission.FsAction;
-import org.apache.impala.authorization.Privilege;
 import org.apache.impala.catalog.FeFsTable;
 import org.apache.impala.catalog.HdfsPartition.FileDescriptor;
 import org.apache.impala.common.AnalysisException;
@@ -26,23 +25,28 @@ public class HdfsFileSystemFacade implements FileSystemFacade {
   private static final Configuration CONF = new Configuration();
 
   @Override
-  public Path validatePath(Analyzer analyzer, Path path, Privilege privilege,
-      FsAction perm) throws AnalysisException {
+  public Path validatePath(Analyzer analyzer, Path path,
+      FsAction perm, boolean pathMustExist) throws AnalysisException {
     path = FileSystemUtil.createFullyQualifiedPath(path);
 
     // Check if parent path exists and if impala is allowed to access it.
     Path parentPath = path.getParent();
     try {
       FileSystem fs = path.getFileSystem(FileSystemUtil.getConfiguration());
-      boolean pathExists = false;
+      if (pathMustExist && !fs.exists(path)) {
+        throw new AnalysisException(String.format("Path does not exist: %s", path));
+      }
+      boolean parentPathExists = false;
       StringBuilder errorMsg = new StringBuilder();
       try {
-        pathExists = fs.exists(parentPath);
-        if (!pathExists) errorMsg.append("Path does not exist.");
+        parentPathExists = fs.exists(parentPath);
+        if (!parentPathExists) {
+          errorMsg.append("Path does not exist.");
+        }
       } catch (Exception e) {
         errorMsg.append(e.getMessage());
       }
-      if (!pathExists) {
+      if (!parentPathExists) {
         analyzer.addWarning(String.format("Path '%s' cannot be reached: %s",
             parentPath, errorMsg.toString()));
       } else if (perm != FsAction.NONE) {
@@ -54,8 +58,6 @@ public class HdfsFileSystemFacade implements FileSystemFacade {
         }
       }
     } catch (IOException e) {
-      throw new AnalysisException(e.getMessage(), e);
-    } catch (IllegalArgumentException e) {
       Exception ex = e;
       if (e.getCause() != e) ex = e;
       // HDFS client's way of saying the host is unknown

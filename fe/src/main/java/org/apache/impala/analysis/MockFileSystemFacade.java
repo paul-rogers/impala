@@ -5,7 +5,6 @@ import java.util.Set;
 
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.permission.FsAction;
-import org.apache.impala.authorization.Privilege;
 import org.apache.impala.catalog.FeFsTable;
 import org.apache.impala.common.AnalysisException;
 import org.apache.impala.common.ImpalaRuntimeException;
@@ -21,8 +20,8 @@ public class MockFileSystemFacade implements FileSystemFacade {
   private final static Logger LOG = LoggerFactory.getLogger(MockFileSystemFacade.class);
 
   @Override
-  public Path validatePath(Analyzer analyzer, Path path, Privilege privilege,
-      FsAction perm) throws AnalysisException {
+  public Path validatePath(Analyzer analyzer, Path path,
+      FsAction perm, boolean pathMustExist) throws AnalysisException {
     return path;
   }
 

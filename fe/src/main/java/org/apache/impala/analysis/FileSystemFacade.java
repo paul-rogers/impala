@@ -5,7 +5,6 @@ import java.util.Set;
 
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.permission.FsAction;
-import org.apache.impala.authorization.Privilege;
 import org.apache.impala.catalog.FeFsTable;
 import org.apache.impala.common.AnalysisException;
 import org.apache.impala.common.ImpalaRuntimeException;
@@ -40,8 +39,8 @@ public interface FileSystemFacade {
     public int numRemoteRanges = 0;
   }
 
-  Path validatePath(Analyzer analyzer, Path path, Privilege privilege,
-      FsAction perm) throws AnalysisException;
+  Path validatePath(Analyzer analyzer, Path path,
+      FsAction perm, boolean pathMustExist) throws AnalysisException;
 
   BlockSizeReport maxBlockSize(Path locationPath) throws ImpalaRuntimeException;
 
