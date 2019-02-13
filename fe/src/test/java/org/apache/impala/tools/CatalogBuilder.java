@@ -84,16 +84,32 @@ public class CatalogBuilder {
   public Catalog catalog() { return feFixture_.catalog(); }
   public Frontend frontend() { return feFixture_.frontend(); }
 
-  public void runStmt(String sql) throws ImpalaException {
+  private AnalysisContext makeContext() {
     AnalysisContext ctx = feFixture_.createAnalysisCtx();
     ctx.getQueryCtx().getClient_request().getQuery_options().setPlanner_testcase_mode(true);
-    StatementBase parsedStmt;
+    return ctx;
+  }
+
+  public void parseStmt(String sql) throws ImpalaException {
+    StatementBase stmt = parseStmt(makeContext(), sql);
+    if (stmt instanceof CreateTableStmt) {
+      mostRecentTable_ = getTable(((CreateTableStmt) stmt).getTblName());
+      Preconditions.checkNotNull(mostRecentTable_);
+    }
+  }
+
+  public StatementBase parseStmt(AnalysisContext ctx, String sql) throws ImpalaException {
     try {
-      parsedStmt = Parser.parse(sql, ctx.getQueryOptions());
+      return Parser.parse(sql, ctx.getQueryOptions());
     } catch (ParseException e) {
       System.out.println(sql);
       throw e;
     }
+  }
+
+  public void runStmt(String sql) throws ImpalaException {
+    AnalysisContext ctx = makeContext();
+    StatementBase parsedStmt = parseStmt(ctx, sql);
     if (parsedStmt instanceof AlterTableSetTblProperties) {
       preAnalysisCheck((AlterTableSetTblProperties) parsedStmt);
     }
@@ -104,7 +120,7 @@ public class CatalogBuilder {
         new StmtMetadataLoader(feFixture_.frontend(), ctx.getQueryCtx().session.database, null);
     StmtTableCache stmtTableCache = mdLoader.loadTables(parsedStmt);
     AnalysisResult analysisResult = ctx.analyzeAndAuthorize(parsedStmt, stmtTableCache, frontend().getAuthzChecker());
-    StatementBase stmt = (StatementBase) analysisResult.getStmt();;
+    StatementBase stmt = analysisResult.getStmt();
     if (stmt instanceof CreateDbStmt) {
       createDb((CreateDbStmt) stmt);
     } else if (stmt instanceof CreateTableStmt) {

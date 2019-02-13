@@ -48,7 +48,29 @@ import org.apache.impala.common.ImpalaException;
  */
 public class DumpParser {
 
+  public static class DumpConfig {
+    public boolean runCreate = true;
+    public boolean loadPartStats = true;
+    public boolean loadPartDirs = true;
+    public boolean loadColStats = true;
+
+    public void disableAll() {
+      runCreate = false;
+      loadPartStats = false;
+      loadPartDirs = false;
+      loadColStats = false;
+    }
+
+    public void enableAll() {
+      runCreate = true;
+      loadPartStats = true;
+      loadPartDirs = true;
+      loadColStats = true;
+    }
+  }
+
   public interface DumpListener {
+    DumpConfig config();
     TableName stmt(String stmt) throws ImpalaException;
     void partitionStats(TableName table, List<PartitionDump> partitions) throws ImpalaException;
     void partitionDirs(PartitionDetails details) throws ImpalaException;
@@ -213,11 +235,15 @@ public class DumpParser {
    * other kinds of information.
    */
   public static class StmtListener implements DumpListener {
-    List<String> stmts = new ArrayList<>();
+    DumpConfig config_ = new DumpConfig();
+    List<String> stmts_ = new ArrayList<>();
+
+    @Override
+    public DumpConfig config() { return config_; }
 
     @Override
     public TableName stmt(String stmt) {
-      stmts.add(stmt);
+      stmts_.add(stmt);
       return null;
     }
 
@@ -239,6 +265,7 @@ public class DumpParser {
 
   private final DumpListener listener_;
   private BufferedReader in_;
+  private int lineNo_;
   private TableName currentTable_;
   private List<String> headerFields_ = new ArrayList<>();
 
@@ -255,7 +282,7 @@ public class DumpParser {
     StmtListener listener = new StmtListener();
     DumpParser parser = new DumpParser(listener);
     parser.parse(file);
-    return listener.stmts;
+    return listener.stmts_;
   }
 
   public void parse(File file) throws FileNotFoundException, IOException, ImpalaException {
@@ -266,25 +293,40 @@ public class DumpParser {
 
   private void load(BufferedReader in) throws IOException, ImpalaException {
     in_ = in;
+    lineNo_ = 0;
     try {
       for (;;) {
         switch(parseHeader()) {
         case EOF:
           return;
         case PART_STATS:
-          listener_.partitionStats(currentTable_, parsePartitions());
+          List<PartitionDump> parts = parsePartitions();
+          if (listener_.config().loadPartStats) {
+            listener_.partitionStats(currentTable_, parts);
+          }
           break;
         case STMT:
           currentTable_ = listener_.stmt(parseStmt());
           break;
-        case PART_DIRS:
-          listener_.partitionDirs(parseDirs(true));
-          break;
-        case UNPART_DIRS:
-          listener_.partitionDirs(parseDirs(false));
-          break;
+        case PART_DIRS: {
+            PartitionDetails part = parseDirs(true);
+            if (listener_.config().loadPartDirs) {
+              listener_.partitionDirs(part);
+            }
+            break;
+        }
+        case UNPART_DIRS: {
+            PartitionDetails part = parseDirs(false);
+            if (listener_.config().loadPartStats) {
+              listener_.partitionDirs(part);
+            }
+            break;
+        }
         case COL_STATS:
-          listener_.columnStats(currentTable_, parseColStats());
+          List<ColumnStats> colStats = parseColStats();
+          if (listener_.config().loadColStats) {
+            listener_.columnStats(currentTable_, colStats);
+          }
           break;
         case IGNORE:
           skipBlock();
@@ -298,13 +340,19 @@ public class DumpParser {
     }
   }
 
+  private String readLine() throws IOException {
+    String line = in_.readLine();
+    if (line != null) lineNo_++;
+    return line;
+  }
+
   private DumpParser.BlockType parseHeader() throws IOException {
     String line;
-    while ((line = in_.readLine()) != null) {
+    while ((line = readLine()) != null) {
       if (line.startsWith("+---")) break;
     }
     if (line == null) return BlockType.EOF;
-    line = in_.readLine();
+    line = readLine();
     if (line == null) return BlockType.EOF;
     Pattern p = Pattern.compile("\\| (\\S+) ");
     Matcher m = p.matcher(line);
@@ -347,7 +395,8 @@ public class DumpParser {
       }
       break;
     }
-    line = in_.readLine();
+//    System.out.println(String.format("%d: %s", lineNo_, type.name()));
+    line = readLine();
     if (line == null) return BlockType.EOF;
     if (!line.startsWith("+---")) {
       throw new IllegalStateException(m.group(1));
@@ -358,7 +407,7 @@ public class DumpParser {
   private String parseStmt() throws IOException {
     StringBuilder buf = new StringBuilder();
     String line;
-    while ((line = in_.readLine()) != null) {
+    while ((line = readLine()) != null) {
       if (line.startsWith("+---")) break;
       line = line.substring(1, line.length()-1).trim();
       if (line.isEmpty()) continue;
@@ -377,7 +426,7 @@ public class DumpParser {
     DumpParser.PartitionDump part = null;
     String line;
 //    Pattern p = Pattern.compile("\\| (\\S+)\\s+\\|\\s+(\\S+)\\s+\\|\\s+(\\S+)\\s+\\|");
-    while ((line = in_.readLine()) != null) {
+    while ((line = readLine()) != null) {
       if (line.startsWith("+---")) break;
       Matcher m = PARTITION_PATTERN.matcher(line);
       if (!m.matches()) {
@@ -394,21 +443,21 @@ public class DumpParser {
   }
 
   private void skipRepeatHeader() throws IOException {
-    String line = in_.readLine();
+    String line = readLine();
     if (line == null) {
       throw new IllegalStateException();
     }
     if (! line.startsWith("+---")) {
       throw new IllegalStateException(line);
     }
-    line = in_.readLine();
+    line = readLine();
     if (line == null) {
       throw new IllegalStateException();
     }
 //    if (!line.startsWith("| " + expectedHeader)) {
 //      throw new IllegalStateException(line);
 //    }
-    line = in_.readLine();
+    line = readLine();
     if (line == null) {
       throw new IllegalStateException();
     }
@@ -452,7 +501,7 @@ public class DumpParser {
     }
     List<DirectoryDetails> dirs = new ArrayList<>();
     String line;
-    while ((line = in_.readLine()) != null) {
+    while ((line = readLine()) != null) {
 //      System.out.println(line);
       if (line.startsWith("| Total")) break;
       if (line.startsWith("+---")) {
@@ -471,7 +520,7 @@ public class DumpParser {
         keyCols,
         partitioned ? line : null, dirs);
     if (partitioned) {
-    line = in_.readLine();
+    line = readLine();
       if (line != null && !line.startsWith("+---")) {
         throw new IllegalStateException(line);
       }
@@ -482,7 +531,7 @@ public class DumpParser {
   private List<ColumnStats> parseColStats() throws IOException {
     List<ColumnStats> cols = new ArrayList<>();
     String line;
-    while ((line = in_.readLine()) != null) {
+    while ((line = readLine()) != null) {
       if (line.startsWith("+---")) break;
       cols.add(new ColumnStats(line));
     }
@@ -494,7 +543,7 @@ public class DumpParser {
 
   private void skipBlock() throws IOException {
     String line;
-    while ((line = in_.readLine()) != null) {
+    while ((line = readLine()) != null) {
       if (line.startsWith("+---")) break;
     }
   }

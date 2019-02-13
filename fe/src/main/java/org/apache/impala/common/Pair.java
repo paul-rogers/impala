@@ -35,6 +35,7 @@ public class Pair<F, S> {
    */
   public boolean equals(Object o) {
     if (o instanceof Pair) {
+      @SuppressWarnings("unchecked")
       Pair<F,S> other = (Pair<F,S>) o;
       return this.first.equals(other.first) && this.second.equals(other.second);
     }

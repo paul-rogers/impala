@@ -275,6 +275,7 @@ public class PlanAnalysisUtils {
       // Parse plan lines
       String prefix = null;
       boolean skip = false;
+      boolean ignoreOp = false;
       while ((line = in.readLine()) != null) {
         Matcher m = p.matcher(line);
         if (! m.matches()) continue;
@@ -283,13 +284,14 @@ public class PlanAnalysisUtils {
         String id = m.group(3);
         String op = m.group(4);
         if (tail == null ||tail.isEmpty()) {
-          if (! skip) {
+          if (! skip && !ignoreOp) {
             buf.append(line).append("\n");
             skip = true;
           }
           continue;
         }
         if (id == null || id.isEmpty()) {
+          if (ignoreOp) continue;
           if (op.startsWith("Per-Host")) continue;
           if (op.contains("stats:")) continue;
           if (op.startsWith("stats")) continue;
@@ -314,8 +316,9 @@ public class PlanAnalysisUtils {
         if (prefix == null) prefix = lead;
         if (lead.length() != prefix.length()) prefix = lead;
         if (!lead.endsWith(" ")) prefix = lead;
-        if (op.startsWith("EXCHANGE")) continue;
-        buf.append(prefix).append(op).append("\n");
+        ignoreOp = op.startsWith("EXCHANGE");
+        if (ignoreOp) continue;
+        buf.append(prefix).append(tail).append("\n");
         skip = false;
       }
     } catch (IOException e) {

@@ -387,13 +387,14 @@ public class SingleNodePlanner {
   private PlanNode createCheapestJoinPlan(Analyzer analyzer,
       List<Pair<TableRef, PlanNode>> parentRefPlans, List<SubplanRef> subplanRefs)
       throws ImpalaException {
+    System.out.println("createCheapestJoinPlan");
     LOG.trace("createCheapestJoinPlan");
     if (parentRefPlans.size() == 1) return parentRefPlans.get(0).second;
 
     // collect eligible candidates for the leftmost input; list contains
     // (plan, materialized size)
     List<Pair<TableRef, Long>> candidates = new ArrayList<>();
-    for (Pair<TableRef, PlanNode> entry: parentRefPlans) {
+    for (Pair<TableRef, PlanNode> entry : parentRefPlans) {
       TableRef ref = entry.first;
       JoinOperator joinOp = ref.getJoinOp();
 
@@ -403,38 +404,48 @@ public class SingleNodePlanner {
       if (joinOp.isOuterJoin() || joinOp.isSemiJoin() || joinOp.isCrossJoin()) continue;
 
       PlanNode plan = entry.second;
+      long materializedSize;
       if (plan.getCardinality() == -1) {
         // use 0 for the size to avoid it becoming the leftmost input
         // TODO: Consider raw size of scanned partitions in the absence of stats.
-        candidates.add(new Pair<TableRef, Long>(ref, new Long(0)));
-        if (LOG.isTraceEnabled()) {
-          LOG.trace("candidate " + ref.getUniqueAlias() + ": 0");
-        }
-        continue;
+        materializedSize = 0;
+      } else {
+        Preconditions.checkState(ref.isAnalyzed());
+        materializedSize =
+            (long) Math.ceil(plan.getAvgRowSize() * (double) plan.getCardinality());
       }
-      Preconditions.checkState(ref.isAnalyzed());
-      long materializedSize =
-          (long) Math.ceil(plan.getAvgRowSize() * (double) plan.getCardinality());
-      candidates.add(new Pair<TableRef, Long>(ref, new Long(materializedSize)));
+      candidates.add(new Pair<TableRef, Long>(ref, materializedSize));
       if (LOG.isTraceEnabled()) {
         LOG.trace(
-            "candidate " + ref.getUniqueAlias() + ": " + Long.toString(materializedSize));
+            "candidate " + ref.getUniqueAlias() + ": " + materializedSize);
       }
+      System.out.print("  ");
+      System.out.print(ref.getUniqueAlias());
+      System.out.print(" - ");
+      System.out.print(plan.getDisplayLabel());
+      System.out.print(" - ");
+      System.out.print(plan.getDisplayLabelDetail());
+      System.out.print(", card = ");
+      System.out.print(plan.cardinality_);
+      System.out.print(", size = ");
+      System.out.println(materializedSize);
     }
     if (candidates.isEmpty()) return null;
 
     // order candidates by descending materialized size; we want to minimize the memory
-    // consumption of the materialized hash tables required for the join sequence
+    // consumption of the materialized hash tables required for the join sequence.
+    // We pick the candidate with the largest potential hash table size as the leftmost
+    // probe table so that we don't actually materialize the largest table. The other
+    // candidates are simply discarded.
     Collections.sort(candidates,
         new Comparator<Pair<TableRef, Long>>() {
           @Override
           public int compare(Pair<TableRef, Long> a, Pair<TableRef, Long> b) {
-            long diff = b.second - a.second;
-            return (diff < 0 ? -1 : (diff > 0 ? 1 : 0));
+            return Long.compare(b.second, a.second);
           }
         });
 
-    for (Pair<TableRef, Long> candidate: candidates) {
+    for (Pair<TableRef, Long> candidate : candidates) {
       PlanNode result = createJoinPlan(analyzer, candidate.first, parentRefPlans, subplanRefs);
       if (result != null) return result;
     }
@@ -451,13 +462,25 @@ public class SingleNodePlanner {
       List<Pair<TableRef, PlanNode>> refPlans, List<SubplanRef> subplanRefs)
       throws ImpalaException {
 
+    System.out.print("createJoinPlan, leftmost = ");
+    System.out.println(leftmostRef.getUniqueAlias());
+    for (Pair<TableRef, PlanNode> refPlan : refPlans) {
+      System.out.print("  ");
+      System.out.print(refPlan.first.getUniqueAlias());
+      System.out.print(" - ");
+      System.out.print(refPlan.second.getDisplayLabel());
+      System.out.print(" - ");
+      System.out.print(refPlan.second.getDisplayLabelDetail());
+      System.out.print(", card = ");
+      System.out.println(refPlan.second.cardinality_);
+    }
     if (LOG.isTraceEnabled()) {
       LOG.trace("createJoinPlan: " + leftmostRef.getUniqueAlias());
     }
     // the refs that have yet to be joined
     List<Pair<TableRef, PlanNode>> remainingRefs = new ArrayList<>();
     PlanNode root = null;  // root of accumulated join plan
-    for (Pair<TableRef, PlanNode> entry: refPlans) {
+    for (Pair<TableRef, PlanNode> entry : refPlans) {
       if (entry.first == leftmostRef) {
         root = entry.second;
       } else {
@@ -474,7 +497,7 @@ public class SingleNodePlanner {
     // This prevents join re-ordering across outer/semi joins which is generally wrong.
     Map<TableRef, Set<TableRef>> precedingRefs = new HashMap<>();
     List<TableRef> tmpTblRefs = new ArrayList<>();
-    for (Pair<TableRef, PlanNode> entry: refPlans) {
+    for (Pair<TableRef, PlanNode> entry : refPlans) {
       TableRef tblRef = entry.first;
       if (tblRef.getJoinOp().isOuterJoin() || tblRef.getJoinOp().isSemiJoin()) {
         precedingRefs.put(tblRef, Sets.newHashSet(tmpTblRefs));
@@ -488,11 +511,12 @@ public class SingleNodePlanner {
     long numOps = 0;
     int i = 0;
     while (!remainingRefs.isEmpty()) {
+      System.out.println("LHS: " + root.getDisplayLabel() + " - " + root.getDisplayLabelDetail());
       // We minimize the resulting cardinality at each step in the join chain,
       // which minimizes the total number of hash table lookups.
       PlanNode newRoot = null;
       Pair<TableRef, PlanNode> minEntry = null;
-      for (Pair<TableRef, PlanNode> entry: remainingRefs) {
+      for (Pair<TableRef, PlanNode> entry : remainingRefs) {
         TableRef ref = entry.first;
         JoinOperator joinOp = ref.getJoinOp();
 
@@ -563,6 +587,7 @@ public class SingleNodePlanner {
       root.setId(ctx_.getNextNodeId());
       analyzer.setAssignedConjuncts(root.getAssignedConjuncts());
       ++i;
+      System.out.println("Best join: " + root.getChild(01).getDisplayLabel() + " - " + root.getChild(1).getDisplayLabelDetail());
     }
 
     return root;
@@ -810,14 +835,14 @@ public class SingleNodePlanner {
     // maintain a deterministic order of traversing the TableRefs during join
     // plan generation (helps with tests)
     List<Pair<TableRef, PlanNode>> parentRefPlans = new ArrayList<>();
-    for (TableRef ref: parentRefs) {
+    for (TableRef ref : parentRefs) {
       PlanNode root = createTableRefNode(ref, aggInfo, analyzer);
       Preconditions.checkNotNull(root);
       root = createSubplan(root, subplanRefs, true, analyzer);
       parentRefPlans.add(new Pair<TableRef, PlanNode>(ref, root));
     }
     // save state of conjunct assignment; needed for join plan generation
-    for (Pair<TableRef, PlanNode> entry: parentRefPlans) {
+    for (Pair<TableRef, PlanNode> entry : parentRefPlans) {
       entry.second.setAssignedConjuncts(analyzer.getAssignedConjuncts());
     }
 

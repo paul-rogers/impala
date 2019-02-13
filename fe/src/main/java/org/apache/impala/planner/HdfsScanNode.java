@@ -262,6 +262,7 @@ public class HdfsScanNode extends ScanNode {
   // Conjuncts used to trim the set of partitions passed to this node.
   // Used only to display EXPLAIN information.
   private final List<Expr> partitionConjuncts_;
+
   /**
    * Construct a node to scan given data files into tuples described by 'desc',
    * with 'conjuncts' being the unevaluated conjuncts bound by the tuple and
@@ -997,6 +998,9 @@ public class HdfsScanNode extends ScanNode {
    * extrapolatedNumRows_, inputCardinality_, cardinality_
    */
   private void computeCardinalities() {
+    // Called twice. Skip second pass.
+    if (cardinality_ != -1) return;
+
     // Choose between the extrapolated row count and the one based on stored stats.
     System.out.println(String.format(
         "computeCard: %s %s |table|=%s",
@@ -1042,16 +1046,17 @@ public class HdfsScanNode extends ScanNode {
     }
 
     if (cardinality_ > 0) {
+      double selectivity = computeSelectivity();
       if (LOG.isTraceEnabled()) {
         LOG.trace("cardinality_=" + Long.toString(cardinality_) +
-                  " sel=" + Double.toString(computeSelectivity()));
+                  " sel=" + Double.toString(selectivity));
       }
-      cardinality_ = Math.round(cardinality_ * computeSelectivity());
+      cardinality_ = Math.round(cardinality_ * selectivity);
       // IMPALA-2165: Avoid setting the cardinality to 0 after rounding.
       cardinality_ = Math.max(cardinality_, 1);
       System.out.println(String.format(
           "  sel=%.3f, |scan|=%s",
-          computeSelectivity(),
+          selectivity,
           PrintUtils.printMetric(cardinality_)));
     }
     cardinality_ = capCardinalityAtLimit(cardinality_);

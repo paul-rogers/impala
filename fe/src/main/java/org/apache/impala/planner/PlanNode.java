@@ -582,9 +582,10 @@ abstract public class PlanNode extends TreeNode<PlanNode> {
    * additional selectivity into the final result.
    */
   static protected double computeCombinedSelectivity(List<Expr> conjuncts) {
+    System.out.println("  Sel input: " + conjuncts.toString());
     // Collect all estimated selectivities.
     List<Double> selectivities = new ArrayList<>();
-    for (Expr e: conjuncts) {
+    for (Expr e : conjuncts) {
       if (e.hasSelectivity()) selectivities.add(e.getSelectivity());
     }
     if (selectivities.size() != conjuncts.size()) {
