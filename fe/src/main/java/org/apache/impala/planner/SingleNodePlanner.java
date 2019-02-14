@@ -445,152 +445,356 @@ public class SingleNodePlanner {
           }
         });
 
+    // Traditional approach
     for (Pair<TableRef, Long> candidate : candidates) {
-      PlanNode result = createJoinPlan(analyzer, candidate.first, parentRefPlans, subplanRefs);
+      JoinPlanner jp = new DynamicJoinPlanner(this, analyzer, candidate.first, parentRefPlans, subplanRefs);
+      PlanNode result = jp.plan();
       if (result != null) return result;
     }
     return null;
   }
 
-  /**
-   * Returns a plan with leftmostRef's plan as its leftmost input; the joins
-   * are in decreasing order of selectiveness (percentage of rows they eliminate).
-   * Creates and adds subplan nodes as soon as the tuple ids required by at least one
-   * subplan ref are materialized by a join node added during plan generation.
-   */
-  private PlanNode createJoinPlan(Analyzer analyzer, TableRef leftmostRef,
-      List<Pair<TableRef, PlanNode>> refPlans, List<SubplanRef> subplanRefs)
-      throws ImpalaException {
+  private static abstract class JoinPlanner {
+    protected final SingleNodePlanner planner_;
+    protected final Analyzer analyzer_;
+    protected final TableRef left_;
+    protected final List<Pair<TableRef, PlanNode>> parentRefPlans_;
+    protected final List<SubplanRef> subplanRefs_;
 
-    System.out.print("createJoinPlan, leftmost = ");
-    System.out.println(leftmostRef.getUniqueAlias());
-    for (Pair<TableRef, PlanNode> refPlan : refPlans) {
-      System.out.print("  ");
-      System.out.print(refPlan.first.getUniqueAlias());
-      System.out.print(" - ");
-      System.out.print(refPlan.second.getDisplayLabel());
-      System.out.print(" - ");
-      System.out.print(refPlan.second.getDisplayLabelDetail());
-      System.out.print(", card = ");
-      System.out.println(refPlan.second.cardinality_);
-    }
-    if (LOG.isTraceEnabled()) {
-      LOG.trace("createJoinPlan: " + leftmostRef.getUniqueAlias());
-    }
-    // the refs that have yet to be joined
-    List<Pair<TableRef, PlanNode>> remainingRefs = new ArrayList<>();
-    PlanNode root = null;  // root of accumulated join plan
-    for (Pair<TableRef, PlanNode> entry : refPlans) {
-      if (entry.first == leftmostRef) {
-        root = entry.second;
-      } else {
-        remainingRefs.add(entry);
-      }
-    }
-    Preconditions.checkNotNull(root);
-
-    // Maps from a TableRef in refPlans with an outer/semi join op to the set of
-    // TableRefs that precede it refPlans (i.e., in FROM-clause order).
-    // The map is used to place outer/semi joins at a fixed position in the plan tree
-    // (IMPALA-860), s.t. all the tables appearing to the left/right of an outer/semi
-    // join in the original query still remain to the left/right after join ordering.
-    // This prevents join re-ordering across outer/semi joins which is generally wrong.
-    Map<TableRef, Set<TableRef>> precedingRefs = new HashMap<>();
-    List<TableRef> tmpTblRefs = new ArrayList<>();
-    for (Pair<TableRef, PlanNode> entry : refPlans) {
-      TableRef tblRef = entry.first;
-      if (tblRef.getJoinOp().isOuterJoin() || tblRef.getJoinOp().isSemiJoin()) {
-        precedingRefs.put(tblRef, Sets.newHashSet(tmpTblRefs));
-      }
-      tmpTblRefs.add(tblRef);
+    public JoinPlanner(SingleNodePlanner planner, Analyzer analyzer, TableRef first,
+        List<Pair<TableRef, PlanNode>> parentRefPlans, List<SubplanRef> subplanRefs) {
+      planner_ = planner;
+      analyzer_ = analyzer;
+      left_ = first;
+      parentRefPlans_ = parentRefPlans;
+      subplanRefs_ = subplanRefs;
     }
 
-    // Refs that have been joined. The union of joinedRefs and the refs in remainingRefs
-    // are the set of all table refs.
-    Set<TableRef> joinedRefs = Sets.newHashSet(leftmostRef);
-    long numOps = 0;
-    int i = 0;
-    while (!remainingRefs.isEmpty()) {
-      System.out.println("LHS: " + root.getDisplayLabel() + " - " + root.getDisplayLabelDetail());
-      // We minimize the resulting cardinality at each step in the join chain,
-      // which minimizes the total number of hash table lookups.
-      PlanNode newRoot = null;
-      Pair<TableRef, PlanNode> minEntry = null;
-      for (Pair<TableRef, PlanNode> entry : remainingRefs) {
-        TableRef ref = entry.first;
-        JoinOperator joinOp = ref.getJoinOp();
-
-        // Place outer/semi joins at a fixed position in the plan tree.
-        Set<TableRef> requiredRefs = precedingRefs.get(ref);
-        if (requiredRefs != null) {
-          Preconditions.checkState(joinOp.isOuterJoin() || joinOp.isSemiJoin());
-          // If the required table refs have not been placed yet, do not even consider
-          // the remaining table refs to prevent incorrect re-ordering of tables across
-          // outer/semi joins.
-          if (!requiredRefs.equals(joinedRefs)) break;
-        }
-
-        analyzer.setAssignedConjuncts(root.getAssignedConjuncts());
-        PlanNode candidate = createJoinNode(root, entry.second, ref, analyzer);
-        if (candidate == null) continue;
-        if (LOG.isTraceEnabled()) {
-          LOG.trace("cardinality=" + Long.toString(candidate.getCardinality()));
-        }
-
-        // Use 'candidate' as the new root; don't consider any other table refs at this
-        // position in the plan.
-        if (joinOp.isOuterJoin() || joinOp.isSemiJoin()) {
-          newRoot = candidate;
-          minEntry = entry;
-          break;
-        }
-
-        // Always prefer Hash Join over Nested-Loop Join due to limited costing
-        // infrastructure.
-        if (newRoot == null
-            || (candidate.getClass().equals(newRoot.getClass())
-                && candidate.getCardinality() < newRoot.getCardinality())
-            || (candidate instanceof HashJoinNode
-                && newRoot instanceof NestedLoopJoinNode)) {
-          newRoot = candidate;
-          minEntry = entry;
-        }
+    public PlanNode plan() throws ImpalaException {
+      System.out.print("createJoinPlan, leftmost = ");
+      System.out.println(left_.getUniqueAlias());
+      for (Pair<TableRef, PlanNode> refPlan : parentRefPlans_) {
+        System.out.print("  ");
+        System.out.print(refPlan.first.getUniqueAlias());
+        System.out.print(" - ");
+        System.out.print(refPlan.second.getDisplayLabel());
+        System.out.print(" - ");
+        System.out.print(refPlan.second.getDisplayLabelDetail());
+        System.out.print(", card = ");
+        System.out.println(refPlan.second.cardinality_);
       }
-      if (newRoot == null) {
-        // Could not generate a valid plan.
-        return null;
-      }
-
-      // we need to insert every rhs row into the hash table and then look up
-      // every lhs row
-      long lhsCardinality = root.getCardinality();
-      long rhsCardinality = minEntry.second.getCardinality();
-      numOps += lhsCardinality + rhsCardinality;
       if (LOG.isTraceEnabled()) {
-        LOG.trace(Integer.toString(i) + " chose " + minEntry.first.getUniqueAlias()
-            + " #lhs=" + Long.toString(lhsCardinality)
-            + " #rhs=" + Long.toString(rhsCardinality)
-            + " #ops=" + Long.toString(numOps));
+        LOG.trace("createJoinPlan: " + left_.getUniqueAlias());
       }
-      remainingRefs.remove(minEntry);
-      joinedRefs.add(minEntry.first);
-      root = newRoot;
+      // the refs that have yet to be joined
+      List<Pair<TableRef, PlanNode>> remainingRefs = new ArrayList<>();
+      PlanNode root = null;  // root of accumulated join plan
+      for (Pair<TableRef, PlanNode> entry : parentRefPlans_) {
+        if (entry.first == left_) {
+          root = entry.second;
+        } else {
+          remainingRefs.add(entry);
+        }
+      }
+      Preconditions.checkNotNull(root);
+      return createJoinPlan(root, remainingRefs);
+    }
+
+    protected abstract PlanNode createJoinPlan(PlanNode root,
+        List<Pair<TableRef, PlanNode>> remainingRefs) throws ImpalaException;
+
+    protected PlanNode createSubplan(PlanNode root) throws ImpalaException {
       // Create a Subplan on top of the new root for all the subplan refs that can be
       // evaluated at this point.
       // TODO: Once we have stats on nested collections, we should consider the join
       // order in conjunction with the placement of SubplanNodes, i.e., move the creation
       // of SubplanNodes into the join-ordering loop above.
-      root = createSubplan(root, subplanRefs, false, analyzer);
+      root = planner_.createSubplan(root, subplanRefs_, false, analyzer_);
       // assign node ids after running through the possible choices in order to end up
       // with a dense sequence of node ids
-      if (root instanceof SubplanNode) root.getChild(0).setId(ctx_.getNextNodeId());
-      root.setId(ctx_.getNextNodeId());
-      analyzer.setAssignedConjuncts(root.getAssignedConjuncts());
-      ++i;
-      System.out.println("Best join: " + root.getChild(01).getDisplayLabel() + " - " + root.getChild(1).getDisplayLabelDetail());
+      if (root instanceof SubplanNode) root.getChild(0).setId(planner_.ctx_.getNextNodeId());
+      root.setId(planner_.ctx_.getNextNodeId());
+      analyzer_.setAssignedConjuncts(root.getAssignedConjuncts());
+      return root;
+    }
+  }
+
+  private static class TraditionalJoinPlanner extends JoinPlanner {
+
+    public TraditionalJoinPlanner(SingleNodePlanner planner, Analyzer analyzer, TableRef first,
+        List<Pair<TableRef, PlanNode>> parentRefPlans, List<SubplanRef> subplanRefs) {
+      super(planner, analyzer, first, parentRefPlans, subplanRefs);
     }
 
-    return root;
+    /**
+     * Returns a plan with leftmostRef's plan as its leftmost input; the joins
+     * are in decreasing order of selectiveness (percentage of rows they eliminate).
+     * Creates and adds subplan nodes as soon as the tuple ids required by at least one
+     * subplan ref are materialized by a join node added during plan generation.
+     */
+    @Override
+    protected PlanNode createJoinPlan(PlanNode root,
+        List<Pair<TableRef, PlanNode>> remainingRefs)
+        throws ImpalaException {
+
+      // Maps from a TableRef in refPlans with an outer/semi join op to the set of
+      // TableRefs that precede it refPlans (i.e., in FROM-clause order).
+      // The map is used to place outer/semi joins at a fixed position in the plan tree
+      // (IMPALA-860), s.t. all the tables appearing to the left/right of an outer/semi
+      // join in the original query still remain to the left/right after join ordering.
+      // This prevents join re-ordering across outer/semi joins which is generally wrong.
+      Map<TableRef, Set<TableRef>> precedingRefs = new HashMap<>();
+      List<TableRef> tmpTblRefs = new ArrayList<>();
+      for (Pair<TableRef, PlanNode> entry : parentRefPlans_) {
+        TableRef tblRef = entry.first;
+        if (tblRef.getJoinOp().isOuterJoin() || tblRef.getJoinOp().isSemiJoin()) {
+          precedingRefs.put(tblRef, Sets.newHashSet(tmpTblRefs));
+        }
+        tmpTblRefs.add(tblRef);
+      }
+
+      // Refs that have been joined. The union of joinedRefs and the refs in remainingRefs
+      // are the set of all table refs.
+      Set<TableRef> joinedRefs = Sets.newHashSet(left_);
+      long numOps = 0;
+      int i = 0;
+      while (!remainingRefs.isEmpty()) {
+        System.out.println("LHS: " + root.getDisplayLabel() + " - " + root.getDisplayLabelDetail());
+        // We minimize the resulting cardinality at each step in the join chain,
+        // which minimizes the total number of hash table lookups.
+        PlanNode newRoot = null;
+        Pair<TableRef, PlanNode> minEntry = null;
+        for (Pair<TableRef, PlanNode> entry : remainingRefs) {
+          TableRef ref = entry.first;
+          JoinOperator joinOp = ref.getJoinOp();
+
+          // Place outer/semi joins at a fixed position in the plan tree.
+          Set<TableRef> requiredRefs = precedingRefs.get(ref);
+          if (requiredRefs != null) {
+            Preconditions.checkState(joinOp.isOuterJoin() || joinOp.isSemiJoin());
+            // If the required table refs have not been placed yet, do not even consider
+            // the remaining table refs to prevent incorrect re-ordering of tables across
+            // outer/semi joins.
+            if (!requiredRefs.equals(joinedRefs)) break;
+          }
+
+          analyzer_.setAssignedConjuncts(root.getAssignedConjuncts());
+          PlanNode candidate = planner_.createJoinNode(root, entry.second, ref, analyzer_);
+          if (candidate == null) continue;
+          if (LOG.isTraceEnabled()) {
+            LOG.trace("cardinality=" + Long.toString(candidate.getCardinality()));
+          }
+
+          // Use 'candidate' as the new root; don't consider any other table refs at this
+          // position in the plan.
+          if (joinOp.isOuterJoin() || joinOp.isSemiJoin()) {
+            newRoot = candidate;
+            minEntry = entry;
+            break;
+          }
+
+          // Always prefer Hash Join over Nested-Loop Join due to limited costing
+          // infrastructure.
+          if (newRoot == null
+              || (candidate.getClass().equals(newRoot.getClass())
+                  && candidate.getCardinality() < newRoot.getCardinality())
+              || (candidate instanceof HashJoinNode
+                  && newRoot instanceof NestedLoopJoinNode)) {
+            newRoot = candidate;
+            minEntry = entry;
+          }
+        }
+        if (newRoot == null) {
+          // Could not generate a valid plan.
+          return null;
+        }
+
+        // we need to insert every rhs row into the hash table and then look up
+        // every lhs row
+        long lhsCardinality = root.getCardinality();
+        long rhsCardinality = minEntry.second.getCardinality();
+        numOps += lhsCardinality + rhsCardinality;
+        if (LOG.isTraceEnabled()) {
+          LOG.trace(Integer.toString(i) + " chose " + minEntry.first.getUniqueAlias()
+              + " #lhs=" + Long.toString(lhsCardinality)
+              + " #rhs=" + Long.toString(rhsCardinality)
+              + " #ops=" + Long.toString(numOps));
+        }
+        remainingRefs.remove(minEntry);
+        joinedRefs.add(minEntry.first);
+        root = newRoot;
+        root = createSubplan(root);
+        ++i;
+        System.out.println("Best join: " + root.getChild(01).getDisplayLabel() + " - " + root.getChild(1).getDisplayLabelDetail());
+      }
+
+      return root;
+    }
+
+  }
+
+  public static class DynamicJoinPlanner extends JoinPlanner {
+
+    public DynamicJoinPlanner(SingleNodePlanner planner, Analyzer analyzer, TableRef first,
+        List<Pair<TableRef, PlanNode>> parentRefPlans, List<SubplanRef> subplanRefs) {
+      super(planner, analyzer, first, parentRefPlans, subplanRefs);
+    }
+
+    @Override
+    protected PlanNode createJoinPlan(PlanNode root,
+        List<Pair<TableRef, PlanNode>> remainingRefs)
+        throws ImpalaException {
+      // Split the table refs into partitions split by OUTER or SEMI joins.
+      // Each partition has one or more table refs to be joined.
+      // OUTER and SEMI partitions have exactly one table ref. This scheme
+      // forces a partial ordering based on the presence of these join
+      // types.
+      List<List<Pair<TableRef, PlanNode>>> joinPartitions = createPartitions(remainingRefs);
+
+      // Each partition can be planned separately. Single-join partitions are trivial
+      // to plan. Multi-join partitions require dynamic programming.
+      for (int i = joinPartitions.size() - 1; i >= 0; i--) {
+        List<Pair<TableRef, PlanNode>> partition = joinPartitions.get(i);
+        if (partition.size() == 1) {
+          root = createJoin(root, partition.get(0));
+        } else {
+          root = planSubtree(root, partition);
+        }
+      }
+      return root;
+    }
+
+    private List<List<Pair<TableRef, PlanNode>>> createPartitions(List<Pair<TableRef, PlanNode>> remainingRefs) {
+      List<List<Pair<TableRef, PlanNode>>> joinPartitions = new ArrayList<>();
+      List<Pair<TableRef, PlanNode>> partition = new ArrayList<>();
+      for (Pair<TableRef, PlanNode> entry : remainingRefs) {
+        TableRef tblRef = entry.first;
+        if (tblRef.getJoinOp().isOuterJoin() || tblRef.getJoinOp().isSemiJoin()) {
+          if (! partition.isEmpty()) {
+            joinPartitions.add(partition);
+            partition = new ArrayList<>();
+          }
+        }
+        partition.add(entry);
+      }
+      if (! partition.isEmpty()) joinPartitions.add(partition);
+      return joinPartitions;
+    }
+
+    private PlanNode createJoin(PlanNode root, Pair<TableRef, PlanNode> entry) throws ImpalaException {
+      PlanNode join = planner_.createJoinNode(root, entry.second, entry.first, analyzer_);
+      return createSubplan(join);
+    }
+
+    public static class Variations {
+      PlanNode right;
+      List<Candidate> variations;
+    }
+
+    public static class Candidate {
+      PlanNode join;
+      double cost;
+
+      public Candidate(PlanNode join) {
+        this.join = join;
+        cost = join.getCardinality();
+      }
+
+      public Candidate(Candidate left, PlanNode join) {
+        this.join = join;
+        long joinCard = join.getCardinality();
+        cost = left.cost + joinCard;
+        if (join instanceof NestedLoopJoinNode) {
+          if (joinCard > 1) {
+            // Large penalty for nested loop join
+            cost += 9 * joinCard;
+          }
+        } else {
+          // Penalty for hash table size
+          cost += 4 * join.getChild(1).getCardinality();
+        }
+      }
+
+      @Override
+      public String toString() {
+        StringBuilder buf = new StringBuilder()
+            .append("")
+            .append(String.format("candidate[cost=%.3e ", cost));
+        expand(buf, join);
+        return buf.append("]").toString();
+      }
+
+      private void expand(StringBuilder buf, PlanNode node) {
+        if (node instanceof JoinNode) {
+          buf.append("(");
+          expand(buf, node.getChild(0));
+          buf.append(") >< (");
+          expand(buf, node.getChild(1));
+          buf.append(")");
+        } else {
+          buf.append(node.getDisplayLabelDetail());
+        }
+      }
+    }
+
+    private PlanNode planSubtree(PlanNode left, List<Pair<TableRef, PlanNode>> list) throws ImpalaException {
+      List<Candidate> variations = exploreSubtree(left, list);
+      Candidate best = variations.get(0);
+      System.out.println("planSubtree");
+      for (int i = 1; i < variations.size(); i++) {
+        Candidate candidate = variations.get(i);
+        System.out.print("  ");
+        System.out.println(candidate.toString());
+        if (candidate.cost < best.cost) best = candidate;
+      }
+      System.out.println("  Best: " + best.toString());
+      return best.join;
+    }
+
+    private List<Candidate> exploreSubtree(PlanNode left, List<Pair<TableRef, PlanNode>> list) throws ImpalaException {
+      int depth = this.parentRefPlans_.size() - list.size();
+      String pad = "";
+      for (int i = 0; i < depth; i++) pad += "  ";
+      System.out.print(pad + "exploreSubtree: ");
+      for (int i = 0; i < list.size(); i++) {
+        if (i > 0) System.out.print(", ");
+        System.out.print(list.get(i).second.getDisplayLabelDetail());
+      }
+      System.out.println();
+      if (list.size() == 1) {
+        return Lists.newArrayList(new Candidate(createJoin(left, list.get(0))));
+      }
+
+      // Multiple choices at this level. Explore each ordering:
+      // ( (subtree-1, c1), (subtree-2, c2), ... (subtree-n, cn) )
+      // Where subtree-i is the set of joins for candidates other
+      // than ci.
+      List<Candidate> candidates = new ArrayList<>();
+      for (int i = 0; i < list.size(); i++) {
+        Pair<TableRef, PlanNode> right = list.get(i);
+        List<Pair<TableRef, PlanNode>> remainder = new ArrayList<>();
+        for (int j = 0; j < list.size(); j++) {
+          if (j != i) remainder.add(list.get(j));
+        }
+        List<Candidate> children = exploreSubtree(left, remainder);
+        for (Candidate candidate : children) {
+          candidates.add(new Candidate(candidate, createJoin(candidate.join, right)));
+        }
+      }
+      sortCandidates(candidates);
+      if (candidates.size() <= 3) return candidates;
+      return candidates.subList(0, 3);
+    }
+
+    private void sortCandidates(List<Candidate> list) {
+      Collections.sort(list, new Comparator<Candidate>() {
+        @Override
+        public int compare(Candidate c1, Candidate c2) {
+          return Double.compare(c1.cost, c2.cost);
+        }
+      });
+    }
+
   }
 
   /**
