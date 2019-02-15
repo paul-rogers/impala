@@ -261,7 +261,7 @@ abstract public class PlanNode extends TreeNode<PlanNode> {
   protected void setDisplayName(String s) { displayName_ = s; }
 
   final protected String getDisplayLabel() {
-    return String.format("%s:%s", id_.toString(), displayName_);
+    return String.format("%s:%s", id_ == null ? "??" : id_.toString(), displayName_);
   }
 
   /**

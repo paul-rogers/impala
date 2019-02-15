@@ -389,7 +389,7 @@ public class SingleNodePlanner {
       throws ImpalaException {
     System.out.println("createCheapestJoinPlan");
     LOG.trace("createCheapestJoinPlan");
-    JoinPlanner jp = new DynamicJoinPlanner(this, analyzer, parentRefPlans, subplanRefs);
+    JoinPlanner jp = new DynamicJoinPlannerV2(this, analyzer, parentRefPlans, subplanRefs);
     return jp.plan();
   }
 

@@ -6,6 +6,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
+import org.apache.curator.shaded.com.google.common.base.Preconditions;
 import org.apache.impala.analysis.Analyzer;
 import org.apache.impala.analysis.TableRef;
 import org.apache.impala.common.ImpalaException;
@@ -29,12 +30,12 @@ public class DynamicJoinPlannerV2 extends JoinPlanner {
 
     @Override
     public boolean hasNext() {
-      return count == candidate_.unboundTableCount_;
+      return count < candidate_.unboundTableCount_;
     }
 
     @Override
     public JoinTable next() {
-      for (posn++; !candidate_.mask_[++posn]; posn++) {}
+      for (posn++; candidate_.mask_[posn]; posn++) {}
       count++;
       return list_.get(posn);
     }
@@ -42,80 +43,6 @@ public class DynamicJoinPlannerV2 extends JoinPlanner {
     @Override
     public Iterator<JoinTable> iterator() {
       return this;
-    }
-  }
-
-  /**
-   * A list of items along with a mask of items removed from the list.
-   */
-  public static class MaskList<T> implements Iterable<T> {
-    private List<T> items_;
-    private int size_;
-    private boolean[] mask_;
-
-    public MaskList(List<T> items) {
-      items_ = items;
-      size_ = items_.size();
-      mask_ = new boolean[items_.size()];
-    }
-
-    public MaskList(MaskList<T> from, int mark) {
-      items_ = from.items_;
-      size_ = from.size_ - 1;
-      mask_ = Arrays.copyOf(from.mask_, from.mask_.length);
-      mask_[mark] = true;
-    }
-
-    public int size() { return size_; }
-
-    @Override
-    public Iterable<T> iterator() {
-      return new MaskListIterator<T>(this);
-    }
-  }
-
-  public static class LeafTableIterator implements Iterator<JoinTable> {
-    private final List<JoinTable> list_;
-    private final int exclude_;
-    private int posn = -1;
-
-    public LeafTableIterator(List<JoinTable> list, int exclude) {
-      list_ = list;
-      exclude_ = exclude;
-    }
-
-    @Override
-    public boolean hasNext() {
-      if (exclude_ == list_.size()) return posn + 1 == exclude_;
-      return posn + 1 == list_.size();
-    }
-
-    @Override
-    public JoinTable next() {
-      if (++posn == exclude_) posn++;
-      return list_.get(posn);
-    }
-  }
-
-  public static class TableIterator<T> implements Iterator<T> {
-    private final MaskList<T> list_;
-    private int posn = -1;
-    private int count = 0;
-
-    public MaskListIterator(MaskList<T> list) {
-      list_ = list;
-    }
-
-    @Override
-    public boolean hasNext() {
-      return count == list_.size();
-    }
-
-    @Override
-    public T next() {
-      for (posn++; !list_.mask_[++posn]; posn++) {}
-      count++;
-      return list_.items_.get(posn);
     }
   }
 
@@ -142,10 +69,11 @@ public class DynamicJoinPlannerV2 extends JoinPlanner {
 
     public boolean[] subMask(int mark) {
       boolean mask[] = Arrays.copyOf(mask_, mask_.length);
-      mask_[mark] = true;
+      mask[mark] = true;
       return mask;
     }
 
+    public abstract PlanNode node();
     public abstract PlanNode materialize(DynamicJoinPlannerV2 planner_) throws ImpalaException;
   }
 
@@ -156,7 +84,7 @@ public class DynamicJoinPlannerV2 extends JoinPlanner {
 
     public JoinTable(int id, Pair<TableRef, PlanNode> entry, int tableCount) {
       super(entry.second.getCardinality(),
-          makeMask(id, tableCount), tableCount);
+          makeMask(id, tableCount), tableCount - 1);
       node_ = entry.second;
       id_ = id;
       tableRef = entry.first;
@@ -174,13 +102,20 @@ public class DynamicJoinPlannerV2 extends JoinPlanner {
     public PlanNode materialize(DynamicJoinPlannerV2 planner_) {
       return node_;
     }
+
+    @Override
+    public PlanNode node() { return node_; }
+    public TableRef tableRef() { return tableRef; }
+
+    @Override
+    public String toString() { return node_.toString(); }
   }
 
   public static class JoinCandidate extends Candidate {
     Candidate left_;
-    JoinNode node_;
+    PlanNode node_;
 
-    public JoinCandidate(Candidate left, JoinTable right, JoinNode node) {
+    public JoinCandidate(Candidate left, JoinTable right, PlanNode node) {
       super(computeCost(left, node), left.subMask(right.id()), left.unboundTableCount_ - 1);
       left_ = left;
       node_ = node;
@@ -228,6 +163,9 @@ public class DynamicJoinPlannerV2 extends JoinPlanner {
       planner_.createSubplan(node_);
       return node_;
     }
+
+    @Override
+    public PlanNode node() { return node_; }
   }
 
   public DynamicJoinPlannerV2(SingleNodePlanner planner, Analyzer analyzer,
@@ -237,8 +175,9 @@ public class DynamicJoinPlannerV2 extends JoinPlanner {
 
   @Override
   public PlanNode plan() throws ImpalaException {
-    // Create JoinTables
+    if (parentRefPlans_.size() == 1) return parentRefPlans_.get(0).second;
 
+    // Create Join Tables
     List<JoinTable> tables = new ArrayList<>();
     int tableCount = parentRefPlans_.size();
     for (int i = 0; i < parentRefPlans_.size(); i++) {
@@ -250,28 +189,38 @@ public class DynamicJoinPlannerV2 extends JoinPlanner {
 
     // Iterate levels from bottom to top
     for (int i = 1; i < tables.size(); i++) {
+      System.out.println("  Step: " + i);
       candidates = chooseJoin(candidates, tables);
     }
 
     // Pick best
-    return candidates.get(0).materialize(this);
+    PlanNode root = candidates.get(0).materialize(this);
+    analyzer_.setAssignedConjuncts(root.getAssignedConjuncts());
+    return root;
   }
 
   private List<Candidate> chooseLeftMost(List<JoinTable> tables) {
     List<Candidate> copy = Lists.newArrayList(tables);
     Collections.sort(copy);
-    return copy.subList(0, Math.max(3, copy.size()));
+    Collections.reverse(copy);
+    return copy.subList(0, Math.min(3, copy.size()));
   }
 
-  private List<Candidate> chooseJoin(List<Candidate> lefts, List<JoinTable> tables) {
+  private List<Candidate> chooseJoin(List<Candidate> lefts, List<JoinTable> tables) throws ImpalaException {
     List<Candidate> candidates = new ArrayList<>();
     for (Candidate left : lefts) {
+      System.out.println("    Left: " + left.toString());
       for (JoinTable right : left.iterator(tables)) {
-        JoinNode join = null;
-        candidates.add(new JoinCandidate(left, right, join));
+        Preconditions.checkNotNull(right);
+        System.out.println("    Right: " + right.toString());
+        analyzer_.setAssignedConjuncts(left.node().getAssignedConjuncts());
+        PlanNode join = planner_.createJoinNode(left.node(), right.node(), right.tableRef(), analyzer_);
+        if (join != null) {
+          candidates.add(new JoinCandidate(left, right, join));
+        }
       }
     }
     Collections.sort(candidates);
-    return candidates.subList(0, Math.max(3, candidates.size()));
+    return candidates.subList(0, Math.min(3, candidates.size()));
   }
 }
