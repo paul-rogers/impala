@@ -230,7 +230,12 @@ public class DynamicJoinPlannerV2 extends JoinPlanner {
       }
     }
     Collections.sort(candidates);
-    candidates = candidates.subList(0, Math.min(3, candidates.size()));
+    // Pick the largest cardinality table. Can't pick, say, three because
+    // if there is a large size difference between them, subsequent steps
+    // will prefer the plan with the smallest table, postponing the larger
+    // cost later which is exactly what we don't want.
+//    candidates = candidates.subList(0, Math.min(3, candidates.size()));
+    candidates = candidates.subList(0, 1);
     System.out.println("chooseLeftMost");
     return candidates;
   }
