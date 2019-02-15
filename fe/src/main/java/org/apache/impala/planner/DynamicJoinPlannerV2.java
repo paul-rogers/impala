@@ -11,6 +11,7 @@ import org.apache.impala.analysis.Analyzer;
 import org.apache.impala.analysis.TableRef;
 import org.apache.impala.common.ImpalaException;
 import org.apache.impala.common.Pair;
+import org.apache.impala.common.PrintUtils;
 import org.apache.impala.planner.SingleNodePlanner.JoinPlanner;
 import org.apache.impala.planner.SingleNodePlanner.SubplanRef;
 
@@ -73,6 +74,7 @@ public class DynamicJoinPlannerV2 extends JoinPlanner {
       return mask;
     }
 
+    public double cost() { return cost_; }
     public abstract PlanNode node();
     public abstract PlanNode materialize(DynamicJoinPlannerV2 planner_) throws ImpalaException;
   }
@@ -200,10 +202,17 @@ public class DynamicJoinPlannerV2 extends JoinPlanner {
   }
 
   private List<Candidate> chooseLeftMost(List<JoinTable> tables) {
-    List<Candidate> copy = Lists.newArrayList(tables);
-    Collections.sort(copy);
-    Collections.reverse(copy);
-    return copy.subList(0, Math.min(3, copy.size()));
+    List<Candidate> candidates = Lists.newArrayList(tables);
+    Collections.sort(candidates);
+    Collections.reverse(candidates);
+    candidates = candidates.subList(0, Math.min(3, candidates.size()));
+    System.out.println("chooseLeftMost");
+    for (int i = 0; i < candidates.size(); i++) {
+      Candidate table = candidates.get(i);
+      System.out.println(String.format("%d: %s, cost=%s",
+          i+1, table.toString(), PrintUtils.printMetric((long) table.cost())));
+    }
+    return candidates;
   }
 
   private List<Candidate> chooseJoin(List<Candidate> lefts, List<JoinTable> tables) throws ImpalaException {
@@ -221,6 +230,8 @@ public class DynamicJoinPlannerV2 extends JoinPlanner {
       }
     }
     Collections.sort(candidates);
-    return candidates.subList(0, Math.min(3, candidates.size()));
+    candidates = candidates.subList(0, Math.min(3, candidates.size()));
+    System.out.println("chooseLeftMost");
+    return candidates;
   }
 }
