@@ -334,30 +334,38 @@ public abstract class JoinNode extends PlanNode {
     Preconditions.checkState(!eqJoinConjunctSlots.isEmpty());
     Preconditions.checkState(lhsCard >= 0 && rhsCard >= 0);
 
-    long result = -1;
-    for (EqJoinConjunctScanSlots slots: eqJoinConjunctSlots) {
-      // Adjust the join selectivity based on the NDV ratio to avoid underestimating
-      // the cardinality if the PK side has a higher NDV than the FK side.
-      double ndvRatio = 1.0;
-      if (slots.lhsNdv() > 0) ndvRatio = slots.rhsNdv() / slots.lhsNdv();
-      double rhsSelectivity = Double.MIN_VALUE;
-      if (slots.rhsNumRows() > 0) rhsSelectivity = rhsCard / slots.rhsNumRows();
-      long joinCard = (long) Math.ceil(lhsCard * rhsSelectivity * ndvRatio);
-      if (result == -1) {
-        result = joinCard;
-      } else {
-        result = Math.min(result, joinCard);
-      }
-      System.out.println(String.format("  key: ndv ratio=%.3f lhs=%s, |lhs|=%s, rhs=%s, |rhs|=%s, |join|=%s",
-          ndvRatio,
-          slots.lhs_.getColumn().getName(),
-          PrintUtils.printMetric(Math.round(slots.lhsNdv())),
-          slots.rhs_.getColumn().getName(),
-          PrintUtils.printMetric(Math.round(slots.rhsNdv())),
-          PrintUtils.printMetric(joinCard)));
-    }
-    // FK/PK join cardinality must be <= the lhs cardinality.
-    result = Math.min(result, lhsCard);
+    // The code has decided that the RHS is a dimension (detail, FK) table.
+    // This means that the compound key on the RHS side is a PK: |compound key| = |table|
+    // The general rule is in this case is |join| = |LHS'| * |RHS'| / |RHS|
+    // That is, LHS is the fact table, reduced by filtering. Every fact row finds its
+    // dimension row. Except, we've removed some, so the probability of a match is the
+    // number of dimension rows scanned vs. the total number in the table.
+    double joinCard = (double) lhsCard * rhsCard / eqJoinConjunctSlots.get(0).rhsNumRows();
+    long result = Math.round(Math.min(joinCard, Long.MAX_VALUE));
+//    long result = -1;
+//    for (EqJoinConjunctScanSlots slots: eqJoinConjunctSlots) {
+//      // Adjust the join selectivity based on the NDV ratio to avoid underestimating
+//      // the cardinality if the PK side has a higher NDV than the FK side.
+//      double ndvRatio = 1.0;
+//      if (slots.lhsNdv() > 0) ndvRatio = slots.rhsNdv() / slots.lhsNdv();
+//      double rhsSelectivity = Double.MIN_VALUE;
+//      if (slots.rhsNumRows() > 0) rhsSelectivity = rhsCard / slots.rhsNumRows();
+//      long joinCard = (long) Math.ceil(lhsCard * rhsSelectivity * ndvRatio);
+//      if (result == -1) {
+//        result = joinCard;
+//      } else {
+//        result = Math.min(result, joinCard);
+//      }
+//      System.out.println(String.format("  key: ndv ratio=%.3f lhs=%s, |lhs|=%s, rhs=%s, |rhs|=%s, |join|=%s",
+//          ndvRatio,
+//          slots.lhs_.getColumn().getName(),
+//          PrintUtils.printMetric(Math.round(slots.lhsNdv())),
+//          slots.rhs_.getColumn().getName(),
+//          PrintUtils.printMetric(Math.round(slots.rhsNdv())),
+//          PrintUtils.printMetric(joinCard)));
+//    }
+//    // FK/PK join cardinality must be <= the lhs cardinality.
+//    result = Math.min(result, lhsCard);
     Preconditions.checkState(result >= 0);
     System.out.println(String.format("  fk/pk, |join|=%s", PrintUtils.printMetric(result)));
     return result;

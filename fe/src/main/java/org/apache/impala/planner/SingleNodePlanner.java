@@ -387,30 +387,17 @@ public class SingleNodePlanner {
   private PlanNode createCheapestJoinPlan(Analyzer analyzer,
       List<Pair<TableRef, PlanNode>> parentRefPlans, List<SubplanRef> subplanRefs)
       throws ImpalaException {
-    System.out.println("createCheapestJoinPlan");
+//    System.out.println("createCheapestJoinPlan");
     LOG.trace("createCheapestJoinPlan");
-    JoinPlanner jp = new DynamicJoinPlannerV2(this, analyzer, parentRefPlans, subplanRefs);
+    JoinPlanner jp = new TraditionalJoinPlanner(this, analyzer, parentRefPlans, subplanRefs);
     return jp.plan();
   }
-
-//  public static class TableSpec {
-//    public final TableRef tableRef_;
-//    public final PlanNode scanNode_;
-//    public final SubplanRef subplanRef_;
-//
-//    public TableSpec(Pair<TableRef, PlanNode> entry, SubplanRef subplanRef) {
-//      tableRef_ = entry.first;
-//      scanNode_ = entry.second;
-//      subplanRef_ = subplanRef;
-//    }
-//  }
 
   static abstract class JoinPlanner {
     protected final SingleNodePlanner planner_;
     protected final Analyzer analyzer_;
     protected final List<Pair<TableRef, PlanNode>> parentRefPlans_;
     protected final List<SubplanRef> subplanRefs_;
-//    protected final List<TableSpec> tables_ = new ArrayList<>();
 
     public JoinPlanner(SingleNodePlanner planner, Analyzer analyzer,
         List<Pair<TableRef, PlanNode>> parentRefPlans, List<SubplanRef> subplanRefs) {
@@ -418,10 +405,6 @@ public class SingleNodePlanner {
       analyzer_ = analyzer;
       parentRefPlans_ = parentRefPlans;
       subplanRefs_ = subplanRefs;
-//      Preconditions.checkArgument(parentRefPlans_.size() == subplanRefs_.size());
-//      for (int i = 0; i < parentRefPlans_.size(); i++) {
-//        tables_.add(new TableSpec(parentRefPlans_.get(i), subplanRefs_.get(i)));
-//      }
     }
 
     public abstract PlanNode plan() throws ImpalaException;
@@ -450,7 +433,7 @@ public class SingleNodePlanner {
 
     @Override
     public PlanNode plan() throws ImpalaException {
-      System.out.println("createCheapestJoinPlan");
+//      System.out.println("createCheapestJoinPlan");
       LOG.trace("createCheapestJoinPlan");
       if (parentRefPlans_.size() == 1) return parentRefPlans_.get(0).second;
 
@@ -482,16 +465,16 @@ public class SingleNodePlanner {
           LOG.trace(
               "candidate " + ref.getUniqueAlias() + ": " + materializedSize);
         }
-        System.out.print("  ");
-        System.out.print(ref.getUniqueAlias());
-        System.out.print(" - ");
-        System.out.print(plan.getDisplayLabel());
-        System.out.print(" - ");
-        System.out.print(plan.getDisplayLabelDetail());
-        System.out.print(", card = ");
-        System.out.print(plan.cardinality_);
-        System.out.print(", size = ");
-        System.out.println(materializedSize);
+//        System.out.print("  ");
+//        System.out.print(ref.getUniqueAlias());
+//        System.out.print(" - ");
+//        System.out.print(plan.getDisplayLabel());
+//        System.out.print(" - ");
+//        System.out.print(plan.getDisplayLabelDetail());
+//        System.out.print(", card = ");
+//        System.out.print(plan.cardinality_);
+//        System.out.print(", size = ");
+//        System.out.println(materializedSize);
       }
       if (candidates.isEmpty()) return null;
 
@@ -524,18 +507,18 @@ public class SingleNodePlanner {
      * @throws ImpalaException
      */
     public PlanNode createJoinPlan(TableRef left) throws ImpalaException {
-      System.out.print("createJoinPlan, leftmost = ");
-      System.out.println(left.getUniqueAlias());
-      for (Pair<TableRef, PlanNode> refPlan : parentRefPlans_) {
-        System.out.print("  ");
-        System.out.print(refPlan.first.getUniqueAlias());
-        System.out.print(" - ");
-        System.out.print(refPlan.second.getDisplayLabel());
-        System.out.print(" - ");
-        System.out.print(refPlan.second.getDisplayLabelDetail());
-        System.out.print(", card = ");
-        System.out.println(refPlan.second.cardinality_);
-      }
+//      System.out.print("createJoinPlan, leftmost = ");
+//      System.out.println(left.getUniqueAlias());
+//      for (Pair<TableRef, PlanNode> refPlan : parentRefPlans_) {
+//        System.out.print("  ");
+//        System.out.print(refPlan.first.getUniqueAlias());
+//        System.out.print(" - ");
+//        System.out.print(refPlan.second.getDisplayLabel());
+//        System.out.print(" - ");
+//        System.out.print(refPlan.second.getDisplayLabelDetail());
+//        System.out.print(", card = ");
+//        System.out.println(refPlan.second.cardinality_);
+//      }
       if (LOG.isTraceEnabled()) {
         LOG.trace("createJoinPlan: " + left.getUniqueAlias());
       }
