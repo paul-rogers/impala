@@ -334,12 +334,18 @@ public abstract class JoinNode extends PlanNode {
     Preconditions.checkState(!eqJoinConjunctSlots.isEmpty());
     Preconditions.checkState(lhsCard >= 0 && rhsCard >= 0);
 
-    // The code has decided that the RHS is a dimension (detail, FK) table.
-    // This means that the compound key on the RHS side is a PK: |compound key| = |table|
-    // The general rule is in this case is |join| = |LHS'| * |RHS'| / |RHS|
-    // That is, LHS is the fact table, reduced by filtering. Every fact row finds its
-    // dimension row. Except, we've removed some, so the probability of a match is the
-    // number of dimension rows scanned vs. the total number in the table.
+    // The code has decided that the RHS is a dimension (detail, FK) table, and
+    // that the LHS is a fact (master, FK) table.
+    // This means that the (possibly compound) key on the RHS side is a PK:
+    // |RHS key| = |RHS table|
+    // The general rule is in this case is |join| = |LHS| * |RHS| / |RHS table|
+    // (or |join| = |detail'| * |master'| / |master|
+    // That is:
+    // * Every detail row matches some master row.
+    // * If the master table is filtered (to create M'), then the probability of
+    //   a detail row finding a match is |M'| / |M|.
+    // * If the detail table is filtered (to create D'), then the number of detail
+    //   rows available to be matched is |D'|.
     double joinCard = (double) lhsCard * rhsCard / eqJoinConjunctSlots.get(0).rhsNumRows();
     long result = Math.round(Math.min(joinCard, Long.MAX_VALUE));
 //    long result = -1;
