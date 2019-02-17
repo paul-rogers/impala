@@ -19,13 +19,17 @@ package org.apache.impala.planner;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
+import org.apache.curator.shaded.com.google.common.base.Joiner;
 import org.apache.impala.analysis.Analyzer;
 import org.apache.impala.analysis.BinaryPredicate;
 import org.apache.impala.analysis.Expr;
+import org.apache.impala.analysis.ExprId;
 import org.apache.impala.analysis.JoinOperator;
 import org.apache.impala.analysis.SlotDescriptor;
 import org.apache.impala.analysis.SlotRef;
@@ -125,6 +129,9 @@ public abstract class JoinNode extends PlanNode {
     children_.add(inner);
     eqJoinConjuncts_ = eqJoinConjuncts;
     otherJoinConjuncts_ = otherJoinConjuncts;
+    addFilterConjuncts(outer.getFilterConjuncts());
+    addFilterConjuncts(inner.getFilterConjuncts());
+    addFilterConjuncts(otherJoinConjuncts_);
     computeTupleIds();
   }
 
@@ -253,16 +260,22 @@ public abstract class JoinNode extends PlanNode {
     Preconditions.checkState(joinOp_.isInnerJoin() || joinOp_.isOuterJoin());
     fkPkEqJoinConjuncts_ = Collections.emptyList();
 
-    long lhsCard = getChild(0).cardinality_;
-    long rhsCard = getChild(1).cardinality_;
+    PlanNode lhsNode = getChild(0);
+    PlanNode rhsNode = getChild(1);
+    long lhsCard = lhsNode.getCardinality();
+    long rhsCard = rhsNode.getCardinality();
     System.out.println(String.format(
         "getJoinCard: lhs = %s %s, |lhs|=%s, rhs=%s %s, |rhs|=%s",
-        getChild(0).getDisplayLabel(),
-        getChild(0).getDisplayLabelDetail(),
+        lhsNode.getDisplayLabel(),
+        lhsNode.getDisplayLabelDetail(),
         PrintUtils.printMetric(lhsCard),
-        getChild(1).getDisplayLabel(),
-        getChild(01).getDisplayLabelDetail(),
+        rhsNode.getDisplayLabel(),
+        rhsNode.getDisplayLabelDetail(),
         PrintUtils.printMetric(rhsCard)));
+    System.out.println("  lhs predicates:");
+    dumpFilters(analyzer, lhsNode);
+    System.out.println("  rhs predicates:");
+    dumpFilters(analyzer, rhsNode);
 
     if (lhsCard == -1 || rhsCard == -1) {
       // Assume FK/PK with a join selectivity of 1.
@@ -282,12 +295,61 @@ public abstract class JoinNode extends PlanNode {
       return lhsCard;
     }
 
+    // Adjust RHS cardinality to back out selectivity of predicates applied
+    // to both the LHS and RHS sides.
+    rhsCard = adjustRightCardinality(analyzer, rhsCard);
+
     fkPkEqJoinConjuncts_ = getFkPkEqJoinConjuncts(eqJoinConjunctSlots);
     if (fkPkEqJoinConjuncts_ != null) {
       return getFkPkJoinCardinality(fkPkEqJoinConjuncts_, lhsCard, rhsCard);
     } else {
       return getGenericJoinCardinality(eqJoinConjunctSlots, lhsCard, rhsCard);
     }
+  }
+
+  private void dumpFilters(Analyzer analyzer, PlanNode node) {
+    for (ExprId id : node.getFilterConjuncts()) {
+      Expr expr = analyzer.getExpr(id);
+      System.out.print("    ");
+      System.out.print(id.asInt());
+      System.out.print(": ");
+      System.out.println(expr.toSql());
+    }
+  }
+
+  /**
+   * Adjust RHS cardinality to back out selectivity of predicates applied
+   * to both the LHS and RHS sides.
+   *
+   * @param analyzer the analyzer which has an id-to-expression map
+   * @param rhsCard the unadjusted RHS cardinality
+   * @return the adjusted RHS cardinality after removing selectivity for
+   * filters applied to both sides
+   */
+  private long adjustRightCardinality(Analyzer analyzer, long rhsCard) {
+    Set<ExprId> common = new HashSet<>(getChild(0).getFilterConjuncts());
+    common.retainAll(getChild(1).getFilterConjuncts());
+    if (! common.isEmpty()) {
+      System.out.print("  Common: ");
+      List<Integer> ids = new ArrayList<>();
+      for (ExprId id : common) ids.add(id.asInt());
+      System.out.println(Joiner.on(", ").join(ids));
+    }
+    double selectivity = 1;
+    for (ExprId id : common) {
+      // Get the original expression from the analyzer. Note that the
+      // expression may be different than the one actually used when
+      // join-equivalence is used to modify the expression. This
+      // difference does not matter as it does not change selectivity.
+      selectivity *= analyzer.getExpr(id).getSelectivity();
+    }
+    // Back out the selectivity of the combined filters. This means
+    // dividing by the slectivity (0..1) to get a larger RHS cardinality.
+    long revised = selectivity == 0 ? 1 : Math.round(rhsCard / selectivity);
+    System.out.println(
+        String.format("  Common sel = %.3f, orig |rhs| = %s, adjusted |rhs| = %s",
+            selectivity, PrintUtils.printMetric(rhsCard), PrintUtils.printMetric(revised)));
+    return revised;
   }
 
   /**
@@ -688,7 +750,6 @@ public abstract class JoinNode extends PlanNode {
   }
 
   protected void orderJoinConjunctsByCost() {
-    conjuncts_ = orderConjunctsByCost(conjuncts_);
     eqJoinConjuncts_ = orderConjunctsByCost(eqJoinConjuncts_);
     otherJoinConjuncts_ = orderConjunctsByCost(otherJoinConjuncts_);
   }

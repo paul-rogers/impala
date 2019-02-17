@@ -257,10 +257,9 @@ public class HdfsScanNode extends ScanNode {
 
   // Slot that is used to record the Parquet metadata for the count(*) aggregation if
   // this scan node has the count(*) optimization enabled.
-  private SlotDescriptor countStarSlot_ = null;
+  private SlotDescriptor countStarSlot_;
 
   // Conjuncts used to trim the set of partitions passed to this node.
-  // Used only to display EXPLAIN information.
   private final List<Expr> partitionConjuncts_;
 
   /**
@@ -275,9 +274,10 @@ public class HdfsScanNode extends ScanNode {
     super(id, desc, "SCAN HDFS");
     Preconditions.checkState(desc.getTable() instanceof FeFsTable);
     tbl_ = (FeFsTable)desc.getTable();
-    conjuncts_ = conjuncts;
+    setConjuncts(conjuncts);
     partitions_ = partitions;
     partitionConjuncts_ = partConjuncts;
+    addFilterConjuncts(partitionConjuncts_);
     sampleParams_ = hdfsTblRef.getSampleParams();
     replicaPreference_ = hdfsTblRef.getReplicaPreference();
     randomReplica_ = hdfsTblRef.getRandomReplica();
@@ -338,7 +338,7 @@ public class HdfsScanNode extends ScanNode {
     if (aggInfo_ == null || !aggInfo_.hasCountStarOnly()) return false;
     if (fileFormats.size() != 1) return false;
     if (!fileFormats.contains(HdfsFileFormat.PARQUET)) return false;
-    if (!conjuncts_.isEmpty()) return false;
+    if (!getConjuncts().isEmpty()) return false;
     return desc_.getMaterializedSlots().isEmpty() || desc_.hasClusteringColsOnly();
   }
 
@@ -347,7 +347,6 @@ public class HdfsScanNode extends ScanNode {
    */
   @Override
   public void init(Analyzer analyzer) throws ImpalaException {
-    conjuncts_ = orderConjunctsByCost(conjuncts_);
     checkForSupportedFileFormats();
 
     assignCollectionConjuncts(analyzer);
@@ -472,7 +471,7 @@ public class HdfsScanNode extends ScanNode {
    */
   private void assignCollectionConjuncts(Analyzer analyzer) {
     collectionConjuncts_.clear();
-    addNotEmptyCollections(conjuncts_);
+    addNotEmptyCollections(getConjuncts());
     assignCollectionConjuncts(desc_, analyzer);
   }
 
@@ -611,7 +610,7 @@ public class HdfsScanNode extends ScanNode {
     minMaxTuple_.setPath(desc_.getPath());
 
     // Adds predicates for scalar, top-level columns.
-    for (Expr pred: conjuncts_) tryComputeMinMaxPredicate(analyzer, pred);
+    for (Expr pred : getConjuncts()) tryComputeMinMaxPredicate(analyzer, pred);
 
     // Adds predicates for collections.
     for (Map.Entry<TupleDescriptor, List<Expr>> entry: collectionConjuncts_.entrySet()) {
@@ -728,8 +727,8 @@ public class HdfsScanNode extends ScanNode {
    * dictionaryFilterConjuncts_.
    */
   private void computeDictionaryFilterConjuncts(Analyzer analyzer) {
-    for (int conjunctIdx = 0; conjunctIdx < conjuncts_.size(); ++conjunctIdx) {
-      addDictionaryFilter(analyzer, conjuncts_.get(conjunctIdx), conjunctIdx);
+    for (int conjunctIdx = 0; conjunctIdx < getConjuncts().size(); ++conjunctIdx) {
+      addDictionaryFilter(analyzer, getConjuncts().get(conjunctIdx), conjunctIdx);
     }
     for (Map.Entry<TupleDescriptor, List<Expr>> entry: collectionConjuncts_.entrySet()) {
       if (notEmptyCollections_.contains(entry.getKey())) {
@@ -1211,11 +1210,7 @@ public class HdfsScanNode extends ScanNode {
         .append(String.format("partitions=%d/%d files=%d size=%s\n",
             numPartitions_, table.getPartitions().size(), totalFiles_,
             PrintUtils.printBytes(totalBytes_)));
-      if (!conjuncts_.isEmpty()) {
-        output.append(detailPrefix)
-          .append(String.format("predicates: %s\n",
-            getExplainString(conjuncts_, detailLevel)));
-      }
+      explainPredicates(output, prefix, detailLevel);
       if (!collectionConjuncts_.isEmpty()) {
         for (Map.Entry<TupleDescriptor, List<Expr>> entry:
           collectionConjuncts_.entrySet()) {
@@ -1308,7 +1303,7 @@ public class HdfsScanNode extends ScanNode {
       TupleDescriptor tupleDescriptor = entry.getKey();
       String tupleName = "";
       if (tupleDescriptor == getTupleDesc()) {
-        conjuncts = conjuncts_;
+        conjuncts = getConjuncts();
       } else {
         conjuncts = collectionConjuncts_.get(tupleDescriptor);
         tupleName = " on " + tupleDescriptor.getAlias();

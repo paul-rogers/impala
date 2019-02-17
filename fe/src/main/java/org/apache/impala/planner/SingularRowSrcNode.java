@@ -53,7 +53,7 @@ public class SingularRowSrcNode extends PlanNode {
   public void init(Analyzer analyzer) throws ImpalaException {
     super.init(analyzer);
     outputSmap_ = containingSubplanNode_.getChild(0).getOutputSmap();
-    Preconditions.checkState(conjuncts_.isEmpty());
+    Preconditions.checkState(getConjuncts().isEmpty());
   }
 
   @Override

@@ -106,13 +106,11 @@ public class KuduScanNode extends ScanNode {
   public KuduScanNode(PlanNodeId id, TupleDescriptor desc, List<Expr> conjuncts) {
     super(id, desc, "SCAN KUDU");
     kuduTable_ = (FeKuduTable) desc_.getTable();
-    conjuncts_ = conjuncts;
+    setConjuncts(conjuncts);
   }
 
   @Override
   public void init(Analyzer analyzer) throws ImpalaRuntimeException {
-    conjuncts_ = orderConjunctsByCost(conjuncts_);
-
     KuduClient client = KuduUtil.getKuduClient(kuduTable_.getKuduMasterHosts());
     try {
       org.apache.kudu.client.KuduTable rpcTable =
@@ -123,7 +121,7 @@ public class KuduScanNode extends ScanNode {
       extractKuduConjuncts(analyzer, client, rpcTable);
 
       // Materialize the slots of the remaining conjuncts (i.e. those not pushed to Kudu)
-      analyzer.materializeSlots(conjuncts_);
+      analyzer.materializeSlots(getConjuncts());
 
       // Compute mem layout before the scan range locations because creation of the Kudu
       // scan tokens depends on having a mem layout.
@@ -251,7 +249,7 @@ public class KuduScanNode extends ScanNode {
   @Override
   protected double computeSelectivity() {
     List<Expr> allConjuncts = Lists.newArrayList(
-        Iterables.concat(conjuncts_, kuduConjuncts_));
+        Iterables.concat(getConjuncts(), kuduConjuncts_));
     return computeCombinedSelectivity(allConjuncts);
   }
 
@@ -311,14 +309,8 @@ public class KuduScanNode extends ScanNode {
       case STANDARD: // Fallthrough intended.
       case EXTENDED: // Fallthrough intended.
       case VERBOSE: {
-        if (!conjuncts_.isEmpty()) {
-          result.append(detailPrefix
-              + "predicates: " + getExplainString(conjuncts_, detailLevel) + "\n");
-        }
-        if (!kuduConjuncts_.isEmpty()) {
-          result.append(detailPrefix + "kudu predicates: "
-              + getExplainString(kuduConjuncts_, detailLevel) + "\n");
-        }
+        explainPredicates(result, prefix, detailLevel);
+        explainPredicates(result, prefix, detailLevel, "kudu predicates", kuduConjuncts_);
         if (!runtimeFilters_.isEmpty()) {
           result.append(detailPrefix + "runtime filters: ");
           result.append(getRuntimeFilterExplainString(false, detailLevel));
@@ -346,7 +338,7 @@ public class KuduScanNode extends ScanNode {
    */
   private void extractKuduConjuncts(Analyzer analyzer,
       KuduClient client, org.apache.kudu.client.KuduTable rpcTable) {
-    ListIterator<Expr> it = conjuncts_.listIterator();
+    ListIterator<Expr> it = getConjuncts().listIterator();
     while (it.hasNext()) {
       Expr predicate = it.next();
       if (tryConvertBinaryKuduPredicate(analyzer, rpcTable, predicate) ||

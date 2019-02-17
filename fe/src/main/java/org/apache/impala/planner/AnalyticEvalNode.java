@@ -20,9 +20,6 @@ package org.apache.impala.planner;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import org.apache.impala.analysis.AnalyticWindow;
 import org.apache.impala.analysis.Analyzer;
 import org.apache.impala.analysis.Expr;
@@ -34,6 +31,9 @@ import org.apache.impala.thrift.TExplainLevel;
 import org.apache.impala.thrift.TPlanNode;
 import org.apache.impala.thrift.TPlanNodeType;
 import org.apache.impala.thrift.TQueryOptions;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.google.common.base.Joiner;
 import com.google.common.base.Objects;
 import com.google.common.base.Preconditions;
@@ -106,7 +106,7 @@ public class AnalyticEvalNode extends PlanNode {
 
   @Override
   public void init(Analyzer analyzer) {
-    Preconditions.checkState(conjuncts_.isEmpty());
+    Preconditions.checkState(getConjuncts().isEmpty());
     computeMemLayout(analyzer);
     intermediateTupleDesc_.computeMemLayout();
 
@@ -233,10 +233,7 @@ public class AnalyticEvalNode extends PlanNode {
         output.append("\n");
       }
 
-      if (!conjuncts_.isEmpty()) {
-        output.append(detailPrefix
-            + "predicates: " + getExplainString(conjuncts_, detailLevel) + "\n");
-      }
+      explainPredicates(output, prefix, detailLevel);
     }
     return output.toString();
   }

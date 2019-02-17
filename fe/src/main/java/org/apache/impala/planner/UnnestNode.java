@@ -26,6 +26,7 @@ import org.apache.impala.thrift.TPlanNode;
 import org.apache.impala.thrift.TPlanNodeType;
 import org.apache.impala.thrift.TQueryOptions;
 import org.apache.impala.thrift.TUnnestNode;
+
 import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
 
@@ -56,10 +57,9 @@ public class UnnestNode extends PlanNode {
     // because they must have been assigned in the scan node materializing the
     // collection-typed slot.
     super.init(analyzer);
-    conjuncts_ = orderConjunctsByCost(conjuncts_);
 
     // Unnest is like a scan and must materialize the slots of its conjuncts.
-    analyzer.materializeSlots(conjuncts_);
+    analyzer.materializeSlots(getConjuncts());
     computeMemLayout(analyzer);
   }
 
@@ -90,10 +90,7 @@ public class UnnestNode extends PlanNode {
           "%sparent-subplan=%s\n", detailPrefix, containingSubplanNode_.getId()));
     }
     if (detailLevel.ordinal() >= TExplainLevel.STANDARD.ordinal()) {
-      if (!conjuncts_.isEmpty()) {
-        output.append(detailPrefix
-            + "predicates: " + getExplainString(conjuncts_, detailLevel) + "\n");
-      }
+      explainPredicates(output, prefix, detailLevel);
     }
     return output.toString();
   }

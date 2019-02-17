@@ -186,14 +186,9 @@ public class HashJoinNode extends JoinNode {
         }
       }
 
-      if (!otherJoinConjuncts_.isEmpty()) {
-        output.append(detailPrefix + "other join predicates: ")
-            .append(getExplainString(otherJoinConjuncts_, detailLevel) + "\n");
-      }
-      if (!conjuncts_.isEmpty()) {
-        output.append(detailPrefix + "other predicates: ")
-            .append(getExplainString(conjuncts_, detailLevel) + "\n");
-      }
+      explainPredicates(output, prefix, detailLevel,
+          "other join predicates", otherJoinConjuncts_);
+      explainPredicates(output, prefix, detailLevel, "other predicates", getConjuncts());
       if (!runtimeFilters_.isEmpty()) {
         output.append(detailPrefix + "runtime filters: ");
         output.append(getRuntimeFilterExplainString(true, detailLevel));

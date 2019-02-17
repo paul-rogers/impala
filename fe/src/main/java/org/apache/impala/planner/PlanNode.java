@@ -100,7 +100,8 @@ abstract public class PlanNode extends TreeNode<PlanNode> {
   // an outer join, which has nothing to do with the schema.
   protected Set<TupleId> nullableTupleIds_ = new HashSet<>();
 
-  protected List<Expr> conjuncts_ = new ArrayList<>();
+  private List<Expr> conjuncts_ = new ArrayList<>();
+  private Set<ExprId> filterConjuncts_ = new HashSet<>();
 
   // Fragment that this PlanNode is executed in. Valid only after this PlanNode has been
   // assigned to a fragment. Set and maintained by enclosing PlanFragment.
@@ -199,12 +200,25 @@ abstract public class PlanNode extends TreeNode<PlanNode> {
     nullableTupleIds_.clear();
   }
 
+  protected void setConjuncts(List<Expr> conjuncts) {
+    conjuncts_ = conjuncts;
+    addFilterConjuncts(conjuncts);
+    conjuncts_ = orderConjunctsByCost(conjuncts_);
+  }
+
+  protected void addFilterConjuncts(List<Expr> conjuncts) {
+    for (Expr e : conjuncts) {
+      Preconditions.checkNotNull(e.getBaseId());
+      filterConjuncts_.add(e.getBaseId());
+    }
+  }
+
+  protected void addFilterConjuncts(Set<ExprId> conjuncts) {
+    filterConjuncts_.addAll(conjuncts);
+  }
+
   public PlanNodeId getId() { return id_; }
   public List<PipelineMembership> getPipelines() { return pipelines_; }
-  public void setId(PlanNodeId id) {
-    Preconditions.checkState(id_ == null);
-    id_ = id;
-  }
   public long getLimit() { return limit_; }
   public boolean hasLimit() { return limit_ > -1; }
   public long getCardinality() { return cardinality_; }
@@ -214,9 +228,16 @@ abstract public class PlanNode extends TreeNode<PlanNode> {
   public void setFragment(PlanFragment fragment) { fragment_ = fragment; }
   public PlanFragment getFragment() { return fragment_; }
   public List<Expr> getConjuncts() { return conjuncts_; }
+  public Set<ExprId> getFilterConjuncts() { return filterConjuncts_; }
   public ExprSubstitutionMap getOutputSmap() { return outputSmap_; }
   public void setOutputSmap(ExprSubstitutionMap smap) { outputSmap_ = smap; }
   public Set<ExprId> getAssignedConjuncts() { return assignedConjuncts_; }
+
+  public void setId(PlanNodeId id) {
+    Preconditions.checkState(id_ == null);
+    id_ = id;
+  }
+
   public void setAssignedConjuncts(Set<ExprId> conjuncts) {
     assignedConjuncts_ = conjuncts;
   }
@@ -415,6 +436,21 @@ abstract public class PlanNode extends TreeNode<PlanNode> {
   protected String getNodeExplainString(String rootPrefix, String detailPrefix,
       TExplainLevel detailLevel) {
     return "";
+  }
+
+  protected void explainPredicates(StringBuilder output, String detailPrefix,
+      TExplainLevel detailLevel) {
+    explainPredicates(output, detailPrefix, detailLevel, "predicates", getConjuncts());
+  }
+
+  protected void explainPredicates(StringBuilder output, String detailPrefix,
+      TExplainLevel detailLevel, String label, List<Expr> conjuncts) {
+    if (conjuncts.isEmpty()) return;
+    output.append(detailPrefix)
+          .append(label)
+          .append(": ")
+          .append(getExplainString(getConjuncts(), detailLevel))
+          .append("\n");
   }
 
   /**

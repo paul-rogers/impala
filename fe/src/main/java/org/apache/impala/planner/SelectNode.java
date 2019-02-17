@@ -19,15 +19,14 @@ package org.apache.impala.planner;
 
 import java.util.List;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import org.apache.impala.analysis.Analyzer;
 import org.apache.impala.analysis.Expr;
 import org.apache.impala.thrift.TExplainLevel;
 import org.apache.impala.thrift.TPlanNode;
 import org.apache.impala.thrift.TPlanNodeType;
 import org.apache.impala.thrift.TQueryOptions;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.google.common.base.Preconditions;
 
@@ -40,7 +39,7 @@ public class SelectNode extends PlanNode {
   protected SelectNode(PlanNodeId id, PlanNode child, List<Expr> conjuncts) {
     super(id, "SELECT");
     addChild(child);
-    conjuncts_.addAll(conjuncts);
+    setConjuncts(conjuncts);
     computeTupleIds();
   }
 
@@ -59,8 +58,7 @@ public class SelectNode extends PlanNode {
 
   @Override
   public void init(Analyzer analyzer) {
-    analyzer.markConjunctsAssigned(conjuncts_);
-    conjuncts_ = orderConjunctsByCost(conjuncts_);
+    analyzer.markConjunctsAssigned(getConjuncts());
     computeStats(analyzer);
     createDefaultSmap(analyzer);
   }
@@ -99,10 +97,7 @@ public class SelectNode extends PlanNode {
     StringBuilder output = new StringBuilder();
     output.append(String.format("%s%s:%s\n", prefix, id_.toString(), displayName_));
     if (detailLevel.ordinal() >= TExplainLevel.STANDARD.ordinal()) {
-      if (!conjuncts_.isEmpty()) {
-        output.append(detailPrefix
-            + "predicates: " + getExplainString(conjuncts_, detailLevel) + "\n");
-      }
+      explainPredicates(output, prefix, detailLevel);
     }
     return output.toString();
   }

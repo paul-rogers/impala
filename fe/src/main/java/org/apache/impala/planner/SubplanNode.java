@@ -76,7 +76,7 @@ public class SubplanNode extends PlanNode {
     // Check that there are no unassigned conjuncts that can be evaluated by this node.
     // All such conjuncts should have already been assigned in the right child.
     assignConjuncts(analyzer);
-    Preconditions.checkState(conjuncts_.isEmpty());
+    Preconditions.checkState(getConjuncts().isEmpty());
     computeStats(analyzer);
     outputSmap_ = getChild(1).getOutputSmap();
     // Save state of assigned conjuncts for join-ordering attempts (see member comment).
@@ -137,10 +137,7 @@ public class SubplanNode extends PlanNode {
     StringBuilder output = new StringBuilder();
     output.append(String.format("%s%s\n", prefix, getDisplayLabel()));
     if (detailLevel.ordinal() >= TExplainLevel.STANDARD.ordinal()) {
-      if (!conjuncts_.isEmpty()) {
-        output.append(detailPrefix
-            + "predicates: " + getExplainString(conjuncts_, detailLevel) + "\n");
-      }
+      explainPredicates(output, prefix, detailLevel);
     }
     return output.toString();
   }

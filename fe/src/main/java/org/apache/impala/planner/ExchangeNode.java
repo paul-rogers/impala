@@ -97,7 +97,7 @@ public class ExchangeNode extends PlanNode {
   @Override
   public void init(Analyzer analyzer) throws ImpalaException {
     super.init(analyzer);
-    Preconditions.checkState(conjuncts_.isEmpty());
+    Preconditions.checkState(getConjuncts().isEmpty());
   }
 
   @Override

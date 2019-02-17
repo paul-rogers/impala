@@ -20,9 +20,6 @@ package org.apache.impala.planner;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import org.apache.impala.analysis.Analyzer;
 import org.apache.impala.analysis.BinaryPredicate;
 import org.apache.impala.analysis.BoolLiteral;
@@ -58,6 +55,9 @@ import org.apache.impala.thrift.TScanRangeLocation;
 import org.apache.impala.thrift.TScanRangeLocationList;
 import org.apache.impala.thrift.TScanRangeSpec;
 import org.apache.impala.thrift.TStatus;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.google.common.base.Joiner;
 import com.google.common.base.Objects;
 import com.google.common.base.Preconditions;
@@ -89,7 +89,7 @@ public class DataSourceScanNode extends ScanNode {
     super(id, desc, "SCAN DATA SOURCE");
     desc_ = desc;
     table_ = (FeDataSourceTable) desc_.getTable();
-    conjuncts_ = conjuncts;
+    setConjuncts(conjuncts);
     acceptedPredicates_ = null;
     acceptedConjuncts_ = null;
   }
@@ -98,10 +98,9 @@ public class DataSourceScanNode extends ScanNode {
   public void init(Analyzer analyzer) throws ImpalaException {
     checkForSupportedFileFormats();
     prepareDataSource();
-    conjuncts_ = orderConjunctsByCost(conjuncts_);
     computeStats(analyzer);
     // materialize slots in remaining conjuncts_
-    analyzer.materializeSlots(conjuncts_);
+    analyzer.materializeSlots(getConjuncts());
     computeMemLayout(analyzer);
     computeScanRangeLocations(analyzer);
   }
@@ -154,8 +153,8 @@ public class DataSourceScanNode extends ScanNode {
     List<List<TBinaryPredicate>> offeredPredicates = new ArrayList<>();
     // The index into conjuncts_ for each element in offeredPredicates.
     List<Integer> conjunctsIdx = new ArrayList<>();
-    for (int i = 0; i < conjuncts_.size(); ++i) {
-      Expr conjunct = conjuncts_.get(i);
+    for (int i = 0; i < getConjuncts().size(); ++i) {
+      Expr conjunct = getConjuncts().get(i);
       List<TBinaryPredicate> disjuncts = getDisjuncts(conjunct);
       if (disjuncts != null) {
         offeredPredicates.add(disjuncts);
@@ -304,7 +303,7 @@ public class DataSourceScanNode extends ScanNode {
     for (int i = acceptedPredicatesIdx.size() - 1; i >= 0; --i) {
       int acceptedPredIdx = acceptedPredicatesIdx.get(i);
       int conjunctIdx = conjunctsIdx.get(acceptedPredIdx);
-      acceptedConjuncts_.add(conjuncts_.remove(conjunctIdx));
+      acceptedConjuncts_.add(getConjuncts().remove(conjunctIdx));
     }
     // Returns a view of the list in the original order as we will print these
     // in the explain string and it's convenient to have predicates printed
@@ -360,10 +359,7 @@ public class DataSourceScanNode extends ScanNode {
       output.append(prefix + "data source predicates: "
           + getExplainString(acceptedConjuncts_, detailLevel) + "\n");
     }
-    if (!conjuncts_.isEmpty()) {
-      output.append(
-          prefix + "predicates: " + getExplainString(conjuncts_, detailLevel) + "\n");
-    }
+    explainPredicates(output, prefix, detailLevel);
 
     // Add table and column stats in verbose mode.
     if (detailLevel == TExplainLevel.VERBOSE) {

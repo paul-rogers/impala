@@ -22,10 +22,10 @@ import java.util.List;
 
 import org.apache.impala.analysis.Analyzer;
 import org.apache.impala.analysis.Expr;
-import org.apache.impala.analysis.TupleDescriptor;
-import org.apache.impala.analysis.TupleId;
 import org.apache.impala.analysis.SlotDescriptor;
 import org.apache.impala.analysis.SlotRef;
+import org.apache.impala.analysis.TupleDescriptor;
+import org.apache.impala.analysis.TupleId;
 import org.apache.impala.thrift.TExecNodePhase;
 import org.apache.impala.thrift.TExplainLevel;
 import org.apache.impala.thrift.TExpr;
@@ -250,7 +250,7 @@ public class UnionNode extends PlanNode {
    */
   @Override
   public void init(Analyzer analyzer) {
-    Preconditions.checkState(conjuncts_.isEmpty());
+    Preconditions.checkState(getConjuncts().isEmpty());
     computeMemLayout(analyzer);
     computeStats(analyzer);
     computePassthrough(analyzer);
@@ -308,10 +308,7 @@ public class UnionNode extends PlanNode {
     output.append(String.format("%s%s:%s\n", prefix, id_.toString(), displayName_));
     // A UnionNode may have predicates if a union is used inside an inline view,
     // and the enclosing select stmt has predicates referring to the inline view.
-    if (!conjuncts_.isEmpty()) {
-      output.append(detailPrefix
-          + "predicates: " + getExplainString(conjuncts_, detailLevel) + "\n");
-    }
+    explainPredicates(output, prefix, detailLevel);
     if (!constExprLists_.isEmpty()) {
       output.append(detailPrefix + "constant-operands=" + constExprLists_.size() + "\n");
     }

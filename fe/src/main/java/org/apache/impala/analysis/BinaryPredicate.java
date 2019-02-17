@@ -43,7 +43,7 @@ import com.google.common.collect.Lists;
  */
 public class BinaryPredicate extends Predicate {
   // true if this BinaryPredicate is inferred from slot equivalences, false otherwise.
-  private boolean isInferred_ = false;
+  private boolean isInferred_;
 
   public enum Operator {
     EQ("=", "eq", TComparisonOp.EQ),

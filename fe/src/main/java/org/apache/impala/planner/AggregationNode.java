@@ -172,12 +172,10 @@ public class AggregationNode extends PlanNode {
     // Assign conjuncts to the top-most agg in the single-node plan. They are transferred
     // to the proper place in the distributed plan via transferConjuncts().
     if (aggPhase_ == multiAggInfo_.getConjunctAssignmentPhase()) {
-      conjuncts_.clear();
       // TODO: If this is the transposition phase, then we can push conjuncts that
       // reference a single aggregation class down into the aggregators of the
       // previous phase.
-      conjuncts_.addAll(multiAggInfo_.collectConjuncts(analyzer, true));
-      conjuncts_ = orderConjunctsByCost(conjuncts_);
+      setConjuncts(multiAggInfo_.collectConjuncts(analyzer, true));
     }
 
     // Compute the mem layout for both tuples here for simplicity.
@@ -416,12 +414,7 @@ public class AggregationNode extends PlanNode {
               getAggInfoExplainString(detailPrefix + "  ", aggInfo, detailLevel));
         }
       }
-      if (!conjuncts_.isEmpty()) {
-        output.append(detailPrefix)
-            .append("having: ")
-            .append(getExplainString(conjuncts_, detailLevel))
-            .append("\n");
-      }
+      explainPredicates(output, detailPrefix, detailLevel, "having", getConjuncts());
     }
     return output.toString();
   }
@@ -437,12 +430,7 @@ public class AggregationNode extends PlanNode {
           .append(getExplainString(aggExprs, detailLevel))
           .append("\n");
     }
-    if (!groupingExprs.isEmpty()) {
-      output.append(prefix)
-          .append("group by: ")
-          .append(getExplainString(groupingExprs, detailLevel))
-          .append("\n");
-    }
+    explainPredicates(output, prefix, detailLevel, "group by", groupingExprs);
     return output;
   }
 

@@ -144,13 +144,12 @@ public class HBaseScanNode extends ScanNode {
 
     checkForSupportedFileFormats();
     assignConjuncts(analyzer);
-    conjuncts_ = orderConjunctsByCost(conjuncts_);
     setStartStopKey(analyzer);
     // Convert predicates to HBase filters_.
     createHBaseFilters(analyzer);
 
     // materialize slots in remaining conjuncts_
-    analyzer.materializeSlots(conjuncts_);
+    analyzer.materializeSlots(getConjuncts());
     computeMemLayout(analyzer);
     computeScanRangeLocations(analyzer);
     Preconditions.checkState(!scanRangeSpecs_.isSetSplit_specs());
@@ -170,7 +169,7 @@ public class HBaseScanNode extends ScanNode {
    * to construct a ValueRange, only the first one from each category is chosen.
    */
   private ValueRange createHBaseValueRange(SlotDescriptor d) {
-    ListIterator<Expr> i = conjuncts_.listIterator();
+    ListIterator<Expr> i = getConjuncts().listIterator();
     ValueRange result = null;
     while (i.hasNext()) {
       Expr e = i.next();
@@ -363,7 +362,7 @@ public class HBaseScanNode extends ScanNode {
   // TODO: expand this to generate nested filter lists for arbitrary conjunctions
   // and disjunctions.
   private void createHBaseFilters(Analyzer analyzer) {
-    for (Expr e: conjuncts_) {
+    for (Expr e: getConjuncts()) {
       // We only consider binary predicates
       if (!(e instanceof BinaryPredicate)) continue;
       BinaryPredicate bp = (BinaryPredicate) e;
@@ -559,10 +558,7 @@ public class HBaseScanNode extends ScanNode {
         }
         output.append('\n');
       }
-      if (!conjuncts_.isEmpty()) {
-        output.append(detailPrefix
-            + "predicates: " + getExplainString(conjuncts_, detailLevel) + "\n");
-      }
+      explainPredicates(output, prefix, detailLevel);
     }
     if (detailLevel.ordinal() >= TExplainLevel.EXTENDED.ordinal()) {
       output.append(getStatsExplainString(detailPrefix));

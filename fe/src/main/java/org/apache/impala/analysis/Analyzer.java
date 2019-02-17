@@ -1166,6 +1166,10 @@ public class Analyzer {
     }
   }
 
+  public Expr getExpr(ExprId id) {
+    return globalState_.conjuncts.get(id);
+  }
+
   /**
    * Create and register an auxiliary predicate to express a mutual value transfer
    * between two exprs (BinaryPredicate with EQ); this predicate does not need to be
@@ -1590,7 +1594,7 @@ public class Analyzer {
           }
           // Unset the id because this bound predicate itself is not registered, and
           // to prevent callers from inadvertently marking the srcConjunct as assigned.
-          p.setId(null);
+          p.markDerived();
           if (p instanceof BinaryPredicate) ((BinaryPredicate) p).setIsInferred();
           if (LOG.isTraceEnabled()) {
             LOG.trace("new pred: " + p.toSql() + " " + p.debugString());

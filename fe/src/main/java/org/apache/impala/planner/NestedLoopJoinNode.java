@@ -63,7 +63,7 @@ public class NestedLoopJoinNode extends JoinNode {
     super.init(analyzer);
     Preconditions.checkState(eqJoinConjuncts_.isEmpty());
     // Set the proper join operator based on whether predicates are assigned or not.
-    if (conjuncts_.isEmpty() && otherJoinConjuncts_.isEmpty() && !joinOp_.isSemiJoin() &&
+    if (getConjuncts().isEmpty() && otherJoinConjuncts_.isEmpty() && !joinOp_.isSemiJoin() &&
         !joinOp_.isOuterJoin()) {
       joinOp_ = JoinOperator.CROSS_JOIN;
     } else if (joinOp_.isCrossJoin()) {
@@ -107,10 +107,7 @@ public class NestedLoopJoinNode extends JoinNode {
         output.append(detailPrefix + "join predicates: ")
             .append(getExplainString(otherJoinConjuncts_, detailLevel) + "\n");
       }
-      if (!conjuncts_.isEmpty()) {
-        output.append(detailPrefix + "predicates: ")
-            .append(getExplainString(conjuncts_, detailLevel) + "\n");
-      }
+      explainPredicates(output, prefix, detailLevel);
     }
     return output.toString();
   }
