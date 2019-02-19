@@ -344,7 +344,7 @@ public abstract class JoinNode extends PlanNode {
       selectivity *= analyzer.getExpr(id).getSelectivity();
     }
     // Back out the selectivity of the combined filters. This means
-    // dividing by the slectivity (0..1) to get a larger RHS cardinality.
+    // dividing by the selectivity (0..1) to get a larger RHS cardinality.
     long revised = selectivity == 0 ? 1 : Math.round(rhsCard / selectivity);
     System.out.println(
         String.format("  Common sel = %.3f, orig |rhs| = %s, adjusted |rhs| = %s",
@@ -392,26 +392,38 @@ public abstract class JoinNode extends PlanNode {
    * The list of join conjuncts must be non-empty and the cardinalities must be >= 0.
    */
   private long getFkPkJoinCardinality(List<EqJoinConjunctScanSlots> eqJoinConjunctSlots,
-      long lhsCard, long rhsCard) {
+      long detailCard, long masterCard) {
     Preconditions.checkState(!eqJoinConjunctSlots.isEmpty());
-    Preconditions.checkState(lhsCard >= 0 && rhsCard >= 0);
+    Preconditions.checkState(detailCard >= 0 && masterCard >= 0);
 
     // The code has decided that the RHS is a dimension (detail, FK) table, and
     // that the LHS is a fact (master, FK) table.
     // This means that the (possibly compound) key on the RHS side is a PK:
     // |RHS key| = |RHS table|
-    // The general rule is in this case is |join| = |LHS| * |RHS| / |RHS table|
-    // (or |join| = |detail'| * |master'| / |master|
-    // That is:
+    //
     // * Every detail row matches some master row.
     // * If the master table is filtered (to create M'), then the probability of
     //   a detail row finding a match is |M'| / |M|.
     // * If the detail table is filtered (to create D'), then the number of detail
     //   rows available to be matched is |D'|.
-    double joinCard = (double) lhsCard * rhsCard / eqJoinConjunctSlots.get(0).rhsNumRows();
-    long result = Math.round(Math.min(joinCard, Long.MAX_VALUE));
+    //
+    // |D.fk'| = min( prod(|D.fki|), |M| ) * |D'| / |D|
+    //
+    //
+    //                  |D'| * |M'|
+    // |D' >< M'| = -------------------
+    //               max( |D.fk'|, |M'|)
+
 //    long result = -1;
-//    for (EqJoinConjunctScanSlots slots: eqJoinConjunctSlots) {
+    double fkCard = 1;
+    for (EqJoinConjunctScanSlots slots : eqJoinConjunctSlots) {
+      // Work around IMPALA-8094: NDV can sometimes be 0
+      fkCard *= Math.max(1, slots.lhsNdv());
+    }
+    // |fk| can't exceed |pk| by the "containment" assumption in the M:1 case
+    fkCard = Math.max(1, Math.min(fkCard, masterCard));
+    double joinCard = (double) detailCard * masterCard / Math.max(fkCard, masterCard);
+    long result = Math.round(Math.min(joinCard, Long.MAX_VALUE));
 //      // Adjust the join selectivity based on the NDV ratio to avoid underestimating
 //      // the cardinality if the PK side has a higher NDV than the FK side.
 //      double ndvRatio = 1.0;
@@ -451,36 +463,85 @@ public abstract class JoinNode extends PlanNode {
     Preconditions.checkState(!eqJoinConjunctSlots.isEmpty());
     Preconditions.checkState(lhsCard >= 0 && rhsCard >= 0);
 
-    long result = -1;
-    for (EqJoinConjunctScanSlots slots: eqJoinConjunctSlots) {
-      // Adjust the NDVs on both sides to account for predicates. Intuitively, the NDVs
-      // should only decrease. We ignore adjustments that would lead to an increase.
-      double lhsAdjNdv = slots.lhsNdv();
-      if (slots.lhsNumRows() > lhsCard) lhsAdjNdv *= lhsCard / slots.lhsNumRows();
-      double rhsAdjNdv = slots.rhsNdv();
-      if (slots.rhsNumRows() > rhsCard) rhsAdjNdv *= rhsCard / slots.rhsNumRows();
-      // A lower limit of 1 on the max Adjusted Ndv ensures we don't estimate
-      // cardinality more than the max possible. This also handles the case of
-      // null columns on both sides having an Ndv of zero (which would change
-      // after IMPALA-7310 is fixed).
-      long joinCard = Math.round((lhsCard / Math.max(1, Math.max(lhsAdjNdv, rhsAdjNdv))) *
-          rhsCard);
-      if (result == -1) {
-        result = joinCard;
-      } else {
-        result = Math.min(result, joinCard);
-      }
-      System.out.println(String.format("  key: lhs=%s, |lhs|=%s, |lhs'|=%s, rhs=%s, |rhs|=%s, |rhs'|=%s, |join|=%s",
+    //                       prod(|T.ki|)
+    // |T.k'| = |T'| * min( -------------, 1 )
+    //                           |T|
+    //
+    //
+    //                     |L’| * |R’|
+    // |L’ >< R’| = -----------------------
+    //               max( |L.k'|, |R.k'| )
+    //
+    // Where:
+    //
+    // * T = L (lhs) or R (rhs).
+    // * |T| is base table cardinality.
+    // * |T'| is scan cardinality
+    // * |T.k| is the (possibly compound) join key for table T
+    // * |T.ki| is the NDV of the i'th column of the key for table TS
+
+    double lTableCard = 1;
+    double rTableCard = 1;
+    double lKeyCard = 1;
+    double rKeyCard = 1;
+    for (EqJoinConjunctScanSlots slots : eqJoinConjunctSlots) {
+      // Work around IMPALA-8094: NDV can sometimes be 0
+      lKeyCard *= Math.max(1, slots.lhsNdv());
+      rKeyCard *= Math.max(1, slots.rhsNdv());
+      // Table cardinality is the same for all columns.
+      lTableCard = slots.lhsNumRows();
+      rTableCard = slots.rhsNumRows();
+      System.out.println(String.format("  key: lhs=%s, |L.k|=%s rhs=%s, |R.k|=%s",
           slots.lhs_.getColumn().getName(),
           PrintUtils.printMetric(Math.round(slots.lhsNdv())),
-          PrintUtils.printMetric(Math.round(lhsAdjNdv)),
           slots.rhs_.getColumn().getName(),
-          PrintUtils.printMetric(Math.round(slots.rhsNdv())),
-          PrintUtils.printMetric(Math.round(rhsAdjNdv)),
-          PrintUtils.printMetric(joinCard)));
+          PrintUtils.printMetric(Math.round(slots.rhsNdv()))));
     }
+    lTableCard = Math.max(1,  lTableCard);
+    rTableCard = Math.max(1,  rTableCard);
+    // Clamp key cardinality in range (1, |T'|)
+    lKeyCard = Math.max(1, lhsCard * Math.min(lKeyCard / lTableCard, 1));
+    rKeyCard = Math.max(1, rhsCard * Math.min(rKeyCard / rTableCard, 1));
+    double joinCard = (double) lhsCard * rhsCard / Math.max(lKeyCard, rKeyCard);
+    long result = Math.max(1, Math.round(Math.min(joinCard, Long.MAX_VALUE)));
+
+//    long result = -1;
+//    for (EqJoinConjunctScanSlots slots: eqJoinConjunctSlots) {
+//      // Adjust the NDVs on both sides to account for predicates. Intuitively, the NDVs
+//      // should only decrease. We ignore adjustments that would lead to an increase.
+//      double lhsAdjNdv = slots.lhsNdv();
+//      if (slots.lhsNumRows() > lhsCard) lhsAdjNdv *= lhsCard / slots.lhsNumRows();
+//      double rhsAdjNdv = slots.rhsNdv();
+//      if (slots.rhsNumRows() > rhsCard) rhsAdjNdv *= rhsCard / slots.rhsNumRows();
+//      // A lower limit of 1 on the max Adjusted Ndv ensures we don't estimate
+//      // cardinality more than the max possible. This also handles the case of
+//      // null columns on both sides having an Ndv of zero (which would change
+//      // after IMPALA-7310 is fixed).
+//      long joinCard = Math.round((lhsCard / Math.max(1, Math.max(lhsAdjNdv, rhsAdjNdv))) *
+//          rhsCard);
+//      if (result == -1) {
+//        result = joinCard;
+//      } else {
+//        result = Math.min(result, joinCard);
+//      }
+//      System.out.println(String.format("  key: lhs=%s, |lhs|=%s, |lhs'|=%s, rhs=%s, |rhs|=%s, |rhs'|=%s, |join|=%s",
+//          slots.lhs_.getColumn().getName(),
+//          PrintUtils.printMetric(Math.round(slots.lhsNdv())),
+//          PrintUtils.printMetric(Math.round(lhsAdjNdv)),
+//          slots.rhs_.getColumn().getName(),
+//          PrintUtils.printMetric(Math.round(slots.rhsNdv())),
+//          PrintUtils.printMetric(Math.round(rhsAdjNdv)),
+//          PrintUtils.printMetric(joinCard)));
+//    }
+    System.out.println(String.format("  generic: |L|=%s, |L'|=%s, |L.k'|=%s |R|=%s, |R'|=%s, |R.k'|=%s, |join|=%s",
+      PrintUtils.printMetric(Math.round(lTableCard)),
+      PrintUtils.printMetric(lhsCard),
+      PrintUtils.printMetric(Math.round(lKeyCard)),
+      PrintUtils.printMetric(Math.round(rTableCard)),
+      PrintUtils.printMetric(rhsCard),
+      PrintUtils.printMetric(Math.round(rKeyCard)),
+      PrintUtils.printMetric(result)));
     Preconditions.checkState(result >= 0);
-    System.out.println(String.format("  generic, |join|=%s", PrintUtils.printMetric(result)));
     return result;
   }
 

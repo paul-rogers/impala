@@ -604,9 +604,15 @@ public class SingleNodePlanner {
 
           // Always prefer Hash Join over Nested-Loop Join due to limited costing
           // infrastructure.
+          // When cardinalities are similar, prefer narrower rows to postpone the
+          // largest rows until later in the query. This occurs in a long chain of
+          // fact table joins to dimension tables.
+          double oldTableSize = Long.MAX_VALUE;
+          if (newRoot != null) oldTableSize = newRoot.getCardinality() * newRoot.getAvgRowSize();
+          double newTableSize = candidate.getCardinality() * candidate.getAvgRowSize();
           if (newRoot == null
               || (candidate.getClass().equals(newRoot.getClass())
-                  && candidate.getCardinality() < newRoot.getCardinality())
+                  && newTableSize < oldTableSize)
               || (candidate instanceof HashJoinNode
                   && newRoot instanceof NestedLoopJoinNode)) {
             newRoot = candidate;
