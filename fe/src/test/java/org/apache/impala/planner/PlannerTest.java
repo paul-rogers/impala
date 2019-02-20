@@ -54,7 +54,8 @@ public class PlannerTest extends PlannerTestBase {
    */
   @Test
   public void testScanCardinality() {
-    runPlannerTestFile("card-scan");
+    runPlannerTestFile("card-scan",
+        ImmutableSet.of(PlannerTestOption.VALIDATE_CARDINALITY));
   }
 
   /**
@@ -62,7 +63,8 @@ public class PlannerTest extends PlannerTestBase {
    */
   @Test
   public void testInnerJoinCardinality() {
-    runPlannerTestFile("card-inner-join");
+    runPlannerTestFile("card-inner-join",
+        ImmutableSet.of(PlannerTestOption.VALIDATE_CARDINALITY));
   }
 
   /**
@@ -70,7 +72,8 @@ public class PlannerTest extends PlannerTestBase {
    */
   @Test
   public void testOuterJoinCardinality() {
-    runPlannerTestFile("card-outer-join");
+    runPlannerTestFile("card-outer-join",
+        ImmutableSet.of(PlannerTestOption.VALIDATE_CARDINALITY));
   }
 
   /**
@@ -78,7 +81,8 @@ public class PlannerTest extends PlannerTestBase {
    */
   @Test
   public void testMultiJoinCardinality() {
-    runPlannerTestFile("card-multi-join");
+    runPlannerTestFile("card-multi-join",
+        ImmutableSet.of(PlannerTestOption.VALIDATE_CARDINALITY));
   }
 
   @Test

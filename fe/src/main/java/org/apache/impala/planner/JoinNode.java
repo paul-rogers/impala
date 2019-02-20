@@ -34,6 +34,7 @@ import org.apache.impala.catalog.ColumnStats;
 import org.apache.impala.catalog.FeTable;
 import org.apache.impala.common.ImpalaException;
 import org.apache.impala.common.Pair;
+import org.apache.impala.common.PrintUtils;
 import org.apache.impala.thrift.TExecNodePhase;
 import org.apache.impala.thrift.TJoinDistributionMode;
 import org.apache.impala.thrift.TQueryOptions;
@@ -229,15 +230,7 @@ public abstract class JoinNode extends PlanNode {
    * selectivity of 1.
    *
    * FK/PK estimation:
-   * cardinality = |child(0)| * (|child(1)| / |R|) * (NDV(R.d) / NDV(L.c))
-   * - the cardinality of a FK/PK must be <= |child(0)|
-   * - |child(1)| / |R| captures the reduction in join cardinality due to
-   *   predicates on the PK side
-   * - NDV(R.d) / NDV(L.c) adjusts the join cardinality to avoid underestimation
-   *   due to an independence assumption if the PK side has a higher NDV than the FK
-   *   side. The rationale is that rows filtered from the PK side do not necessarily
-   *   have a match on the FK side, and therefore would not affect the join cardinality.
-   *   TODO: Revisit this pessimistic adjustment that tends to overestimate.
+   * See comment in getFkPkJoinCardinality()
    *
    * Generic estimation:
    * cardinality = |child(0)| * |child(1)| / max(NDV(L.c), NDV(R.d))
@@ -252,8 +245,20 @@ public abstract class JoinNode extends PlanNode {
     Preconditions.checkState(joinOp_.isInnerJoin() || joinOp_.isOuterJoin());
     fkPkEqJoinConjuncts_ = Collections.emptyList();
 
-    long lhsCard = getChild(0).cardinality_;
-    long rhsCard = getChild(1).cardinality_;
+    PlanNode lhsNode = getChild(0);
+    PlanNode rhsNode = getChild(1);
+    long lhsCard = lhsNode.getCardinality();
+    long rhsCard = rhsNode.getCardinality();
+    if (LOG.isTraceEnabled()) {
+      LOG.trace(String.format(
+          "getJoinCard: lhs = %s %s, |lhs'|=%s, rhs=%s %s, |rhs'|=%s",
+          lhsNode.getDisplayLabel(),
+          lhsNode.getDisplayLabelDetail(),
+          PrintUtils.printMetric(lhsCard),
+          rhsNode.getDisplayLabel(),
+          rhsNode.getDisplayLabelDetail(),
+          PrintUtils.printMetric(rhsCard)));
+    }
     if (lhsCard == -1 || rhsCard == -1) {
       // Assume FK/PK with a join selectivity of 1.
       return lhsCard;
@@ -318,30 +323,125 @@ public abstract class JoinNode extends PlanNode {
    * given list of equi-join conjunct slots and the join input cardinalities.
    * The returned result is >= 0.
    * The list of join conjuncts must be non-empty and the cardinalities must be >= 0.
+   *
+   * By definition, the detail (fk) table is on the left, the master (pk) table
+   * is on the right.
+   *
+   * The only real difference between this case and the "generic" case is that we
+   * can assume a cap on the NDV of a joint FK: it must be no larger than the NDV
+   * of the FK, which is (by definition) the same as the master table cardinality.
+   *
+   * Calculations make three standard assumptions:
+   *
+   * 1. Uniformity: keys are evenly distributed.
+   * 2. Independence: any filters applied on the base table are independent of
+   *    the join keys and thus sample keys randomly.
+   * 3. Containment: that if the FK side has fewer keys than the PK side, all
+   *    the FK keys match.
+   *
+   * Obviously, these are not correct in all scenarios. But, at present, we
+   * don't have the means to determine when they don't apply.
    */
   private long getFkPkJoinCardinality(List<EqJoinConjunctScanSlots> eqJoinConjunctSlots,
-      long lhsCard, long rhsCard) {
+      long detailCard, long masterCard) {
     Preconditions.checkState(!eqJoinConjunctSlots.isEmpty());
-    Preconditions.checkState(lhsCard >= 0 && rhsCard >= 0);
+    Preconditions.checkState(detailCard >= 0 && masterCard >= 0);
 
-    long result = -1;
-    for (EqJoinConjunctScanSlots slots: eqJoinConjunctSlots) {
-      // Adjust the join selectivity based on the NDV ratio to avoid underestimating
-      // the cardinality if the PK side has a higher NDV than the FK side.
-      double ndvRatio = 1.0;
-      if (slots.lhsNdv() > 0) ndvRatio = slots.rhsNdv() / slots.lhsNdv();
-      double rhsSelectivity = Double.MIN_VALUE;
-      if (slots.rhsNumRows() > 0) rhsSelectivity = rhsCard / slots.rhsNumRows();
-      long joinCard = (long) Math.ceil(lhsCard * rhsSelectivity * ndvRatio);
-      if (result == -1) {
-        result = joinCard;
-      } else {
-        result = Math.min(result, joinCard);
-      }
+    // The code has decided that the LHS is a dimension (detail, FK) table, and
+    // that the RHS is a fact (master, FK) table.
+    // This means that the (possibly compound) key on the RHS side is a PK:
+    // |RHS key| = |RHS table|
+    //
+    // * In the typical case, very base table detail row matches some base
+    //   table master row.
+    // * If the master table is filtered (to create M'), then the probability of
+    //   a detail row finding a match is |M'| / |M|.
+    // * If the detail table is filtered (to create D'), then the probability of
+    //   a detail row finding a match is |D'| / |N| and the number of detail
+    //   rows available to be matched is |D'|.
+    //
+    // The foreign key may be compound (composed of two or more columns.) If so,
+    // we compute the filtered foreign key as:
+    //
+    // |D.fk'| = min( prod(|D.fki|), |M| ) * |D'| / |D|
+    //
+    // if the foreign key is simple (not compound), then the calculation is:
+    //
+    // |D.fk'| = |D.fk| * |D'| / |D"
+    //
+    // Overall join cardinality is the textbook formula, using the filtered
+    // table and key cardinalities:s
+    //
+    //                  |D'| * |M'|
+    // |D' >< M'| = -------------------
+    //               max( |D.fk'|, |M'|)
+    double fkCard;
+    EqJoinConjunctScanSlots firstSlot = eqJoinConjunctSlots.get(0);
+    double detailTableCard = firstSlot.lhsNumRows();
+    double masterTableCard = firstSlot.rhsNumRows();
+    if (LOG.isTraceEnabled()) {
+      LOG.trace(String.format("  tables: |lhs|=%s |rhs|=%s",
+          PrintUtils.printMetric(Math.round(detailTableCard)),
+          PrintUtils.printMetric(Math.round(masterTableCard))));
     }
-    // FK/PK join cardinality must be <= the lhs cardinality.
-    result = Math.min(result, lhsCard);
+    if (eqJoinConjunctSlots.size() == 1) {
+      // Single-column key case: just use the column's NDV.
+      fkCard = Math.max(1, firstSlot.lhsNdv());
+      if (LOG.isTraceEnabled()) {
+        LOG.trace(String.format("  key: lhs=%s, |L.k|=%s rhs=%s, |R.k|=%s",
+            firstSlot.lhs_.getColumn().getName(),
+            PrintUtils.printMetric(Math.round(firstSlot.lhsNdv())),
+            firstSlot.rhs_.getColumn().getName(),
+            PrintUtils.printMetric(Math.round(firstSlot.rhsNdv()))));
+      }
+   } else {
+      // Compound key, must handle possibly correlated columns.
+      // |fk| is a crude estimate, so adjust to keep in reasonable range.
+      fkCard = 1;
+      double largestKeyCard = 0;
+      for (EqJoinConjunctScanSlots slots : eqJoinConjunctSlots) {
+        // Work around IMPALA-8094: NDV can sometimes be 0
+        fkCard *= Math.max(1, slots.lhsNdv());
+        largestKeyCard = Math.max(largestKeyCard, slots.lhsNdv());
+        if (LOG.isTraceEnabled()) {
+          LOG.trace(String.format("  key: lhs=%s, |L.k|=%s rhs=%s, |R.k|=%s",
+              slots.lhs_.getColumn().getName(),
+              PrintUtils.printMetric(Math.round(slots.lhsNdv())),
+              slots.rhs_.getColumn().getName(),
+              PrintUtils.printMetric(Math.round(slots.rhsNdv()))));
+        }
+      }
+      // |fk| can't exceed the detail table cardinality (this helps
+      // limit the |fk| when the join columns are not independent, as in many of
+      // the unit tests.)
+      fkCard = Math.min(fkCard, detailTableCard);
+      // |fk| can't exceed |pk| by the "containment" assumption in the M:1 case
+      // And |pk| = |M| by definition of a primary key.
+      // Only applies if the detail table has more rows than the master table.
+      // However, the compound key can't be any smaller than largest NDV
+      // of its component columns.
+      fkCard = Math.min(fkCard, masterTableCard);
+      // |fk| can't be any smaller than the largest NDV of its component
+      // columns. (If is probably larger, but we can't tell.)
+      // Yes, this may push |fk| > |M|, but that's what the data says.
+      fkCard = Math.max(fkCard, largestKeyCard);
+    }
+    if (LOG.isTraceEnabled()) {
+      LOG.trace(String.format("  |f.k|=%s",
+          PrintUtils.printMetric(Math.round(fkCard))));
+    }
+    // Scale by the selectivity of the detail scan filter
+    // TODO: Should use the bin model. IMPALA-8218
+    // This gives |fk'|: the reduced foreign key NDV resulting from the scan
+    fkCard = Math.max(1, fkCard * Math.min(1, detailCard / detailTableCard));
+    double joinCard = (double) detailCard * masterCard / Math.max(fkCard, masterCard);
+    long result = (long) Math.ceil(Math.min(joinCard, Long.MAX_VALUE));
     Preconditions.checkState(result >= 0);
+    if (LOG.isTraceEnabled()) {
+      LOG.trace(String.format("  fk/pk, |fk'|=%s, |join|=%s",
+          PrintUtils.printMetric(Math.round(fkCard)),
+          PrintUtils.printMetric(result)));
+    }
     return result;
   }
 
@@ -551,6 +651,11 @@ public abstract class JoinNode extends PlanNode {
   @Override
   public void computeStats(Analyzer analyzer) {
     super.computeStats(analyzer);
+    // Called twice. Skip second call unless the limit changed.
+    if (cardinality_ > -1) {
+      cardinality_ = capCardinalityAtLimit(cardinality_);
+      return;
+    }
     if (joinOp_.isSemiJoin()) {
       cardinality_ = getSemiJoinCardinality();
     } else if (joinOp_.isInnerJoin() || joinOp_.isOuterJoin()){

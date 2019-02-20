@@ -32,12 +32,12 @@ PLAN-ROOT SINK
 05:AGGREGATE [FINALIZE]
 |  output: sum(l_extendedprice * (1 - l_discount))
 |  group by: l_orderkey, o_orderdate, o_shippriority
-|  row-size=50B cardinality=17.56K
+|  row-size=50B cardinality=457.36K
 |
 04:HASH JOIN [INNER JOIN]
 |  hash predicates: o.o_custkey = c.c_custkey
 |  runtime filters: RF000 <- c.c_custkey
-|  row-size=117B cardinality=17.56K
+|  row-size=117B cardinality=457.36K
 |
 |--00:SCAN HDFS [tpch.customer c]
 |     partitions=1/1 files=1 size=23.08MB
@@ -47,7 +47,7 @@ PLAN-ROOT SINK
 03:HASH JOIN [INNER JOIN]
 |  hash predicates: l.l_orderkey = o.o_orderkey
 |  runtime filters: RF002 <- o.o_orderkey
-|  row-size=88B cardinality=57.58K
+|  row-size=88B cardinality=575.77K
 |
 |--01:SCAN HDFS [tpch.orders o]
 |     partitions=1/1 files=1 size=162.56MB
@@ -74,19 +74,19 @@ PLAN-ROOT SINK
 10:AGGREGATE [FINALIZE]
 |  output: sum:merge(l_extendedprice * (1 - l_discount))
 |  group by: l_orderkey, o_orderdate, o_shippriority
-|  row-size=50B cardinality=17.56K
+|  row-size=50B cardinality=457.36K
 |
 09:EXCHANGE [HASH(l_orderkey,o_orderdate,o_shippriority)]
 |
 05:AGGREGATE [STREAMING]
 |  output: sum(l_extendedprice * (1 - l_discount))
 |  group by: l_orderkey, o_orderdate, o_shippriority
-|  row-size=50B cardinality=17.56K
+|  row-size=50B cardinality=457.36K
 |
 04:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: o.o_custkey = c.c_custkey
 |  runtime filters: RF000 <- c.c_custkey
-|  row-size=117B cardinality=17.56K
+|  row-size=117B cardinality=457.36K
 |
 |--08:EXCHANGE [BROADCAST]
 |  |
@@ -98,7 +98,7 @@ PLAN-ROOT SINK
 03:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: l.l_orderkey = o.o_orderkey
 |  runtime filters: RF002 <- o.o_orderkey
-|  row-size=88B cardinality=57.58K
+|  row-size=88B cardinality=575.77K
 |
 |--07:EXCHANGE [BROADCAST]
 |  |
@@ -968,7 +968,7 @@ PLAN-ROOT SINK
 10:HASH JOIN [INNER JOIN]
 |  hash predicates: t5.id = t4.id
 |  runtime filters: RF000 <- t4.id
-|  row-size=24B cardinality=7
+|  row-size=24B cardinality=9
 |
 |--09:HASH JOIN [INNER JOIN]
 |  |  hash predicates: t4.id = t6.id
@@ -986,7 +986,7 @@ PLAN-ROOT SINK
 |  |--07:HASH JOIN [INNER JOIN]
 |  |  |  hash predicates: t3.id = t2.id
 |  |  |  runtime filters: RF004 <- t2.id
-|  |  |  row-size=12B cardinality=1
+|  |  |  row-size=12B cardinality=8
 |  |  |
 |  |  |--06:HASH JOIN [INNER JOIN]
 |  |  |  |  hash predicates: t2.id = t1.id
@@ -1034,57 +1034,58 @@ PLAN-ROOT SINK
 |  output: count(*)
 |  row-size=8B cardinality=1
 |
-12:HASH JOIN [LEFT OUTER JOIN]
-|  hash predicates: t6.id = t5.id
+12:HASH JOIN [RIGHT OUTER JOIN]
+|  hash predicates: t5.id = t6.id
+|  runtime filters: RF000 <- t6.id
 |  row-size=20B cardinality=8
 |
-|--11:HASH JOIN [INNER JOIN]
-|  |  hash predicates: t5.id = t3.id
-|  |  runtime filters: RF000 <- t3.id
-|  |  row-size=16B cardinality=1
-|  |
-|  |--10:HASH JOIN [RIGHT SEMI JOIN]
-|  |  |  hash predicates: t4.id = t3.id
-|  |  |  runtime filters: RF002 <- t3.id
-|  |  |  row-size=12B cardinality=1
-|  |  |
-|  |  |--09:HASH JOIN [INNER JOIN]
-|  |  |  |  hash predicates: t3.id = t2.id
-|  |  |  |  runtime filters: RF004 <- t2.id
-|  |  |  |  row-size=12B cardinality=1
-|  |  |  |
-|  |  |  |--08:HASH JOIN [RIGHT OUTER JOIN]
-|  |  |  |  |  hash predicates: t2.id = t1.id
-|  |  |  |  |  runtime filters: RF006 <- t1.id
-|  |  |  |  |  row-size=8B cardinality=8
-|  |  |  |  |
-|  |  |  |  |--00:SCAN HDFS [functional.alltypestiny t1]
-|  |  |  |  |     partitions=4/4 files=4 size=460B
-|  |  |  |  |     row-size=4B cardinality=8
-|  |  |  |  |
-|  |  |  |  01:SCAN HDFS [functional.alltypes t2]
-|  |  |  |     partitions=24/24 files=24 size=478.45KB
-|  |  |  |     runtime filters: RF006 -> t2.id
-|  |  |  |     row-size=4B cardinality=7.30K
-|  |  |  |
-|  |  |  02:SCAN HDFS [functional.alltypessmall t3]
-|  |  |     partitions=4/4 files=4 size=6.32KB
-|  |  |     runtime filters: RF004 -> t3.id
-|  |  |     row-size=4B cardinality=100
-|  |  |
-|  |  03:SCAN HDFS [functional.alltypesagg t4]
-|  |     partitions=11/11 files=11 size=814.73KB
-|  |     runtime filters: RF002 -> t4.id
-|  |     row-size=4B cardinality=11.00K
-|  |
-|  04:SCAN HDFS [functional.alltypes t5]
-|     partitions=24/24 files=24 size=478.45KB
-|     runtime filters: RF000 -> t5.id
-|     row-size=4B cardinality=7.30K
+|--05:SCAN HDFS [functional.alltypestiny t6]
+|     partitions=4/4 files=4 size=460B
+|     row-size=4B cardinality=8
 |
-05:SCAN HDFS [functional.alltypestiny t6]
-   partitions=4/4 files=4 size=460B
-   row-size=4B cardinality=8
+11:HASH JOIN [INNER JOIN]
+|  hash predicates: t5.id = t3.id
+|  runtime filters: RF002 <- t3.id
+|  row-size=16B cardinality=8
+|
+|--10:HASH JOIN [RIGHT SEMI JOIN]
+|  |  hash predicates: t4.id = t3.id
+|  |  runtime filters: RF004 <- t3.id
+|  |  row-size=12B cardinality=8
+|  |
+|  |--09:HASH JOIN [INNER JOIN]
+|  |  |  hash predicates: t3.id = t2.id
+|  |  |  runtime filters: RF006 <- t2.id
+|  |  |  row-size=12B cardinality=8
+|  |  |
+|  |  |--08:HASH JOIN [RIGHT OUTER JOIN]
+|  |  |  |  hash predicates: t2.id = t1.id
+|  |  |  |  runtime filters: RF008 <- t1.id
+|  |  |  |  row-size=8B cardinality=8
+|  |  |  |
+|  |  |  |--00:SCAN HDFS [functional.alltypestiny t1]
+|  |  |  |     partitions=4/4 files=4 size=460B
+|  |  |  |     row-size=4B cardinality=8
+|  |  |  |
+|  |  |  01:SCAN HDFS [functional.alltypes t2]
+|  |  |     partitions=24/24 files=24 size=478.45KB
+|  |  |     runtime filters: RF000 -> t2.id, RF008 -> t2.id
+|  |  |     row-size=4B cardinality=7.30K
+|  |  |
+|  |  02:SCAN HDFS [functional.alltypessmall t3]
+|  |     partitions=4/4 files=4 size=6.32KB
+|  |     runtime filters: RF000 -> t3.id, RF006 -> t3.id
+|  |     row-size=4B cardinality=100
+|  |
+|  03:SCAN HDFS [functional.alltypesagg t4]
+|     partitions=11/11 files=11 size=814.73KB
+|     runtime filters: RF000 -> t4.id, RF004 -> t4.id
+|     row-size=4B cardinality=11.00K
+|
+04:SCAN HDFS [functional.alltypes t5]
+   partitions=24/24 files=24 size=478.45KB
+   runtime filters: RF000 -> t5.id, RF002 -> t5.id
+   row-size=4B cardinality=7.30K
 ====
 # Check that a join in between outer/semi joins is re-ordered correctly.
 # We expect t4 is joined before t3.
@@ -1103,58 +1104,57 @@ PLAN-ROOT SINK
 |  row-size=8B cardinality=1
 |
 12:HASH JOIN [INNER JOIN]
-|  hash predicates: t6.id = t3.id
-|  runtime filters: RF000 <- t3.id
-|  row-size=20B cardinality=1
+|  hash predicates: t3.id = t6.id
+|  runtime filters: RF000 <- t6.id
+|  row-size=20B cardinality=9
 |
-|--11:HASH JOIN [RIGHT SEMI JOIN]
-|  |  hash predicates: t5.id = t4.id
-|  |  runtime filters: RF002 <- t4.id
-|  |  row-size=16B cardinality=1
-|  |
-|  |--10:HASH JOIN [INNER JOIN]
-|  |  |  hash predicates: t3.id = t2.id
-|  |  |  runtime filters: RF004 <- t2.id
-|  |  |  row-size=16B cardinality=1
-|  |  |
-|  |  |--09:HASH JOIN [INNER JOIN]
-|  |  |  |  hash predicates: t4.id = t2.id
-|  |  |  |  runtime filters: RF006 <- t2.id
-|  |  |  |  row-size=12B cardinality=1
-|  |  |  |
-|  |  |  |--08:HASH JOIN [RIGHT OUTER JOIN]
-|  |  |  |  |  hash predicates: t2.id = t1.id
-|  |  |  |  |  runtime filters: RF008 <- t1.id
-|  |  |  |  |  row-size=8B cardinality=8
-|  |  |  |  |
-|  |  |  |  |--00:SCAN HDFS [functional.alltypestiny t1]
-|  |  |  |  |     partitions=4/4 files=4 size=460B
-|  |  |  |  |     row-size=4B cardinality=8
-|  |  |  |  |
-|  |  |  |  01:SCAN HDFS [functional.alltypes t2]
-|  |  |  |     partitions=24/24 files=24 size=478.45KB
-|  |  |  |     runtime filters: RF008 -> t2.id
-|  |  |  |     row-size=4B cardinality=7.30K
-|  |  |  |
-|  |  |  03:SCAN HDFS [functional.alltypessmall t4]
-|  |  |     partitions=4/4 files=4 size=6.32KB
-|  |  |     runtime filters: RF006 -> t4.id
-|  |  |     row-size=4B cardinality=100
-|  |  |
-|  |  02:SCAN HDFS [functional.alltypesagg t3]
-|  |     partitions=11/11 files=11 size=814.73KB
-|  |     runtime filters: RF004 -> t3.id
-|  |     row-size=4B cardinality=11.00K
-|  |
-|  04:SCAN HDFS [functional.alltypes t5]
-|     partitions=24/24 files=24 size=478.45KB
-|     runtime filters: RF002 -> t5.id
-|     row-size=4B cardinality=7.30K
+|--05:SCAN HDFS [functional.alltypestiny t6]
+|     partitions=4/4 files=4 size=460B
+|     row-size=4B cardinality=8
 |
-05:SCAN HDFS [functional.alltypestiny t6]
-   partitions=4/4 files=4 size=460B
-   runtime filters: RF000 -> t6.id
-   row-size=4B cardinality=8
+11:HASH JOIN [RIGHT SEMI JOIN]
+|  hash predicates: t5.id = t4.id
+|  runtime filters: RF002 <- t4.id
+|  row-size=16B cardinality=9
+|
+|--10:HASH JOIN [INNER JOIN]
+|  |  hash predicates: t3.id = t2.id
+|  |  runtime filters: RF004 <- t2.id
+|  |  row-size=16B cardinality=9
+|  |
+|  |--09:HASH JOIN [INNER JOIN]
+|  |  |  hash predicates: t4.id = t2.id
+|  |  |  runtime filters: RF006 <- t2.id
+|  |  |  row-size=12B cardinality=8
+|  |  |
+|  |  |--08:HASH JOIN [RIGHT OUTER JOIN]
+|  |  |  |  hash predicates: t2.id = t1.id
+|  |  |  |  runtime filters: RF008 <- t1.id
+|  |  |  |  row-size=8B cardinality=8
+|  |  |  |
+|  |  |  |--00:SCAN HDFS [functional.alltypestiny t1]
+|  |  |  |     partitions=4/4 files=4 size=460B
+|  |  |  |     row-size=4B cardinality=8
+|  |  |  |
+|  |  |  01:SCAN HDFS [functional.alltypes t2]
+|  |  |     partitions=24/24 files=24 size=478.45KB
+|  |  |     runtime filters: RF000 -> t2.id, RF008 -> t2.id
+|  |  |     row-size=4B cardinality=7.30K
+|  |  |
+|  |  03:SCAN HDFS [functional.alltypessmall t4]
+|  |     partitions=4/4 files=4 size=6.32KB
+|  |     runtime filters: RF000 -> t4.id, RF006 -> t4.id
+|  |     row-size=4B cardinality=100
+|  |
+|  02:SCAN HDFS [functional.alltypesagg t3]
+|     partitions=11/11 files=11 size=814.73KB
+|     runtime filters: RF000 -> t3.id, RF004 -> t3.id
+|     row-size=4B cardinality=11.00K
+|
+04:SCAN HDFS [functional.alltypes t5]
+   partitions=24/24 files=24 size=478.45KB
+   runtime filters: RF000 -> t5.id, RF002 -> t5.id
+   row-size=4B cardinality=7.30K
 ====
 # Same above but using an anti join instead of a semi join.
 select count(*) from
@@ -1172,56 +1172,56 @@ PLAN-ROOT SINK
 |  row-size=8B cardinality=1
 |
 12:HASH JOIN [INNER JOIN]
-|  hash predicates: t6.id = t3.id
-|  runtime filters: RF000 <- t3.id
-|  row-size=20B cardinality=1
+|  hash predicates: t3.id = t6.id
+|  runtime filters: RF000 <- t6.id
+|  row-size=20B cardinality=9
 |
-|--11:HASH JOIN [RIGHT ANTI JOIN]
-|  |  hash predicates: t5.id = t4.id
-|  |  row-size=16B cardinality=1
-|  |
-|  |--10:HASH JOIN [INNER JOIN]
-|  |  |  hash predicates: t3.id = t2.id
-|  |  |  runtime filters: RF002 <- t2.id
-|  |  |  row-size=16B cardinality=1
-|  |  |
-|  |  |--09:HASH JOIN [INNER JOIN]
-|  |  |  |  hash predicates: t4.id = t2.id
-|  |  |  |  runtime filters: RF004 <- t2.id
-|  |  |  |  row-size=12B cardinality=1
-|  |  |  |
-|  |  |  |--08:HASH JOIN [RIGHT OUTER JOIN]
-|  |  |  |  |  hash predicates: t2.id = t1.id
-|  |  |  |  |  runtime filters: RF006 <- t1.id
-|  |  |  |  |  row-size=8B cardinality=8
-|  |  |  |  |
-|  |  |  |  |--00:SCAN HDFS [functional.alltypestiny t1]
-|  |  |  |  |     partitions=4/4 files=4 size=460B
-|  |  |  |  |     row-size=4B cardinality=8
-|  |  |  |  |
-|  |  |  |  01:SCAN HDFS [functional.alltypes t2]
-|  |  |  |     partitions=24/24 files=24 size=478.45KB
-|  |  |  |     runtime filters: RF006 -> t2.id
-|  |  |  |     row-size=4B cardinality=7.30K
-|  |  |  |
-|  |  |  03:SCAN HDFS [functional.alltypessmall t4]
-|  |  |     partitions=4/4 files=4 size=6.32KB
-|  |  |     runtime filters: RF004 -> t4.id
-|  |  |     row-size=4B cardinality=100
-|  |  |
-|  |  02:SCAN HDFS [functional.alltypesagg t3]
-|  |     partitions=11/11 files=11 size=814.73KB
-|  |     runtime filters: RF002 -> t3.id
-|  |     row-size=4B cardinality=11.00K
-|  |
-|  04:SCAN HDFS [functional.alltypes t5]
-|     partitions=24/24 files=24 size=478.45KB
-|     row-size=4B cardinality=7.30K
+|--05:SCAN HDFS [functional.alltypestiny t6]
+|     partitions=4/4 files=4 size=460B
+|     row-size=4B cardinality=8
 |
-05:SCAN HDFS [functional.alltypestiny t6]
-   partitions=4/4 files=4 size=460B
-   runtime filters: RF000 -> t6.id
-   row-size=4B cardinality=8
+11:HASH JOIN [RIGHT ANTI JOIN]
+|  hash predicates: t5.id = t4.id
+|  row-size=16B cardinality=9
+|
+|--10:HASH JOIN [INNER JOIN]
+|  |  hash predicates: t3.id = t2.id
+|  |  runtime filters: RF002 <- t2.id
+|  |  row-size=16B cardinality=9
+|  |
+|  |--09:HASH JOIN [INNER JOIN]
+|  |  |  hash predicates: t4.id = t2.id
+|  |  |  runtime filters: RF004 <- t2.id
+|  |  |  row-size=12B cardinality=8
+|  |  |
+|  |  |--08:HASH JOIN [RIGHT OUTER JOIN]
+|  |  |  |  hash predicates: t2.id = t1.id
+|  |  |  |  runtime filters: RF006 <- t1.id
+|  |  |  |  row-size=8B cardinality=8
+|  |  |  |
+|  |  |  |--00:SCAN HDFS [functional.alltypestiny t1]
+|  |  |  |     partitions=4/4 files=4 size=460B
+|  |  |  |     row-size=4B cardinality=8
+|  |  |  |
+|  |  |  01:SCAN HDFS [functional.alltypes t2]
+|  |  |     partitions=24/24 files=24 size=478.45KB
+|  |  |     runtime filters: RF000 -> t2.id, RF006 -> t2.id
+|  |  |     row-size=4B cardinality=7.30K
+|  |  |
+|  |  03:SCAN HDFS [functional.alltypessmall t4]
+|  |     partitions=4/4 files=4 size=6.32KB
+|  |     runtime filters: RF000 -> t4.id, RF004 -> t4.id
+|  |     row-size=4B cardinality=100
+|  |
+|  02:SCAN HDFS [functional.alltypesagg t3]
+|     partitions=11/11 files=11 size=814.73KB
+|     runtime filters: RF000 -> t3.id, RF002 -> t3.id
+|     row-size=4B cardinality=11.00K
+|
+04:SCAN HDFS [functional.alltypes t5]
+   partitions=24/24 files=24 size=478.45KB
+   runtime filters: RF000 -> t5.id
+   row-size=4B cardinality=7.30K
 ====
 # Test inverting outer joins in a complex query plan.
 select 1 from
@@ -1244,7 +1244,7 @@ PLAN-ROOT SINK
 12:HASH JOIN [INNER JOIN]
 |  hash predicates: t3.id = t4.id
 |  runtime filters: RF000 <- t4.id
-|  row-size=28B cardinality=1
+|  row-size=28B cardinality=8
 |
 |--09:SCAN HDFS [functional.alltypestiny t4]
 |     partitions=4/4 files=4 size=460B
@@ -1401,7 +1401,7 @@ PLAN-ROOT SINK
 12:HASH JOIN [INNER JOIN]
 |  hash predicates: b.id = t4.id
 |  runtime filters: RF000 <- t4.id
-|  row-size=16B cardinality=1
+|  row-size=16B cardinality=8
 |
 |--09:SCAN HDFS [functional.alltypestiny t4]
 |     partitions=4/4 files=4 size=460B
@@ -1481,7 +1481,7 @@ PLAN-ROOT SINK
 12:HASH JOIN [INNER JOIN]
 |  hash predicates: b.id = t4.id
 |  runtime filters: RF000 <- t4.id
-|  row-size=16B cardinality=1
+|  row-size=16B cardinality=8
 |
 |--09:SCAN HDFS [functional.alltypestiny t4]
 |     partitions=4/4 files=4 size=460B

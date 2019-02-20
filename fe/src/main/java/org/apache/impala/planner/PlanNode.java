@@ -85,7 +85,8 @@ abstract public class PlanNode extends TreeNode<PlanNode> {
   // unique w/in plan tree; assigned by planner, and not necessarily in c'tor
   protected PlanNodeId id_;
 
-  protected long limit_; // max. # of rows to be returned; 0: no limit_
+  // max. # of rows to be returned; 0: no limit_
+  protected long limit_ = -1;
 
   // ids materialized by the tree rooted at this node
   protected List<TupleId> tupleIds_;
@@ -119,11 +120,11 @@ abstract public class PlanNode extends TreeNode<PlanNode> {
 
   // estimate of the output cardinality of this node; set in computeStats();
   // invalid: -1
-  protected long cardinality_;
+  protected long cardinality_ = -1;
 
   // number of nodes on which the plan tree rooted at this node would execute;
   // set in computeStats(); invalid: -1
-  protected int numNodes_;
+  protected int numNodes_ = -1;
 
   // resource requirements and estimates for this plan node.
   // Initialized with a dummy value. Gets set correctly in
@@ -157,11 +158,8 @@ abstract public class PlanNode extends TreeNode<PlanNode> {
 
   protected PlanNode(PlanNodeId id, String displayName) {
     id_ = id;
-    limit_ = -1;
     tupleIds_ = new ArrayList<>();
     tblRefIds_ = new ArrayList<>();
-    cardinality_ = -1;
-    numNodes_ = -1;
     displayName_ = displayName;
     disableCodegen_ = false;
   }
@@ -176,8 +174,6 @@ abstract public class PlanNode extends TreeNode<PlanNode> {
     tblRefIds_ = Lists.newArrayList(node.tblRefIds_);
     nullableTupleIds_ = Sets.newHashSet(node.nullableTupleIds_);
     conjuncts_ = Expr.cloneList(node.conjuncts_);
-    cardinality_ = -1;
-    numNodes_ = -1;
     displayName_ = displayName;
     disableCodegen_ = node.disableCodegen_;
   }

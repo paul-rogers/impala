@@ -141,7 +141,7 @@ PLAN-ROOT SINK
 |  fk/pk conjuncts: ss_item_sk = sr_item_sk, ss_ticket_number = sr_ticket_number
 |  runtime filters: RF000[bloom] <- sr_item_sk, RF001[bloom] <- sr_ticket_number
 |  mem-estimate=4.75MB mem-reservation=4.75MB spill-buffer=256.00KB thread-reservation=0
-|  tuple-ids=0,1 row-size=188B cardinality=211.84K
+|  tuple-ids=0,1 row-size=188B cardinality=288.04K
 |  in pipelines: 00(GETNEXT), 01(OPEN)
 |
 |--01:SCAN HDFS [tpcds.store_returns]
@@ -268,7 +268,7 @@ PLAN-ROOT SINK
 |  fk/pk conjuncts: none
 |  runtime filters: RF000[bloom] <- c_current_addr_sk
 |  mem-estimate=1.94MB mem-reservation=1.94MB spill-buffer=64.00KB thread-reservation=0
-|  tuple-ids=1,0,3,4,2 row-size=60B cardinality=19.36K
+|  tuple-ids=1,0,3,4,2 row-size=60B cardinality=26.32K
 |  in pipelines: 01(GETNEXT), 02(OPEN)
 |
 |--02:SCAN HDFS [tpcds.customer]
@@ -286,7 +286,7 @@ PLAN-ROOT SINK
 |  fk/pk conjuncts: sr_returned_date_sk = d2.d_date_sk
 |  runtime filters: RF002[bloom] <- d2.d_date_sk
 |  mem-estimate=1.94MB mem-reservation=1.94MB spill-buffer=64.00KB thread-reservation=0
-|  tuple-ids=1,0,3,4 row-size=56B cardinality=8.13K
+|  tuple-ids=1,0,3,4 row-size=56B cardinality=11.05K
 |  in pipelines: 01(GETNEXT), 04(OPEN)
 |
 |--04:SCAN HDFS [tpcds.date_dim d2]
@@ -304,7 +304,7 @@ PLAN-ROOT SINK
 |  fk/pk conjuncts: sr_item_sk = ss_item_sk, sr_ticket_number = ss_ticket_number
 |  runtime filters: RF004[bloom] <- ss_item_sk, RF005[bloom] <- ss_ticket_number
 |  mem-estimate=1.94MB mem-reservation=1.94MB spill-buffer=64.00KB thread-reservation=0
-|  tuple-ids=1,0,3 row-size=52B cardinality=8.13K
+|  tuple-ids=1,0,3 row-size=52B cardinality=11.05K
 |  in pipelines: 01(GETNEXT), 00(OPEN)
 |
 |--05:HASH JOIN [INNER JOIN]

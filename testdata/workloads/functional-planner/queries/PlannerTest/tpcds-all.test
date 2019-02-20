@@ -223,28 +223,28 @@ PLAN-ROOT SINK
 |  row-size=60B cardinality=8.85K
 |
 08:HASH JOIN [INNER JOIN]
-|  hash predicates: ss_item_sk = i_item_sk
-|  runtime filters: RF000 <- i_item_sk
-|  row-size=162B cardinality=261.60K
-|
-|--03:SCAN HDFS [tpcds.item]
-|     partitions=1/1 files=1 size=4.82MB
-|     row-size=36B cardinality=18.00K
-|
-07:HASH JOIN [INNER JOIN]
 |  hash predicates: ss_promo_sk = p_promo_sk
-|  runtime filters: RF002 <- p_promo_sk
-|  row-size=126B cardinality=261.60K
+|  runtime filters: RF000 <- p_promo_sk
+|  row-size=162B cardinality=589.03K
 |
 |--04:SCAN HDFS [tpcds.promotion]
 |     partitions=1/1 files=1 size=36.36KB
 |     predicates: (p_channel_email = 'N' OR p_channel_event = 'N')
 |     row-size=30B cardinality=300
 |
+07:HASH JOIN [INNER JOIN]
+|  hash predicates: ss_item_sk = i_item_sk
+|  runtime filters: RF002 <- i_item_sk
+|  row-size=132B cardinality=589.03K
+|
+|--03:SCAN HDFS [tpcds.item]
+|     partitions=1/1 files=1 size=4.82MB
+|     row-size=36B cardinality=18.00K
+|
 06:HASH JOIN [INNER JOIN]
 |  hash predicates: ss_cdemo_sk = cd_demo_sk
 |  runtime filters: RF004 <- cd_demo_sk
-|  row-size=96B cardinality=263.34K
+|  row-size=96B cardinality=589.03K
 |
 |--01:SCAN HDFS [tpcds.customer_demographics]
 |     partitions=1/1 files=1 size=76.92MB
@@ -263,7 +263,7 @@ PLAN-ROOT SINK
 |
 00:SCAN HDFS [tpcds.store_sales]
    partitions=1824/1824 files=1824 size=346.60MB
-   runtime filters: RF000 -> ss_item_sk, RF002 -> ss_promo_sk, RF004 -> ss_cdemo_sk, RF006 -> ss_sold_date_sk
+   runtime filters: RF000 -> ss_promo_sk, RF002 -> ss_item_sk, RF004 -> ss_cdemo_sk, RF006 -> ss_sold_date_sk
    row-size=36B cardinality=2.88M
 ---- DISTRIBUTEDPLAN
 Max Per-Host Resource Reservation: Memory=54.31MB Threads=12
@@ -291,32 +291,32 @@ PLAN-ROOT SINK
 |  row-size=60B cardinality=8.85K
 |
 08:HASH JOIN [INNER JOIN, BROADCAST]
-|  hash predicates: ss_item_sk = i_item_sk
-|  runtime filters: RF000 <- i_item_sk
-|  row-size=162B cardinality=261.60K
+|  hash predicates: ss_promo_sk = p_promo_sk
+|  runtime filters: RF000 <- p_promo_sk
+|  row-size=162B cardinality=589.03K
 |
 |--14:EXCHANGE [BROADCAST]
-|  |
-|  03:SCAN HDFS [tpcds.item]
-|     partitions=1/1 files=1 size=4.82MB
-|     row-size=36B cardinality=18.00K
-|
-07:HASH JOIN [INNER JOIN, BROADCAST]
-|  hash predicates: ss_promo_sk = p_promo_sk
-|  runtime filters: RF002 <- p_promo_sk
-|  row-size=126B cardinality=261.60K
-|
-|--13:EXCHANGE [BROADCAST]
 |  |
 |  04:SCAN HDFS [tpcds.promotion]
 |     partitions=1/1 files=1 size=36.36KB
 |     predicates: (p_channel_email = 'N' OR p_channel_event = 'N')
 |     row-size=30B cardinality=300
 |
+07:HASH JOIN [INNER JOIN, BROADCAST]
+|  hash predicates: ss_item_sk = i_item_sk
+|  runtime filters: RF002 <- i_item_sk
+|  row-size=132B cardinality=589.03K
+|
+|--13:EXCHANGE [BROADCAST]
+|  |
+|  03:SCAN HDFS [tpcds.item]
+|     partitions=1/1 files=1 size=4.82MB
+|     row-size=36B cardinality=18.00K
+|
 06:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: ss_cdemo_sk = cd_demo_sk
 |  runtime filters: RF004 <- cd_demo_sk
-|  row-size=96B cardinality=263.34K
+|  row-size=96B cardinality=589.03K
 |
 |--12:EXCHANGE [BROADCAST]
 |  |
@@ -339,7 +339,7 @@ PLAN-ROOT SINK
 |
 00:SCAN HDFS [tpcds.store_sales]
    partitions=1824/1824 files=1824 size=346.60MB
-   runtime filters: RF000 -> ss_item_sk, RF002 -> ss_promo_sk, RF004 -> ss_cdemo_sk, RF006 -> ss_sold_date_sk
+   runtime filters: RF000 -> ss_promo_sk, RF002 -> ss_item_sk, RF004 -> ss_cdemo_sk, RF006 -> ss_sold_date_sk
    row-size=36B cardinality=2.88M
 ---- PARALLELPLANS
 Max Per-Host Resource Reservation: Memory=108.62MB Threads=13
@@ -367,40 +367,40 @@ PLAN-ROOT SINK
 |  row-size=60B cardinality=8.85K
 |
 08:HASH JOIN [INNER JOIN, BROADCAST]
-|  hash predicates: ss_item_sk = i_item_sk
-|  runtime filters: RF000 <- i_item_sk
-|  row-size=162B cardinality=261.60K
+|  hash predicates: ss_promo_sk = p_promo_sk
+|  runtime filters: RF000 <- p_promo_sk
+|  row-size=162B cardinality=589.03K
 |
 |--JOIN BUILD
 |  |  join-table-id=00 plan-id=01 cohort-id=01
-|  |  build expressions: i_item_sk
-|  |
-|  14:EXCHANGE [BROADCAST]
-|  |
-|  03:SCAN HDFS [tpcds.item]
-|     partitions=1/1 files=1 size=4.82MB
-|     row-size=36B cardinality=18.00K
-|
-07:HASH JOIN [INNER JOIN, BROADCAST]
-|  hash predicates: ss_promo_sk = p_promo_sk
-|  runtime filters: RF002 <- p_promo_sk
-|  row-size=126B cardinality=261.60K
-|
-|--JOIN BUILD
-|  |  join-table-id=01 plan-id=02 cohort-id=01
 |  |  build expressions: p_promo_sk
 |  |
-|  13:EXCHANGE [BROADCAST]
+|  14:EXCHANGE [BROADCAST]
 |  |
 |  04:SCAN HDFS [tpcds.promotion]
 |     partitions=1/1 files=1 size=36.36KB
 |     predicates: (p_channel_email = 'N' OR p_channel_event = 'N')
 |     row-size=30B cardinality=300
 |
+07:HASH JOIN [INNER JOIN, BROADCAST]
+|  hash predicates: ss_item_sk = i_item_sk
+|  runtime filters: RF002 <- i_item_sk
+|  row-size=132B cardinality=589.03K
+|
+|--JOIN BUILD
+|  |  join-table-id=01 plan-id=02 cohort-id=01
+|  |  build expressions: i_item_sk
+|  |
+|  13:EXCHANGE [BROADCAST]
+|  |
+|  03:SCAN HDFS [tpcds.item]
+|     partitions=1/1 files=1 size=4.82MB
+|     row-size=36B cardinality=18.00K
+|
 06:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: ss_cdemo_sk = cd_demo_sk
 |  runtime filters: RF004 <- cd_demo_sk
-|  row-size=96B cardinality=263.34K
+|  row-size=96B cardinality=589.03K
 |
 |--JOIN BUILD
 |  |  join-table-id=02 plan-id=03 cohort-id=01
@@ -431,7 +431,7 @@ PLAN-ROOT SINK
 |
 00:SCAN HDFS [tpcds.store_sales]
    partitions=1824/1824 files=1824 size=346.60MB
-   runtime filters: RF000 -> ss_item_sk, RF002 -> ss_promo_sk, RF004 -> ss_cdemo_sk, RF006 -> ss_sold_date_sk
+   runtime filters: RF000 -> ss_promo_sk, RF002 -> ss_item_sk, RF004 -> ss_cdemo_sk, RF006 -> ss_sold_date_sk
    row-size=36B cardinality=2.88M
 ====
 # TPCDS-Q8
@@ -808,77 +808,76 @@ order by
   i_manufact
 limit 100
 ---- PLAN
-Max Per-Host Resource Reservation: Memory=43.32MB Threads=7
-Per-Host Resource Estimates: Memory=331MB
+Max Per-Host Resource Reservation: Memory=48.13MB Threads=7
+Per-Host Resource Estimates: Memory=336MB
 PLAN-ROOT SINK
 |
 12:TOP-N [LIMIT=100]
 |  order by: sum(ss_ext_sales_price) DESC, i_brand ASC, i_brand_id ASC, i_manufact_id ASC, i_manufact ASC
-|  row-size=76B cardinality=24
+|  row-size=76B cardinality=100
 |
 11:AGGREGATE [FINALIZE]
 |  output: sum(ss_ext_sales_price)
 |  group by: i_brand, i_brand_id, i_manufact_id, i_manufact
-|  row-size=76B cardinality=24
+|  row-size=76B cardinality=29.16K
 |
 10:HASH JOIN [INNER JOIN]
 |  hash predicates: ss_store_sk = s_store_sk
 |  other predicates: substr(ca_zip, 1, 5) != substr(s_zip, 1, 5)
 |  runtime filters: RF000 <- s_store_sk
-|  row-size=158B cardinality=24
+|  row-size=158B cardinality=29.16K
 |
 |--05:SCAN HDFS [tpcds.store]
 |     partitions=1/1 files=1 size=3.08KB
 |     row-size=21B cardinality=12
 |
 09:HASH JOIN [INNER JOIN]
-|  hash predicates: ca_address_sk = c_current_addr_sk
-|  runtime filters: RF002 <- c_current_addr_sk
-|  row-size=137B cardinality=24
+|  hash predicates: c_current_addr_sk = ca_address_sk
+|  runtime filters: RF002 <- ca_address_sk
+|  row-size=137B cardinality=29.16K
 |
-|--08:HASH JOIN [INNER JOIN]
-|  |  hash predicates: c_customer_sk = ss_customer_sk
-|  |  runtime filters: RF004 <- ss_customer_sk
-|  |  row-size=116B cardinality=24
-|  |
-|  |--07:HASH JOIN [INNER JOIN]
-|  |  |  hash predicates: ss_sold_date_sk = d_date_sk
-|  |  |  runtime filters: RF006 <- d_date_sk
-|  |  |  row-size=108B cardinality=24
-|  |  |
-|  |  |--00:SCAN HDFS [tpcds.date_dim]
-|  |  |     partitions=1/1 files=1 size=9.84MB
-|  |  |     predicates: d_year = 1999, d_moy = 11, tpcds.date_dim.d_date_sk <= 2451513, tpcds.date_dim.d_date_sk >= 2451484
-|  |  |     row-size=12B cardinality=50
-|  |  |
-|  |  06:HASH JOIN [INNER JOIN]
-|  |  |  hash predicates: ss_item_sk = i_item_sk
-|  |  |  runtime filters: RF008 <- i_item_sk
-|  |  |  row-size=96B cardinality=873
-|  |  |
-|  |  |--02:SCAN HDFS [tpcds.item]
-|  |  |     partitions=1/1 files=1 size=4.82MB
-|  |  |     predicates: i_manager_id = 7
-|  |  |     row-size=72B cardinality=182
-|  |  |
-|  |  01:SCAN HDFS [tpcds.store_sales]
-|  |     partition predicates: ss_sold_date_sk >= 2451484, ss_sold_date_sk <= 2451513
-|  |     partitions=30/1824 files=30 size=10.55MB
-|  |     runtime filters: RF000 -> ss_store_sk, RF006 -> ss_sold_date_sk, RF008 -> ss_item_sk
-|  |     row-size=24B cardinality=86.28K
-|  |
-|  03:SCAN HDFS [tpcds.customer]
+|--04:SCAN HDFS [tpcds.customer_address]
+|     partitions=1/1 files=1 size=5.25MB
+|     row-size=21B cardinality=50.00K
+|
+08:HASH JOIN [INNER JOIN]
+|  hash predicates: ss_customer_sk = c_customer_sk
+|  runtime filters: RF004 <- c_customer_sk
+|  row-size=116B cardinality=29.16K
+|
+|--03:SCAN HDFS [tpcds.customer]
 |     partitions=1/1 files=1 size=12.60MB
-|     runtime filters: RF004 -> c_customer_sk
+|     runtime filters: RF002 -> c_current_addr_sk
 |     row-size=8B cardinality=100.00K
 |
-04:SCAN HDFS [tpcds.customer_address]
-   partitions=1/1 files=1 size=5.25MB
-   runtime filters: RF002 -> ca_address_sk
-   row-size=21B cardinality=50.00K
+07:HASH JOIN [INNER JOIN]
+|  hash predicates: ss_sold_date_sk = d_date_sk
+|  runtime filters: RF006 <- d_date_sk
+|  row-size=108B cardinality=29.16K
+|
+|--00:SCAN HDFS [tpcds.date_dim]
+|     partitions=1/1 files=1 size=9.84MB
+|     predicates: d_year = 1999, d_moy = 11, tpcds.date_dim.d_date_sk <= 2451513, tpcds.date_dim.d_date_sk >= 2451484
+|     row-size=12B cardinality=50
+|
+06:HASH JOIN [INNER JOIN]
+|  hash predicates: ss_item_sk = i_item_sk
+|  runtime filters: RF008 <- i_item_sk
+|  row-size=96B cardinality=29.16K
+|
+|--02:SCAN HDFS [tpcds.item]
+|     partitions=1/1 files=1 size=4.82MB
+|     predicates: i_manager_id = 7
+|     row-size=72B cardinality=182
+|
+01:SCAN HDFS [tpcds.store_sales]
+   partition predicates: ss_sold_date_sk >= 2451484, ss_sold_date_sk <= 2451513
+   partitions=30/1824 files=30 size=10.55MB
+   runtime filters: RF000 -> ss_store_sk, RF004 -> ss_customer_sk, RF006 -> ss_sold_date_sk, RF008 -> ss_item_sk
+   row-size=24B cardinality=86.28K
 ---- DISTRIBUTEDPLAN
-Max Per-Host Resource Reservation: Memory=54.13MB Threads=16
-Per-Host Resource Estimates: Memory=360MB
+Max Per-Host Resource Reservation: Memory=56.07MB Threads=16
+Per-Host Resource Estimates: Memory=363MB
 PLAN-ROOT SINK
 |
 22:MERGING-EXCHANGE [UNPARTITIONED]
@@ -887,25 +886,25 @@ PLAN-ROOT SINK
 |
 12:TOP-N [LIMIT=100]
 |  order by: sum(ss_ext_sales_price) DESC, i_brand ASC, i_brand_id ASC, i_manufact_id ASC, i_manufact ASC
-|  row-size=76B cardinality=24
+|  row-size=76B cardinality=100
 |
 21:AGGREGATE [FINALIZE]
 |  output: sum:merge(ss_ext_sales_price)
 |  group by: i_brand, i_brand_id, i_manufact_id, i_manufact
-|  row-size=76B cardinality=24
+|  row-size=76B cardinality=29.16K
 |
 20:EXCHANGE [HASH(i_brand,i_brand_id,i_manufact_id,i_manufact)]
 |
 11:AGGREGATE [STREAMING]
 |  output: sum(ss_ext_sales_price)
 |  group by: i_brand, i_brand_id, i_manufact_id, i_manufact
-|  row-size=76B cardinality=24
+|  row-size=76B cardinality=29.16K
 |
 10:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: ss_store_sk = s_store_sk
 |  other predicates: substr(ca_zip, 1, 5) != substr(s_zip, 1, 5)
 |  runtime filters: RF000 <- s_store_sk
-|  row-size=158B cardinality=24
+|  row-size=158B cardinality=29.16K
 |
 |--19:EXCHANGE [BROADCAST]
 |  |
@@ -916,7 +915,7 @@ PLAN-ROOT SINK
 09:HASH JOIN [INNER JOIN, PARTITIONED]
 |  hash predicates: c_current_addr_sk = ca_address_sk
 |  runtime filters: RF002 <- ca_address_sk
-|  row-size=137B cardinality=24
+|  row-size=137B cardinality=29.16K
 |
 |--18:EXCHANGE [HASH(ca_address_sk)]
 |  |
@@ -929,7 +928,7 @@ PLAN-ROOT SINK
 08:HASH JOIN [INNER JOIN, PARTITIONED]
 |  hash predicates: ss_customer_sk = c_customer_sk
 |  runtime filters: RF004 <- c_customer_sk
-|  row-size=116B cardinality=24
+|  row-size=116B cardinality=29.16K
 |
 |--16:EXCHANGE [HASH(c_customer_sk)]
 |  |
@@ -943,7 +942,7 @@ PLAN-ROOT SINK
 07:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: ss_sold_date_sk = d_date_sk
 |  runtime filters: RF006 <- d_date_sk
-|  row-size=108B cardinality=24
+|  row-size=108B cardinality=29.16K
 |
 |--14:EXCHANGE [BROADCAST]
 |  |
@@ -955,7 +954,7 @@ PLAN-ROOT SINK
 06:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: ss_item_sk = i_item_sk
 |  runtime filters: RF008 <- i_item_sk
-|  row-size=96B cardinality=873
+|  row-size=96B cardinality=29.16K
 |
 |--13:EXCHANGE [BROADCAST]
 |  |
@@ -971,7 +970,7 @@ PLAN-ROOT SINK
    row-size=24B cardinality=86.28K
 ---- PARALLELPLANS
 Max Per-Host Resource Reservation: Memory=108.27MB Threads=19
-Per-Host Resource Estimates: Memory=303MB
+Per-Host Resource Estimates: Memory=309MB
 PLAN-ROOT SINK
 |
 22:MERGING-EXCHANGE [UNPARTITIONED]
@@ -980,25 +979,25 @@ PLAN-ROOT SINK
 |
 12:TOP-N [LIMIT=100]
 |  order by: sum(ss_ext_sales_price) DESC, i_brand ASC, i_brand_id ASC, i_manufact_id ASC, i_manufact ASC
-|  row-size=76B cardinality=24
+|  row-size=76B cardinality=100
 |
 21:AGGREGATE [FINALIZE]
 |  output: sum:merge(ss_ext_sales_price)
 |  group by: i_brand, i_brand_id, i_manufact_id, i_manufact
-|  row-size=76B cardinality=24
+|  row-size=76B cardinality=29.16K
 |
 20:EXCHANGE [HASH(i_brand,i_brand_id,i_manufact_id,i_manufact)]
 |
 11:AGGREGATE [STREAMING]
 |  output: sum(ss_ext_sales_price)
 |  group by: i_brand, i_brand_id, i_manufact_id, i_manufact
-|  row-size=76B cardinality=24
+|  row-size=76B cardinality=29.16K
 |
 10:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: ss_store_sk = s_store_sk
 |  other predicates: substr(ca_zip, 1, 5) != substr(s_zip, 1, 5)
 |  runtime filters: RF000 <- s_store_sk
-|  row-size=158B cardinality=24
+|  row-size=158B cardinality=29.16K
 |
 |--JOIN BUILD
 |  |  join-table-id=00 plan-id=01 cohort-id=01
@@ -1013,7 +1012,7 @@ PLAN-ROOT SINK
 09:HASH JOIN [INNER JOIN, PARTITIONED]
 |  hash predicates: c_current_addr_sk = ca_address_sk
 |  runtime filters: RF002 <- ca_address_sk
-|  row-size=137B cardinality=24
+|  row-size=137B cardinality=29.16K
 |
 |--JOIN BUILD
 |  |  join-table-id=01 plan-id=02 cohort-id=01
@@ -1030,7 +1029,7 @@ PLAN-ROOT SINK
 08:HASH JOIN [INNER JOIN, PARTITIONED]
 |  hash predicates: ss_customer_sk = c_customer_sk
 |  runtime filters: RF004 <- c_customer_sk
-|  row-size=116B cardinality=24
+|  row-size=116B cardinality=29.16K
 |
 |--JOIN BUILD
 |  |  join-table-id=02 plan-id=03 cohort-id=01
@@ -1048,7 +1047,7 @@ PLAN-ROOT SINK
 07:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: ss_sold_date_sk = d_date_sk
 |  runtime filters: RF006 <- d_date_sk
-|  row-size=108B cardinality=24
+|  row-size=108B cardinality=29.16K
 |
 |--JOIN BUILD
 |  |  join-table-id=03 plan-id=04 cohort-id=01
@@ -1064,7 +1063,7 @@ PLAN-ROOT SINK
 06:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: ss_item_sk = i_item_sk
 |  runtime filters: RF008 <- i_item_sk
-|  row-size=96B cardinality=873
+|  row-size=96B cardinality=29.16K
 |
 |--JOIN BUILD
 |  |  join-table-id=04 plan-id=05 cohort-id=01
@@ -1131,7 +1130,7 @@ PLAN-ROOT SINK
 08:HASH JOIN [INNER JOIN]
 |  hash predicates: ss_item_sk = i_item_sk
 |  runtime filters: RF000 <- i_item_sk
-|  row-size=150B cardinality=263.34K
+|  row-size=150B cardinality=589.03K
 |
 |--04:SCAN HDFS [tpcds.item]
 |     partitions=1/1 files=1 size=4.82MB
@@ -1140,7 +1139,7 @@ PLAN-ROOT SINK
 07:HASH JOIN [INNER JOIN]
 |  hash predicates: ss_store_sk = s_store_sk
 |  runtime filters: RF002 <- s_store_sk
-|  row-size=114B cardinality=263.34K
+|  row-size=114B cardinality=589.03K
 |
 |--03:SCAN HDFS [tpcds.store]
 |     partitions=1/1 files=1 size=3.08KB
@@ -1150,7 +1149,7 @@ PLAN-ROOT SINK
 06:HASH JOIN [INNER JOIN]
 |  hash predicates: ss_cdemo_sk = cd_demo_sk
 |  runtime filters: RF004 <- cd_demo_sk
-|  row-size=96B cardinality=263.34K
+|  row-size=96B cardinality=589.03K
 |
 |--01:SCAN HDFS [tpcds.customer_demographics]
 |     partitions=1/1 files=1 size=76.92MB
@@ -1199,7 +1198,7 @@ PLAN-ROOT SINK
 08:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: ss_item_sk = i_item_sk
 |  runtime filters: RF000 <- i_item_sk
-|  row-size=150B cardinality=263.34K
+|  row-size=150B cardinality=589.03K
 |
 |--14:EXCHANGE [BROADCAST]
 |  |
@@ -1210,7 +1209,7 @@ PLAN-ROOT SINK
 07:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: ss_store_sk = s_store_sk
 |  runtime filters: RF002 <- s_store_sk
-|  row-size=114B cardinality=263.34K
+|  row-size=114B cardinality=589.03K
 |
 |--13:EXCHANGE [BROADCAST]
 |  |
@@ -1222,7 +1221,7 @@ PLAN-ROOT SINK
 06:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: ss_cdemo_sk = cd_demo_sk
 |  runtime filters: RF004 <- cd_demo_sk
-|  row-size=96B cardinality=263.34K
+|  row-size=96B cardinality=589.03K
 |
 |--12:EXCHANGE [BROADCAST]
 |  |
@@ -1275,7 +1274,7 @@ PLAN-ROOT SINK
 08:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: ss_item_sk = i_item_sk
 |  runtime filters: RF000 <- i_item_sk
-|  row-size=150B cardinality=263.34K
+|  row-size=150B cardinality=589.03K
 |
 |--JOIN BUILD
 |  |  join-table-id=00 plan-id=01 cohort-id=01
@@ -1290,7 +1289,7 @@ PLAN-ROOT SINK
 07:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: ss_store_sk = s_store_sk
 |  runtime filters: RF002 <- s_store_sk
-|  row-size=114B cardinality=263.34K
+|  row-size=114B cardinality=589.03K
 |
 |--JOIN BUILD
 |  |  join-table-id=01 plan-id=02 cohort-id=01
@@ -1306,7 +1305,7 @@ PLAN-ROOT SINK
 06:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: ss_cdemo_sk = cd_demo_sk
 |  runtime filters: RF004 <- cd_demo_sk
-|  row-size=96B cardinality=263.34K
+|  row-size=96B cardinality=589.03K
 |
 |--JOIN BUILD
 |  |  join-table-id=02 plan-id=03 cohort-id=01
@@ -1391,23 +1390,23 @@ PLAN-ROOT SINK
 |
 10:TOP-N [LIMIT=100000]
 |  order by: c_last_name ASC, c_first_name ASC, c_salutation ASC, c_preferred_cust_flag DESC
-|  row-size=80B cardinality=31.53K
+|  row-size=80B cardinality=100.00K
 |
 09:HASH JOIN [INNER JOIN]
 |  hash predicates: c_customer_sk = ss_customer_sk
 |  runtime filters: RF000 <- ss_customer_sk
-|  row-size=88B cardinality=31.53K
+|  row-size=88B cardinality=162.45K
 |
 |--07:AGGREGATE [FINALIZE]
 |  |  output: count(*)
 |  |  group by: ss_ticket_number, ss_customer_sk
 |  |  having: count(*) <= 20, count(*) >= 15
-|  |  row-size=20B cardinality=31.53K
+|  |  row-size=20B cardinality=162.45K
 |  |
 |  06:HASH JOIN [INNER JOIN]
 |  |  hash predicates: store_sales.ss_store_sk = store.s_store_sk
 |  |  runtime filters: RF002 <- store.s_store_sk
-|  |  row-size=101B cardinality=31.53K
+|  |  row-size=101B cardinality=162.45K
 |  |
 |  |--02:SCAN HDFS [tpcds.store]
 |  |     partitions=1/1 files=1 size=3.08KB
@@ -1417,7 +1416,7 @@ PLAN-ROOT SINK
 |  05:HASH JOIN [INNER JOIN]
 |  |  hash predicates: store_sales.ss_sold_date_sk = date_dim.d_date_sk
 |  |  runtime filters: RF004 <- date_dim.d_date_sk
-|  |  row-size=68B cardinality=31.53K
+|  |  row-size=68B cardinality=162.45K
 |  |
 |  |--01:SCAN HDFS [tpcds.date_dim]
 |  |     partitions=1/1 files=1 size=9.84MB
@@ -1444,8 +1443,8 @@ PLAN-ROOT SINK
    runtime filters: RF000 -> c_customer_sk
    row-size=68B cardinality=100.00K
 ---- DISTRIBUTEDPLAN
-Max Per-Host Resource Reservation: Memory=47.51MB Threads=13
-Per-Host Resource Estimates: Memory=337MB
+Max Per-Host Resource Reservation: Memory=49.45MB Threads=13
+Per-Host Resource Estimates: Memory=345MB
 PLAN-ROOT SINK
 |
 18:MERGING-EXCHANGE [UNPARTITIONED]
@@ -1454,12 +1453,12 @@ PLAN-ROOT SINK
 |
 10:TOP-N [LIMIT=100000]
 |  order by: c_last_name ASC, c_first_name ASC, c_salutation ASC, c_preferred_cust_flag DESC
-|  row-size=80B cardinality=31.53K
+|  row-size=80B cardinality=100.00K
 |
 09:HASH JOIN [INNER JOIN, PARTITIONED]
 |  hash predicates: ss_customer_sk = c_customer_sk
 |  runtime filters: RF000 <- c_customer_sk
-|  row-size=88B cardinality=31.53K
+|  row-size=88B cardinality=162.45K
 |
 |--17:EXCHANGE [HASH(c_customer_sk)]
 |  |
@@ -1473,19 +1472,19 @@ PLAN-ROOT SINK
 |  output: count:merge(*)
 |  group by: ss_ticket_number, ss_customer_sk
 |  having: count(*) <= 20, count(*) >= 15
-|  row-size=20B cardinality=31.53K
+|  row-size=20B cardinality=162.45K
 |
 14:EXCHANGE [HASH(ss_ticket_number,ss_customer_sk)]
 |
 07:AGGREGATE [STREAMING]
 |  output: count(*)
 |  group by: ss_ticket_number, ss_customer_sk
-|  row-size=20B cardinality=31.53K
+|  row-size=20B cardinality=162.45K
 |
 06:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: store_sales.ss_store_sk = store.s_store_sk
 |  runtime filters: RF002 <- store.s_store_sk
-|  row-size=101B cardinality=31.53K
+|  row-size=101B cardinality=162.45K
 |
 |--13:EXCHANGE [BROADCAST]
 |  |
@@ -1497,7 +1496,7 @@ PLAN-ROOT SINK
 05:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: store_sales.ss_sold_date_sk = date_dim.d_date_sk
 |  runtime filters: RF004 <- date_dim.d_date_sk
-|  row-size=68B cardinality=31.53K
+|  row-size=68B cardinality=162.45K
 |
 |--12:EXCHANGE [BROADCAST]
 |  |
@@ -1524,7 +1523,7 @@ PLAN-ROOT SINK
    row-size=24B cardinality=2.88M
 ---- PARALLELPLANS
 Max Per-Host Resource Reservation: Memory=87.52MB Threads=15
-Per-Host Resource Estimates: Memory=280MB
+Per-Host Resource Estimates: Memory=291MB
 PLAN-ROOT SINK
 |
 18:MERGING-EXCHANGE [UNPARTITIONED]
@@ -1533,12 +1532,12 @@ PLAN-ROOT SINK
 |
 10:TOP-N [LIMIT=100000]
 |  order by: c_last_name ASC, c_first_name ASC, c_salutation ASC, c_preferred_cust_flag DESC
-|  row-size=80B cardinality=31.53K
+|  row-size=80B cardinality=100.00K
 |
 09:HASH JOIN [INNER JOIN, PARTITIONED]
 |  hash predicates: ss_customer_sk = c_customer_sk
 |  runtime filters: RF000 <- c_customer_sk
-|  row-size=88B cardinality=31.53K
+|  row-size=88B cardinality=162.45K
 |
 |--JOIN BUILD
 |  |  join-table-id=00 plan-id=01 cohort-id=01
@@ -1556,19 +1555,19 @@ PLAN-ROOT SINK
 |  output: count:merge(*)
 |  group by: ss_ticket_number, ss_customer_sk
 |  having: count(*) <= 20, count(*) >= 15
-|  row-size=20B cardinality=31.53K
+|  row-size=20B cardinality=162.45K
 |
 14:EXCHANGE [HASH(ss_ticket_number,ss_customer_sk)]
 |
 07:AGGREGATE [STREAMING]
 |  output: count(*)
 |  group by: ss_ticket_number, ss_customer_sk
-|  row-size=20B cardinality=31.53K
+|  row-size=20B cardinality=162.45K
 |
 06:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: store_sales.ss_store_sk = store.s_store_sk
 |  runtime filters: RF002 <- store.s_store_sk
-|  row-size=101B cardinality=31.53K
+|  row-size=101B cardinality=162.45K
 |
 |--JOIN BUILD
 |  |  join-table-id=01 plan-id=02 cohort-id=01
@@ -1584,7 +1583,7 @@ PLAN-ROOT SINK
 05:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: store_sales.ss_sold_date_sk = date_dim.d_date_sk
 |  runtime filters: RF004 <- date_dim.d_date_sk
-|  row-size=68B cardinality=31.53K
+|  row-size=68B cardinality=162.45K
 |
 |--JOIN BUILD
 |  |  join-table-id=02 plan-id=03 cohort-id=01
@@ -1656,12 +1655,12 @@ PLAN-ROOT SINK
 05:AGGREGATE [FINALIZE]
 |  output: sum(ss_ext_sales_price)
 |  group by: dt.d_year, item.i_category_id, item.i_category
-|  row-size=42B cardinality=1.73K
+|  row-size=42B cardinality=19.60K
 |
 04:HASH JOIN [INNER JOIN]
 |  hash predicates: store_sales.ss_sold_date_sk = dt.d_date_sk
 |  runtime filters: RF000 <- dt.d_date_sk
-|  row-size=62B cardinality=1.73K
+|  row-size=62B cardinality=29.16K
 |
 |--00:SCAN HDFS [tpcds.date_dim dt]
 |     partitions=1/1 files=1 size=9.84MB
@@ -1671,7 +1670,7 @@ PLAN-ROOT SINK
 03:HASH JOIN [INNER JOIN]
 |  hash predicates: store_sales.ss_item_sk = item.i_item_sk
 |  runtime filters: RF002 <- item.i_item_sk
-|  row-size=50B cardinality=29.12K
+|  row-size=50B cardinality=29.16K
 |
 |--02:SCAN HDFS [tpcds.item]
 |     partitions=1/1 files=1 size=4.82MB
@@ -1698,19 +1697,19 @@ PLAN-ROOT SINK
 10:AGGREGATE [FINALIZE]
 |  output: sum:merge(ss_ext_sales_price)
 |  group by: dt.d_year, item.i_category_id, item.i_category
-|  row-size=42B cardinality=1.73K
+|  row-size=42B cardinality=19.60K
 |
 09:EXCHANGE [HASH(dt.d_year,item.i_category_id,item.i_category)]
 |
 05:AGGREGATE [STREAMING]
 |  output: sum(ss_ext_sales_price)
 |  group by: dt.d_year, item.i_category_id, item.i_category
-|  row-size=42B cardinality=1.73K
+|  row-size=42B cardinality=19.60K
 |
 04:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: store_sales.ss_sold_date_sk = dt.d_date_sk
 |  runtime filters: RF000 <- dt.d_date_sk
-|  row-size=62B cardinality=1.73K
+|  row-size=62B cardinality=29.16K
 |
 |--08:EXCHANGE [BROADCAST]
 |  |
@@ -1722,7 +1721,7 @@ PLAN-ROOT SINK
 03:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: store_sales.ss_item_sk = item.i_item_sk
 |  runtime filters: RF002 <- item.i_item_sk
-|  row-size=50B cardinality=29.12K
+|  row-size=50B cardinality=29.16K
 |
 |--07:EXCHANGE [BROADCAST]
 |  |
@@ -1737,7 +1736,7 @@ PLAN-ROOT SINK
    row-size=16B cardinality=2.88M
 ---- PARALLELPLANS
 Max Per-Host Resource Reservation: Memory=67.62MB Threads=9
-Per-Host Resource Estimates: Memory=164MB
+Per-Host Resource Estimates: Memory=165MB
 PLAN-ROOT SINK
 |
 11:MERGING-EXCHANGE [UNPARTITIONED]
@@ -1751,19 +1750,19 @@ PLAN-ROOT SINK
 10:AGGREGATE [FINALIZE]
 |  output: sum:merge(ss_ext_sales_price)
 |  group by: dt.d_year, item.i_category_id, item.i_category
-|  row-size=42B cardinality=1.73K
+|  row-size=42B cardinality=19.60K
 |
 09:EXCHANGE [HASH(dt.d_year,item.i_category_id,item.i_category)]
 |
 05:AGGREGATE [STREAMING]
 |  output: sum(ss_ext_sales_price)
 |  group by: dt.d_year, item.i_category_id, item.i_category
-|  row-size=42B cardinality=1.73K
+|  row-size=42B cardinality=19.60K
 |
 04:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: store_sales.ss_sold_date_sk = dt.d_date_sk
 |  runtime filters: RF000 <- dt.d_date_sk
-|  row-size=62B cardinality=1.73K
+|  row-size=62B cardinality=29.16K
 |
 |--JOIN BUILD
 |  |  join-table-id=00 plan-id=01 cohort-id=01
@@ -1779,7 +1778,7 @@ PLAN-ROOT SINK
 03:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: store_sales.ss_item_sk = item.i_item_sk
 |  runtime filters: RF002 <- item.i_item_sk
-|  row-size=50B cardinality=29.12K
+|  row-size=50B cardinality=29.16K
 |
 |--JOIN BUILD
 |  |  join-table-id=01 plan-id=02 cohort-id=01
@@ -2036,7 +2035,7 @@ order by
   ss_ticket_number
 limit 100
 ---- PLAN
-Max Per-Host Resource Reservation: Memory=67.06MB Threads=8
+Max Per-Host Resource Reservation: Memory=84.06MB Threads=8
 Per-Host Resource Estimates: Memory=378MB
 PLAN-ROOT SINK
 |
@@ -2048,7 +2047,7 @@ PLAN-ROOT SINK
 |  hash predicates: customer.c_current_addr_sk = current_addr.ca_address_sk
 |  other predicates: current_addr.ca_city != ca_city
 |  runtime filters: RF000 <- current_addr.ca_address_sk
-|  row-size=138B cardinality=230.45K
+|  row-size=138B cardinality=702.92K
 |
 |--11:SCAN HDFS [tpcds.customer_address current_addr]
 |     partitions=1/1 files=1 size=5.25MB
@@ -2057,7 +2056,7 @@ PLAN-ROOT SINK
 12:HASH JOIN [INNER JOIN]
 |  hash predicates: ss_customer_sk = c_customer_sk
 |  runtime filters: RF002 <- c_customer_sk
-|  row-size=113B cardinality=230.45K
+|  row-size=113B cardinality=702.92K
 |
 |--10:SCAN HDFS [tpcds.customer]
 |     partitions=1/1 files=1 size=12.60MB
@@ -2067,12 +2066,12 @@ PLAN-ROOT SINK
 09:AGGREGATE [FINALIZE]
 |  output: sum(ss_coupon_amt), sum(ss_net_profit)
 |  group by: ss_ticket_number, ss_customer_sk, ss_addr_sk, ca_city
-|  row-size=69B cardinality=230.45K
+|  row-size=69B cardinality=702.92K
 |
 08:HASH JOIN [INNER JOIN]
 |  hash predicates: store_sales.ss_addr_sk = customer_address.ca_address_sk
 |  runtime filters: RF004 <- customer_address.ca_address_sk
-|  row-size=107B cardinality=230.45K
+|  row-size=107B cardinality=702.92K
 |
 |--04:SCAN HDFS [tpcds.customer_address]
 |     partitions=1/1 files=1 size=5.25MB
@@ -2081,7 +2080,7 @@ PLAN-ROOT SINK
 07:HASH JOIN [INNER JOIN]
 |  hash predicates: store_sales.ss_store_sk = store.s_store_sk
 |  runtime filters: RF006 <- store.s_store_sk
-|  row-size=83B cardinality=230.45K
+|  row-size=83B cardinality=702.92K
 |
 |--02:SCAN HDFS [tpcds.store]
 |     partitions=1/1 files=1 size=3.08KB
@@ -2091,7 +2090,7 @@ PLAN-ROOT SINK
 06:HASH JOIN [INNER JOIN]
 |  hash predicates: store_sales.ss_sold_date_sk = date_dim.d_date_sk
 |  runtime filters: RF008 <- date_dim.d_date_sk
-|  row-size=60B cardinality=230.45K
+|  row-size=60B cardinality=702.92K
 |
 |--01:SCAN HDFS [tpcds.date_dim]
 |     partitions=1/1 files=1 size=9.84MB
@@ -2113,11 +2112,11 @@ PLAN-ROOT SINK
    runtime filters: RF002 -> tpcds.store_sales.ss_customer_sk, RF004 -> store_sales.ss_addr_sk, RF006 -> store_sales.ss_store_sk, RF008 -> store_sales.ss_sold_date_sk, RF010 -> store_sales.ss_hdemo_sk
    row-size=36B cardinality=2.88M
 ---- DISTRIBUTEDPLAN
-Max Per-Host Resource Reservation: Memory=80.20MB Threads=17
-Per-Host Resource Estimates: Memory=412MB
+Max Per-Host Resource Reservation: Memory=136.32MB Threads=16
+Per-Host Resource Estimates: Memory=465MB
 PLAN-ROOT SINK
 |
-24:MERGING-EXCHANGE [UNPARTITIONED]
+23:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: c_last_name ASC, c_first_name ASC, ca_city ASC, bought_city ASC, ss_ticket_number ASC
 |  limit: 100
 |
@@ -2129,44 +2128,42 @@ PLAN-ROOT SINK
 |  hash predicates: customer.c_current_addr_sk = current_addr.ca_address_sk
 |  other predicates: current_addr.ca_city != ca_city
 |  runtime filters: RF000 <- current_addr.ca_address_sk
-|  row-size=138B cardinality=230.45K
+|  row-size=138B cardinality=702.92K
 |
-|--23:EXCHANGE [BROADCAST]
+|--22:EXCHANGE [BROADCAST]
 |  |
 |  11:SCAN HDFS [tpcds.customer_address current_addr]
 |     partitions=1/1 files=1 size=5.25MB
 |     row-size=25B cardinality=50.00K
 |
-12:HASH JOIN [INNER JOIN, PARTITIONED]
+12:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: ss_customer_sk = c_customer_sk
 |  runtime filters: RF002 <- c_customer_sk
-|  row-size=113B cardinality=230.45K
+|  row-size=113B cardinality=702.92K
 |
-|--22:EXCHANGE [HASH(c_customer_sk)]
+|--21:EXCHANGE [BROADCAST]
 |  |
 |  10:SCAN HDFS [tpcds.customer]
 |     partitions=1/1 files=1 size=12.60MB
 |     runtime filters: RF000 -> customer.c_current_addr_sk
 |     row-size=44B cardinality=100.00K
 |
-21:EXCHANGE [HASH(ss_customer_sk)]
-|
 20:AGGREGATE [FINALIZE]
 |  output: sum:merge(ss_coupon_amt), sum:merge(ss_net_profit)
 |  group by: ss_ticket_number, ss_customer_sk, ss_addr_sk, ca_city
-|  row-size=69B cardinality=230.45K
+|  row-size=69B cardinality=702.92K
 |
 19:EXCHANGE [HASH(ss_ticket_number,ss_customer_sk,ss_addr_sk,ca_city)]
 |
 09:AGGREGATE [STREAMING]
 |  output: sum(ss_coupon_amt), sum(ss_net_profit)
 |  group by: ss_ticket_number, ss_customer_sk, ss_addr_sk, ca_city
-|  row-size=69B cardinality=230.45K
+|  row-size=69B cardinality=702.92K
 |
 08:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: store_sales.ss_addr_sk = customer_address.ca_address_sk
 |  runtime filters: RF004 <- customer_address.ca_address_sk
-|  row-size=107B cardinality=230.45K
+|  row-size=107B cardinality=702.92K
 |
 |--18:EXCHANGE [BROADCAST]
 |  |
@@ -2177,7 +2174,7 @@ PLAN-ROOT SINK
 07:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: store_sales.ss_store_sk = store.s_store_sk
 |  runtime filters: RF006 <- store.s_store_sk
-|  row-size=83B cardinality=230.45K
+|  row-size=83B cardinality=702.92K
 |
 |--17:EXCHANGE [BROADCAST]
 |  |
@@ -2189,7 +2186,7 @@ PLAN-ROOT SINK
 06:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: store_sales.ss_sold_date_sk = date_dim.d_date_sk
 |  runtime filters: RF008 <- date_dim.d_date_sk
-|  row-size=60B cardinality=230.45K
+|  row-size=60B cardinality=702.92K
 |
 |--16:EXCHANGE [BROADCAST]
 |  |
@@ -2215,11 +2212,11 @@ PLAN-ROOT SINK
    runtime filters: RF002 -> tpcds.store_sales.ss_customer_sk, RF004 -> store_sales.ss_addr_sk, RF006 -> store_sales.ss_store_sk, RF008 -> store_sales.ss_sold_date_sk, RF010 -> store_sales.ss_hdemo_sk
    row-size=36B cardinality=2.88M
 ---- PARALLELPLANS
-Max Per-Host Resource Reservation: Memory=143.02MB Threads=19
-Per-Host Resource Estimates: Memory=361MB
+Max Per-Host Resource Reservation: Memory=204.64MB Threads=17
+Per-Host Resource Estimates: Memory=401MB
 PLAN-ROOT SINK
 |
-24:MERGING-EXCHANGE [UNPARTITIONED]
+23:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: c_last_name ASC, c_first_name ASC, ca_city ASC, bought_city ASC, ss_ticket_number ASC
 |  limit: 100
 |
@@ -2231,52 +2228,50 @@ PLAN-ROOT SINK
 |  hash predicates: customer.c_current_addr_sk = current_addr.ca_address_sk
 |  other predicates: current_addr.ca_city != ca_city
 |  runtime filters: RF000 <- current_addr.ca_address_sk
-|  row-size=138B cardinality=230.45K
+|  row-size=138B cardinality=702.92K
 |
 |--JOIN BUILD
 |  |  join-table-id=00 plan-id=01 cohort-id=01
 |  |  build expressions: current_addr.ca_address_sk
 |  |
-|  23:EXCHANGE [BROADCAST]
+|  22:EXCHANGE [BROADCAST]
 |  |
 |  11:SCAN HDFS [tpcds.customer_address current_addr]
 |     partitions=1/1 files=1 size=5.25MB
 |     row-size=25B cardinality=50.00K
 |
-12:HASH JOIN [INNER JOIN, PARTITIONED]
+12:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: ss_customer_sk = c_customer_sk
 |  runtime filters: RF002 <- c_customer_sk
-|  row-size=113B cardinality=230.45K
+|  row-size=113B cardinality=702.92K
 |
 |--JOIN BUILD
 |  |  join-table-id=01 plan-id=02 cohort-id=01
 |  |  build expressions: c_customer_sk
 |  |
-|  22:EXCHANGE [HASH(c_customer_sk)]
+|  21:EXCHANGE [BROADCAST]
 |  |
 |  10:SCAN HDFS [tpcds.customer]
 |     partitions=1/1 files=1 size=12.60MB
 |     runtime filters: RF000 -> customer.c_current_addr_sk
 |     row-size=44B cardinality=100.00K
 |
-21:EXCHANGE [HASH(ss_customer_sk)]
-|
 20:AGGREGATE [FINALIZE]
 |  output: sum:merge(ss_coupon_amt), sum:merge(ss_net_profit)
 |  group by: ss_ticket_number, ss_customer_sk, ss_addr_sk, ca_city
-|  row-size=69B cardinality=230.45K
+|  row-size=69B cardinality=702.92K
 |
 19:EXCHANGE [HASH(ss_ticket_number,ss_customer_sk,ss_addr_sk,ca_city)]
 |
 09:AGGREGATE [STREAMING]
 |  output: sum(ss_coupon_amt), sum(ss_net_profit)
 |  group by: ss_ticket_number, ss_customer_sk, ss_addr_sk, ca_city
-|  row-size=69B cardinality=230.45K
+|  row-size=69B cardinality=702.92K
 |
 08:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: store_sales.ss_addr_sk = customer_address.ca_address_sk
 |  runtime filters: RF004 <- customer_address.ca_address_sk
-|  row-size=107B cardinality=230.45K
+|  row-size=107B cardinality=702.92K
 |
 |--JOIN BUILD
 |  |  join-table-id=02 plan-id=03 cohort-id=01
@@ -2291,7 +2286,7 @@ PLAN-ROOT SINK
 07:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: store_sales.ss_store_sk = store.s_store_sk
 |  runtime filters: RF006 <- store.s_store_sk
-|  row-size=83B cardinality=230.45K
+|  row-size=83B cardinality=702.92K
 |
 |--JOIN BUILD
 |  |  join-table-id=03 plan-id=04 cohort-id=01
@@ -2307,7 +2302,7 @@ PLAN-ROOT SINK
 06:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: store_sales.ss_sold_date_sk = date_dim.d_date_sk
 |  runtime filters: RF008 <- date_dim.d_date_sk
-|  row-size=60B cardinality=230.45K
+|  row-size=60B cardinality=702.92K
 |
 |--JOIN BUILD
 |  |  join-table-id=04 plan-id=05 cohort-id=01
@@ -2378,12 +2373,12 @@ PLAN-ROOT SINK
 05:AGGREGATE [FINALIZE]
 |  output: sum(ss_ext_sales_price)
 |  group by: dt.d_year, item.i_brand, item.i_brand_id
-|  row-size=52B cardinality=1.73K
+|  row-size=52B cardinality=29.16K
 |
 04:HASH JOIN [INNER JOIN]
 |  hash predicates: store_sales.ss_sold_date_sk = dt.d_date_sk
 |  runtime filters: RF000 <- dt.d_date_sk
-|  row-size=72B cardinality=1.73K
+|  row-size=72B cardinality=29.16K
 |
 |--00:SCAN HDFS [tpcds.date_dim dt]
 |     partitions=1/1 files=1 size=9.84MB
@@ -2393,7 +2388,7 @@ PLAN-ROOT SINK
 03:HASH JOIN [INNER JOIN]
 |  hash predicates: store_sales.ss_item_sk = item.i_item_sk
 |  runtime filters: RF002 <- item.i_item_sk
-|  row-size=60B cardinality=29.12K
+|  row-size=60B cardinality=29.16K
 |
 |--02:SCAN HDFS [tpcds.item]
 |     partitions=1/1 files=1 size=4.82MB
@@ -2406,7 +2401,7 @@ PLAN-ROOT SINK
    row-size=16B cardinality=2.88M
 ---- DISTRIBUTEDPLAN
 Max Per-Host Resource Reservation: Memory=33.81MB Threads=8
-Per-Host Resource Estimates: Memory=234MB
+Per-Host Resource Estimates: Memory=235MB
 PLAN-ROOT SINK
 |
 11:MERGING-EXCHANGE [UNPARTITIONED]
@@ -2420,19 +2415,19 @@ PLAN-ROOT SINK
 10:AGGREGATE [FINALIZE]
 |  output: sum:merge(ss_ext_sales_price)
 |  group by: dt.d_year, item.i_brand, item.i_brand_id
-|  row-size=52B cardinality=1.73K
+|  row-size=52B cardinality=29.16K
 |
 09:EXCHANGE [HASH(dt.d_year,item.i_brand,item.i_brand_id)]
 |
 05:AGGREGATE [STREAMING]
 |  output: sum(ss_ext_sales_price)
 |  group by: dt.d_year, item.i_brand, item.i_brand_id
-|  row-size=52B cardinality=1.73K
+|  row-size=52B cardinality=29.16K
 |
 04:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: store_sales.ss_sold_date_sk = dt.d_date_sk
 |  runtime filters: RF000 <- dt.d_date_sk
-|  row-size=72B cardinality=1.73K
+|  row-size=72B cardinality=29.16K
 |
 |--08:EXCHANGE [BROADCAST]
 |  |
@@ -2444,7 +2439,7 @@ PLAN-ROOT SINK
 03:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: store_sales.ss_item_sk = item.i_item_sk
 |  runtime filters: RF002 <- item.i_item_sk
-|  row-size=60B cardinality=29.12K
+|  row-size=60B cardinality=29.16K
 |
 |--07:EXCHANGE [BROADCAST]
 |  |
@@ -2459,7 +2454,7 @@ PLAN-ROOT SINK
    row-size=16B cardinality=2.88M
 ---- PARALLELPLANS
 Max Per-Host Resource Reservation: Memory=67.62MB Threads=9
-Per-Host Resource Estimates: Memory=164MB
+Per-Host Resource Estimates: Memory=165MB
 PLAN-ROOT SINK
 |
 11:MERGING-EXCHANGE [UNPARTITIONED]
@@ -2473,19 +2468,19 @@ PLAN-ROOT SINK
 10:AGGREGATE [FINALIZE]
 |  output: sum:merge(ss_ext_sales_price)
 |  group by: dt.d_year, item.i_brand, item.i_brand_id
-|  row-size=52B cardinality=1.73K
+|  row-size=52B cardinality=29.16K
 |
 09:EXCHANGE [HASH(dt.d_year,item.i_brand,item.i_brand_id)]
 |
 05:AGGREGATE [STREAMING]
 |  output: sum(ss_ext_sales_price)
 |  group by: dt.d_year, item.i_brand, item.i_brand_id
-|  row-size=52B cardinality=1.73K
+|  row-size=52B cardinality=29.16K
 |
 04:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: store_sales.ss_sold_date_sk = dt.d_date_sk
 |  runtime filters: RF000 <- dt.d_date_sk
-|  row-size=72B cardinality=1.73K
+|  row-size=72B cardinality=29.16K
 |
 |--JOIN BUILD
 |  |  join-table-id=00 plan-id=01 cohort-id=01
@@ -2501,7 +2496,7 @@ PLAN-ROOT SINK
 03:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: store_sales.ss_item_sk = item.i_item_sk
 |  runtime filters: RF002 <- item.i_item_sk
-|  row-size=60B cardinality=29.12K
+|  row-size=60B cardinality=29.16K
 |
 |--JOIN BUILD
 |  |  join-table-id=01 plan-id=02 cohort-id=01
@@ -2557,17 +2552,17 @@ PLAN-ROOT SINK
 |
 08:TOP-N [LIMIT=100]
 |  order by: sum_sales ASC, i_manufact_id ASC
-|  row-size=20B cardinality=96
+|  row-size=20B cardinality=100
 |
 07:AGGREGATE [FINALIZE]
 |  output: sum(ss_sales_price)
 |  group by: i_manufact_id, d_qoy
-|  row-size=24B cardinality=96
+|  row-size=24B cardinality=481
 |
 06:HASH JOIN [INNER JOIN]
 |  hash predicates: ss_store_sk = s_store_sk
 |  runtime filters: RF000 <- s_store_sk
-|  row-size=114B cardinality=96
+|  row-size=114B cardinality=481
 |
 |--03:SCAN HDFS [tpcds.store]
 |     partitions=1/1 files=1 size=3.08KB
@@ -2576,7 +2571,7 @@ PLAN-ROOT SINK
 05:HASH JOIN [INNER JOIN]
 |  hash predicates: ss_sold_date_sk = d_date_sk
 |  runtime filters: RF002 <- d_date_sk
-|  row-size=110B cardinality=96
+|  row-size=110B cardinality=481
 |
 |--02:SCAN HDFS [tpcds.date_dim]
 |     partitions=1/1 files=1 size=9.84MB
@@ -2608,24 +2603,24 @@ PLAN-ROOT SINK
 |
 08:TOP-N [LIMIT=100]
 |  order by: sum_sales ASC, i_manufact_id ASC
-|  row-size=20B cardinality=96
+|  row-size=20B cardinality=100
 |
 13:AGGREGATE [FINALIZE]
 |  output: sum:merge(ss_sales_price)
 |  group by: i_manufact_id, d_qoy
-|  row-size=24B cardinality=96
+|  row-size=24B cardinality=481
 |
 12:EXCHANGE [HASH(i_manufact_id,d_qoy)]
 |
 07:AGGREGATE [STREAMING]
 |  output: sum(ss_sales_price)
 |  group by: i_manufact_id, d_qoy
-|  row-size=24B cardinality=96
+|  row-size=24B cardinality=481
 |
 06:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: ss_store_sk = s_store_sk
 |  runtime filters: RF000 <- s_store_sk
-|  row-size=114B cardinality=96
+|  row-size=114B cardinality=481
 |
 |--11:EXCHANGE [BROADCAST]
 |  |
@@ -2636,7 +2631,7 @@ PLAN-ROOT SINK
 05:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: ss_sold_date_sk = d_date_sk
 |  runtime filters: RF002 <- d_date_sk
-|  row-size=110B cardinality=96
+|  row-size=110B cardinality=481
 |
 |--10:EXCHANGE [BROADCAST]
 |  |
@@ -2672,24 +2667,24 @@ PLAN-ROOT SINK
 |
 08:TOP-N [LIMIT=100]
 |  order by: sum_sales ASC, i_manufact_id ASC
-|  row-size=20B cardinality=96
+|  row-size=20B cardinality=100
 |
 13:AGGREGATE [FINALIZE]
 |  output: sum:merge(ss_sales_price)
 |  group by: i_manufact_id, d_qoy
-|  row-size=24B cardinality=96
+|  row-size=24B cardinality=481
 |
 12:EXCHANGE [HASH(i_manufact_id,d_qoy)]
 |
 07:AGGREGATE [STREAMING]
 |  output: sum(ss_sales_price)
 |  group by: i_manufact_id, d_qoy
-|  row-size=24B cardinality=96
+|  row-size=24B cardinality=481
 |
 06:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: ss_store_sk = s_store_sk
 |  runtime filters: RF000 <- s_store_sk
-|  row-size=114B cardinality=96
+|  row-size=114B cardinality=481
 |
 |--JOIN BUILD
 |  |  join-table-id=00 plan-id=01 cohort-id=01
@@ -2704,7 +2699,7 @@ PLAN-ROOT SINK
 05:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: ss_sold_date_sk = d_date_sk
 |  runtime filters: RF002 <- d_date_sk
-|  row-size=110B cardinality=96
+|  row-size=110B cardinality=481
 |
 |--JOIN BUILD
 |  |  join-table-id=01 plan-id=02 cohort-id=01
@@ -2772,12 +2767,12 @@ PLAN-ROOT SINK
 05:AGGREGATE [FINALIZE]
 |  output: sum(ss_ext_sales_price)
 |  group by: i_brand, i_brand_id
-|  row-size=48B cardinality=1.73K
+|  row-size=48B cardinality=29.16K
 |
 04:HASH JOIN [INNER JOIN]
 |  hash predicates: ss_sold_date_sk = d_date_sk
 |  runtime filters: RF000 <- d_date_sk
-|  row-size=72B cardinality=1.73K
+|  row-size=72B cardinality=29.16K
 |
 |--00:SCAN HDFS [tpcds.date_dim]
 |     partitions=1/1 files=1 size=9.84MB
@@ -2787,7 +2782,7 @@ PLAN-ROOT SINK
 03:HASH JOIN [INNER JOIN]
 |  hash predicates: ss_item_sk = i_item_sk
 |  runtime filters: RF002 <- i_item_sk
-|  row-size=60B cardinality=29.12K
+|  row-size=60B cardinality=29.16K
 |
 |--02:SCAN HDFS [tpcds.item]
 |     partitions=1/1 files=1 size=4.82MB
@@ -2800,7 +2795,7 @@ PLAN-ROOT SINK
    row-size=16B cardinality=2.88M
 ---- DISTRIBUTEDPLAN
 Max Per-Host Resource Reservation: Memory=33.81MB Threads=8
-Per-Host Resource Estimates: Memory=234MB
+Per-Host Resource Estimates: Memory=235MB
 PLAN-ROOT SINK
 |
 11:MERGING-EXCHANGE [UNPARTITIONED]
@@ -2814,19 +2809,19 @@ PLAN-ROOT SINK
 10:AGGREGATE [FINALIZE]
 |  output: sum:merge(ss_ext_sales_price)
 |  group by: i_brand, i_brand_id
-|  row-size=48B cardinality=1.73K
+|  row-size=48B cardinality=29.16K
 |
 09:EXCHANGE [HASH(i_brand,i_brand_id)]
 |
 05:AGGREGATE [STREAMING]
 |  output: sum(ss_ext_sales_price)
 |  group by: i_brand, i_brand_id
-|  row-size=48B cardinality=1.73K
+|  row-size=48B cardinality=29.16K
 |
 04:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: ss_sold_date_sk = d_date_sk
 |  runtime filters: RF000 <- d_date_sk
-|  row-size=72B cardinality=1.73K
+|  row-size=72B cardinality=29.16K
 |
 |--08:EXCHANGE [BROADCAST]
 |  |
@@ -2838,7 +2833,7 @@ PLAN-ROOT SINK
 03:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: ss_item_sk = i_item_sk
 |  runtime filters: RF002 <- i_item_sk
-|  row-size=60B cardinality=29.12K
+|  row-size=60B cardinality=29.16K
 |
 |--07:EXCHANGE [BROADCAST]
 |  |
@@ -2853,7 +2848,7 @@ PLAN-ROOT SINK
    row-size=16B cardinality=2.88M
 ---- PARALLELPLANS
 Max Per-Host Resource Reservation: Memory=67.62MB Threads=9
-Per-Host Resource Estimates: Memory=164MB
+Per-Host Resource Estimates: Memory=165MB
 PLAN-ROOT SINK
 |
 11:MERGING-EXCHANGE [UNPARTITIONED]
@@ -2867,19 +2862,19 @@ PLAN-ROOT SINK
 10:AGGREGATE [FINALIZE]
 |  output: sum:merge(ss_ext_sales_price)
 |  group by: i_brand, i_brand_id
-|  row-size=48B cardinality=1.73K
+|  row-size=48B cardinality=29.16K
 |
 09:EXCHANGE [HASH(i_brand,i_brand_id)]
 |
 05:AGGREGATE [STREAMING]
 |  output: sum(ss_ext_sales_price)
 |  group by: i_brand, i_brand_id
-|  row-size=48B cardinality=1.73K
+|  row-size=48B cardinality=29.16K
 |
 04:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: ss_sold_date_sk = d_date_sk
 |  runtime filters: RF000 <- d_date_sk
-|  row-size=72B cardinality=1.73K
+|  row-size=72B cardinality=29.16K
 |
 |--JOIN BUILD
 |  |  join-table-id=00 plan-id=01 cohort-id=01
@@ -2895,7 +2890,7 @@ PLAN-ROOT SINK
 03:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: ss_item_sk = i_item_sk
 |  runtime filters: RF002 <- i_item_sk
-|  row-size=60B cardinality=29.12K
+|  row-size=60B cardinality=29.16K
 |
 |--JOIN BUILD
 |  |  join-table-id=01 plan-id=02 cohort-id=01
@@ -3414,30 +3409,30 @@ PLAN-ROOT SINK
 |
 11:TOP-N [LIMIT=100]
 |  order by: i_manager_id ASC, avg_monthly_sales ASC, sum_sales ASC
-|  row-size=36B cardinality=1
+|  row-size=36B cardinality=48
 |
 10:SELECT
 |  predicates: CASE WHEN avg(sum(ss_sales_price)) > 0 THEN abs(sum(ss_sales_price) - avg(sum(ss_sales_price))) / avg(sum(ss_sales_price)) ELSE NULL END > 0.1
-|  row-size=40B cardinality=1
+|  row-size=40B cardinality=48
 |
 09:ANALYTIC
 |  functions: avg(sum(ss_sales_price))
 |  partition by: i_manager_id
-|  row-size=40B cardinality=6
+|  row-size=40B cardinality=481
 |
 08:SORT
 |  order by: i_manager_id ASC NULLS FIRST
-|  row-size=24B cardinality=6
+|  row-size=24B cardinality=481
 |
 07:AGGREGATE [FINALIZE]
 |  output: sum(ss_sales_price)
 |  group by: i_manager_id, d_moy
-|  row-size=24B cardinality=6
+|  row-size=24B cardinality=481
 |
 06:HASH JOIN [INNER JOIN]
 |  hash predicates: ss_store_sk = s_store_sk
 |  runtime filters: RF000 <- s_store_sk
-|  row-size=114B cardinality=6
+|  row-size=114B cardinality=481
 |
 |--03:SCAN HDFS [tpcds.store]
 |     partitions=1/1 files=1 size=3.08KB
@@ -3446,7 +3441,7 @@ PLAN-ROOT SINK
 05:HASH JOIN [INNER JOIN]
 |  hash predicates: ss_sold_date_sk = d_date_sk
 |  runtime filters: RF002 <- d_date_sk
-|  row-size=110B cardinality=6
+|  row-size=110B cardinality=481
 |
 |--02:SCAN HDFS [tpcds.date_dim]
 |     partitions=1/1 files=1 size=9.84MB
@@ -3456,7 +3451,7 @@ PLAN-ROOT SINK
 04:HASH JOIN [INNER JOIN]
 |  hash predicates: ss_item_sk = i_item_sk
 |  runtime filters: RF004 <- i_item_sk
-|  row-size=98B cardinality=92
+|  row-size=98B cardinality=481
 |
 |--00:SCAN HDFS [tpcds.item]
 |     partitions=1/1 files=1 size=4.82MB
@@ -3479,37 +3474,37 @@ PLAN-ROOT SINK
 |
 11:TOP-N [LIMIT=100]
 |  order by: i_manager_id ASC, avg_monthly_sales ASC, sum_sales ASC
-|  row-size=36B cardinality=1
+|  row-size=36B cardinality=48
 |
 10:SELECT
 |  predicates: CASE WHEN avg(sum(ss_sales_price)) > 0 THEN abs(sum(ss_sales_price) - avg(sum(ss_sales_price))) / avg(sum(ss_sales_price)) ELSE NULL END > 0.1
-|  row-size=40B cardinality=1
+|  row-size=40B cardinality=48
 |
 09:ANALYTIC
 |  functions: avg(sum(ss_sales_price))
 |  partition by: i_manager_id
-|  row-size=40B cardinality=6
+|  row-size=40B cardinality=481
 |
 08:SORT
 |  order by: i_manager_id ASC NULLS FIRST
-|  row-size=24B cardinality=6
+|  row-size=24B cardinality=481
 |
 16:AGGREGATE [FINALIZE]
 |  output: sum:merge(ss_sales_price)
 |  group by: i_manager_id, d_moy
-|  row-size=24B cardinality=6
+|  row-size=24B cardinality=481
 |
 15:EXCHANGE [HASH(i_manager_id)]
 |
 07:AGGREGATE [STREAMING]
 |  output: sum(ss_sales_price)
 |  group by: i_manager_id, d_moy
-|  row-size=24B cardinality=6
+|  row-size=24B cardinality=481
 |
 06:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: ss_store_sk = s_store_sk
 |  runtime filters: RF000 <- s_store_sk
-|  row-size=114B cardinality=6
+|  row-size=114B cardinality=481
 |
 |--14:EXCHANGE [BROADCAST]
 |  |
@@ -3520,7 +3515,7 @@ PLAN-ROOT SINK
 05:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: ss_sold_date_sk = d_date_sk
 |  runtime filters: RF002 <- d_date_sk
-|  row-size=110B cardinality=6
+|  row-size=110B cardinality=481
 |
 |--13:EXCHANGE [BROADCAST]
 |  |
@@ -3532,7 +3527,7 @@ PLAN-ROOT SINK
 04:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: ss_item_sk = i_item_sk
 |  runtime filters: RF004 <- i_item_sk
-|  row-size=98B cardinality=92
+|  row-size=98B cardinality=481
 |
 |--12:EXCHANGE [BROADCAST]
 |  |
@@ -3557,37 +3552,37 @@ PLAN-ROOT SINK
 |
 11:TOP-N [LIMIT=100]
 |  order by: i_manager_id ASC, avg_monthly_sales ASC, sum_sales ASC
-|  row-size=36B cardinality=1
+|  row-size=36B cardinality=48
 |
 10:SELECT
 |  predicates: CASE WHEN avg(sum(ss_sales_price)) > 0 THEN abs(sum(ss_sales_price) - avg(sum(ss_sales_price))) / avg(sum(ss_sales_price)) ELSE NULL END > 0.1
-|  row-size=40B cardinality=1
+|  row-size=40B cardinality=48
 |
 09:ANALYTIC
 |  functions: avg(sum(ss_sales_price))
 |  partition by: i_manager_id
-|  row-size=40B cardinality=6
+|  row-size=40B cardinality=481
 |
 08:SORT
 |  order by: i_manager_id ASC NULLS FIRST
-|  row-size=24B cardinality=6
+|  row-size=24B cardinality=481
 |
 16:AGGREGATE [FINALIZE]
 |  output: sum:merge(ss_sales_price)
 |  group by: i_manager_id, d_moy
-|  row-size=24B cardinality=6
+|  row-size=24B cardinality=481
 |
 15:EXCHANGE [HASH(i_manager_id)]
 |
 07:AGGREGATE [STREAMING]
 |  output: sum(ss_sales_price)
 |  group by: i_manager_id, d_moy
-|  row-size=24B cardinality=6
+|  row-size=24B cardinality=481
 |
 06:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: ss_store_sk = s_store_sk
 |  runtime filters: RF000 <- s_store_sk
-|  row-size=114B cardinality=6
+|  row-size=114B cardinality=481
 |
 |--JOIN BUILD
 |  |  join-table-id=00 plan-id=01 cohort-id=01
@@ -3602,7 +3597,7 @@ PLAN-ROOT SINK
 05:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: ss_sold_date_sk = d_date_sk
 |  runtime filters: RF002 <- d_date_sk
-|  row-size=110B cardinality=6
+|  row-size=110B cardinality=481
 |
 |--JOIN BUILD
 |  |  join-table-id=01 plan-id=02 cohort-id=01
@@ -3618,7 +3613,7 @@ PLAN-ROOT SINK
 04:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: ss_item_sk = i_item_sk
 |  runtime filters: RF004 <- i_item_sk
-|  row-size=98B cardinality=92
+|  row-size=98B cardinality=481
 |
 |--JOIN BUILD
 |  |  join-table-id=02 plan-id=03 cohort-id=01
@@ -4685,8 +4680,8 @@ order by
   profit
 limit 100
 ---- PLAN
-Max Per-Host Resource Reservation: Memory=34.07MB Threads=6
-Per-Host Resource Estimates: Memory=298MB
+Max Per-Host Resource Reservation: Memory=64.56MB Threads=6
+Per-Host Resource Estimates: Memory=303MB
 PLAN-ROOT SINK
 |
 10:TOP-N [LIMIT=100]
@@ -4694,60 +4689,59 @@ PLAN-ROOT SINK
 |  row-size=88B cardinality=100
 |
 09:HASH JOIN [INNER JOIN]
-|  hash predicates: c_customer_sk = ss_customer_sk
-|  runtime filters: RF000 <- ss_customer_sk
-|  row-size=106B cardinality=46.86K
+|  hash predicates: ss_customer_sk = c_customer_sk
+|  runtime filters: RF000 <- c_customer_sk
+|  row-size=106B cardinality=281.17K
 |
-|--07:AGGREGATE [FINALIZE]
-|  |  output: sum(ss_coupon_amt), sum(ss_net_profit)
-|  |  group by: ss_ticket_number, ss_customer_sk, ss_addr_sk, store.s_city
-|  |  row-size=67B cardinality=46.86K
-|  |
-|  06:HASH JOIN [INNER JOIN]
-|  |  hash predicates: store_sales.ss_sold_date_sk = date_dim.d_date_sk
-|  |  runtime filters: RF002 <- date_dim.d_date_sk
-|  |  row-size=101B cardinality=46.86K
-|  |
-|  |--01:SCAN HDFS [tpcds.date_dim]
-|  |     partitions=1/1 files=1 size=9.84MB
-|  |     predicates: d_date <= '1999-03-31', d_date >= '1999-01-01'
-|  |     row-size=26B cardinality=7.30K
-|  |
-|  05:HASH JOIN [INNER JOIN]
-|  |  hash predicates: store_sales.ss_store_sk = store.s_store_sk
-|  |  runtime filters: RF004 <- store.s_store_sk
-|  |  row-size=75B cardinality=46.86K
-|  |
-|  |--02:SCAN HDFS [tpcds.store]
-|  |     partitions=1/1 files=1 size=3.08KB
-|  |     predicates: store.s_number_employees <= 295, store.s_number_employees >= 200
-|  |     row-size=27B cardinality=1
-|  |
-|  04:HASH JOIN [INNER JOIN]
-|  |  hash predicates: store_sales.ss_hdemo_sk = household_demographics.hd_demo_sk
-|  |  runtime filters: RF006 <- household_demographics.hd_demo_sk
-|  |  row-size=48B cardinality=281.17K
-|  |
-|  |--03:SCAN HDFS [tpcds.household_demographics]
-|  |     partitions=1/1 files=1 size=148.10KB
-|  |     predicates: (household_demographics.hd_dep_count = 8 OR household_demographics.hd_vehicle_count > 0)
-|  |     row-size=12B cardinality=720
-|  |
-|  00:SCAN HDFS [tpcds.store_sales]
-|     partitions=1824/1824 files=1824 size=346.60MB
-|     runtime filters: RF002 -> store_sales.ss_sold_date_sk, RF004 -> store_sales.ss_store_sk, RF006 -> store_sales.ss_hdemo_sk
-|     row-size=36B cardinality=2.88M
+|--08:SCAN HDFS [tpcds.customer]
+|     partitions=1/1 files=1 size=12.60MB
+|     row-size=40B cardinality=100.00K
 |
-08:SCAN HDFS [tpcds.customer]
-   partitions=1/1 files=1 size=12.60MB
-   runtime filters: RF000 -> c_customer_sk
-   row-size=40B cardinality=100.00K
+07:AGGREGATE [FINALIZE]
+|  output: sum(ss_coupon_amt), sum(ss_net_profit)
+|  group by: ss_ticket_number, ss_customer_sk, ss_addr_sk, store.s_city
+|  row-size=67B cardinality=281.17K
+|
+06:HASH JOIN [INNER JOIN]
+|  hash predicates: store_sales.ss_store_sk = store.s_store_sk
+|  runtime filters: RF002 <- store.s_store_sk
+|  row-size=101B cardinality=281.17K
+|
+|--02:SCAN HDFS [tpcds.store]
+|     partitions=1/1 files=1 size=3.08KB
+|     predicates: store.s_number_employees <= 295, store.s_number_employees >= 200
+|     row-size=27B cardinality=1
+|
+05:HASH JOIN [INNER JOIN]
+|  hash predicates: store_sales.ss_sold_date_sk = date_dim.d_date_sk
+|  runtime filters: RF004 <- date_dim.d_date_sk
+|  row-size=74B cardinality=281.17K
+|
+|--01:SCAN HDFS [tpcds.date_dim]
+|     partitions=1/1 files=1 size=9.84MB
+|     predicates: d_date <= '1999-03-31', d_date >= '1999-01-01'
+|     row-size=26B cardinality=7.30K
+|
+04:HASH JOIN [INNER JOIN]
+|  hash predicates: store_sales.ss_hdemo_sk = household_demographics.hd_demo_sk
+|  runtime filters: RF006 <- household_demographics.hd_demo_sk
+|  row-size=48B cardinality=281.17K
+|
+|--03:SCAN HDFS [tpcds.household_demographics]
+|     partitions=1/1 files=1 size=148.10KB
+|     predicates: (household_demographics.hd_dep_count = 8 OR household_demographics.hd_vehicle_count > 0)
+|     row-size=12B cardinality=720
+|
+00:SCAN HDFS [tpcds.store_sales]
+   partitions=1824/1824 files=1824 size=346.60MB
+   runtime filters: RF000 -> tpcds.store_sales.ss_customer_sk, RF002 -> store_sales.ss_store_sk, RF004 -> store_sales.ss_sold_date_sk, RF006 -> store_sales.ss_hdemo_sk
+   row-size=36B cardinality=2.88M
 ---- DISTRIBUTEDPLAN
-Max Per-Host Resource Reservation: Memory=45.70MB Threads=13
-Per-Host Resource Estimates: Memory=330MB
+Max Per-Host Resource Reservation: Memory=73.82MB Threads=12
+Per-Host Resource Estimates: Memory=348MB
 PLAN-ROOT SINK
 |
-18:MERGING-EXCHANGE [UNPARTITIONED]
+17:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: c_last_name ASC, c_first_name ASC, substr(s_city, 1, 30) ASC, profit ASC
 |  limit: 100
 |
@@ -4755,54 +4749,52 @@ PLAN-ROOT SINK
 |  order by: c_last_name ASC, c_first_name ASC, substr(s_city, 1, 30) ASC, profit ASC
 |  row-size=88B cardinality=100
 |
-09:HASH JOIN [INNER JOIN, PARTITIONED]
+09:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: ss_customer_sk = c_customer_sk
 |  runtime filters: RF000 <- c_customer_sk
-|  row-size=106B cardinality=46.86K
+|  row-size=106B cardinality=281.17K
 |
-|--17:EXCHANGE [HASH(c_customer_sk)]
+|--16:EXCHANGE [BROADCAST]
 |  |
 |  08:SCAN HDFS [tpcds.customer]
 |     partitions=1/1 files=1 size=12.60MB
 |     row-size=40B cardinality=100.00K
 |
-16:EXCHANGE [HASH(ss_customer_sk)]
-|
 15:AGGREGATE [FINALIZE]
 |  output: sum:merge(ss_coupon_amt), sum:merge(ss_net_profit)
 |  group by: ss_ticket_number, ss_customer_sk, ss_addr_sk, store.s_city
-|  row-size=67B cardinality=46.86K
+|  row-size=67B cardinality=281.17K
 |
 14:EXCHANGE [HASH(ss_ticket_number,ss_customer_sk,ss_addr_sk,store.s_city)]
 |
 07:AGGREGATE [STREAMING]
 |  output: sum(ss_coupon_amt), sum(ss_net_profit)
 |  group by: ss_ticket_number, ss_customer_sk, ss_addr_sk, store.s_city
-|  row-size=67B cardinality=46.86K
+|  row-size=67B cardinality=281.17K
 |
 06:HASH JOIN [INNER JOIN, BROADCAST]
-|  hash predicates: store_sales.ss_sold_date_sk = date_dim.d_date_sk
-|  runtime filters: RF002 <- date_dim.d_date_sk
-|  row-size=101B cardinality=46.86K
+|  hash predicates: store_sales.ss_store_sk = store.s_store_sk
+|  runtime filters: RF002 <- store.s_store_sk
+|  row-size=101B cardinality=281.17K
 |
 |--13:EXCHANGE [BROADCAST]
-|  |
-|  01:SCAN HDFS [tpcds.date_dim]
-|     partitions=1/1 files=1 size=9.84MB
-|     predicates: d_date <= '1999-03-31', d_date >= '1999-01-01'
-|     row-size=26B cardinality=7.30K
-|
-05:HASH JOIN [INNER JOIN, BROADCAST]
-|  hash predicates: store_sales.ss_store_sk = store.s_store_sk
-|  runtime filters: RF004 <- store.s_store_sk
-|  row-size=75B cardinality=46.86K
-|
-|--12:EXCHANGE [BROADCAST]
 |  |
 |  02:SCAN HDFS [tpcds.store]
 |     partitions=1/1 files=1 size=3.08KB
 |     predicates: store.s_number_employees <= 295, store.s_number_employees >= 200
 |     row-size=27B cardinality=1
+|
+05:HASH JOIN [INNER JOIN, BROADCAST]
+|  hash predicates: store_sales.ss_sold_date_sk = date_dim.d_date_sk
+|  runtime filters: RF004 <- date_dim.d_date_sk
+|  row-size=74B cardinality=281.17K
+|
+|--12:EXCHANGE [BROADCAST]
+|  |
+|  01:SCAN HDFS [tpcds.date_dim]
+|     partitions=1/1 files=1 size=9.84MB
+|     predicates: d_date <= '1999-03-31', d_date >= '1999-01-01'
+|     row-size=26B cardinality=7.30K
 |
 04:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: store_sales.ss_hdemo_sk = household_demographics.hd_demo_sk
@@ -4818,14 +4810,14 @@ PLAN-ROOT SINK
 |
 00:SCAN HDFS [tpcds.store_sales]
    partitions=1824/1824 files=1824 size=346.60MB
-   runtime filters: RF000 -> tpcds.store_sales.ss_customer_sk, RF002 -> store_sales.ss_sold_date_sk, RF004 -> store_sales.ss_store_sk, RF006 -> store_sales.ss_hdemo_sk
+   runtime filters: RF000 -> tpcds.store_sales.ss_customer_sk, RF002 -> store_sales.ss_store_sk, RF004 -> store_sales.ss_sold_date_sk, RF006 -> store_sales.ss_hdemo_sk
    row-size=36B cardinality=2.88M
 ---- PARALLELPLANS
-Max Per-Host Resource Reservation: Memory=83.77MB Threads=15
-Per-Host Resource Estimates: Memory=270MB
+Max Per-Host Resource Reservation: Memory=114.64MB Threads=13
+Per-Host Resource Estimates: Memory=276MB
 PLAN-ROOT SINK
 |
-18:MERGING-EXCHANGE [UNPARTITIONED]
+17:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: c_last_name ASC, c_first_name ASC, substr(s_city, 1, 30) ASC, profit ASC
 |  limit: 100
 |
@@ -4833,66 +4825,64 @@ PLAN-ROOT SINK
 |  order by: c_last_name ASC, c_first_name ASC, substr(s_city, 1, 30) ASC, profit ASC
 |  row-size=88B cardinality=100
 |
-09:HASH JOIN [INNER JOIN, PARTITIONED]
+09:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: ss_customer_sk = c_customer_sk
 |  runtime filters: RF000 <- c_customer_sk
-|  row-size=106B cardinality=46.86K
+|  row-size=106B cardinality=281.17K
 |
 |--JOIN BUILD
 |  |  join-table-id=00 plan-id=01 cohort-id=01
 |  |  build expressions: c_customer_sk
 |  |
-|  17:EXCHANGE [HASH(c_customer_sk)]
+|  16:EXCHANGE [BROADCAST]
 |  |
 |  08:SCAN HDFS [tpcds.customer]
 |     partitions=1/1 files=1 size=12.60MB
 |     row-size=40B cardinality=100.00K
 |
-16:EXCHANGE [HASH(ss_customer_sk)]
-|
 15:AGGREGATE [FINALIZE]
 |  output: sum:merge(ss_coupon_amt), sum:merge(ss_net_profit)
 |  group by: ss_ticket_number, ss_customer_sk, ss_addr_sk, store.s_city
-|  row-size=67B cardinality=46.86K
+|  row-size=67B cardinality=281.17K
 |
 14:EXCHANGE [HASH(ss_ticket_number,ss_customer_sk,ss_addr_sk,store.s_city)]
 |
 07:AGGREGATE [STREAMING]
 |  output: sum(ss_coupon_amt), sum(ss_net_profit)
 |  group by: ss_ticket_number, ss_customer_sk, ss_addr_sk, store.s_city
-|  row-size=67B cardinality=46.86K
+|  row-size=67B cardinality=281.17K
 |
 06:HASH JOIN [INNER JOIN, BROADCAST]
-|  hash predicates: store_sales.ss_sold_date_sk = date_dim.d_date_sk
-|  runtime filters: RF002 <- date_dim.d_date_sk
-|  row-size=101B cardinality=46.86K
+|  hash predicates: store_sales.ss_store_sk = store.s_store_sk
+|  runtime filters: RF002 <- store.s_store_sk
+|  row-size=101B cardinality=281.17K
 |
 |--JOIN BUILD
 |  |  join-table-id=01 plan-id=02 cohort-id=01
-|  |  build expressions: date_dim.d_date_sk
-|  |
-|  13:EXCHANGE [BROADCAST]
-|  |
-|  01:SCAN HDFS [tpcds.date_dim]
-|     partitions=1/1 files=1 size=9.84MB
-|     predicates: d_date <= '1999-03-31', d_date >= '1999-01-01'
-|     row-size=26B cardinality=7.30K
-|
-05:HASH JOIN [INNER JOIN, BROADCAST]
-|  hash predicates: store_sales.ss_store_sk = store.s_store_sk
-|  runtime filters: RF004 <- store.s_store_sk
-|  row-size=75B cardinality=46.86K
-|
-|--JOIN BUILD
-|  |  join-table-id=02 plan-id=03 cohort-id=01
 |  |  build expressions: store.s_store_sk
 |  |
-|  12:EXCHANGE [BROADCAST]
+|  13:EXCHANGE [BROADCAST]
 |  |
 |  02:SCAN HDFS [tpcds.store]
 |     partitions=1/1 files=1 size=3.08KB
 |     predicates: store.s_number_employees <= 295, store.s_number_employees >= 200
 |     row-size=27B cardinality=1
+|
+05:HASH JOIN [INNER JOIN, BROADCAST]
+|  hash predicates: store_sales.ss_sold_date_sk = date_dim.d_date_sk
+|  runtime filters: RF004 <- date_dim.d_date_sk
+|  row-size=74B cardinality=281.17K
+|
+|--JOIN BUILD
+|  |  join-table-id=02 plan-id=03 cohort-id=01
+|  |  build expressions: date_dim.d_date_sk
+|  |
+|  12:EXCHANGE [BROADCAST]
+|  |
+|  01:SCAN HDFS [tpcds.date_dim]
+|     partitions=1/1 files=1 size=9.84MB
+|     predicates: d_date <= '1999-03-31', d_date >= '1999-01-01'
+|     row-size=26B cardinality=7.30K
 |
 04:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: store_sales.ss_hdemo_sk = household_demographics.hd_demo_sk
@@ -4912,7 +4902,7 @@ PLAN-ROOT SINK
 |
 00:SCAN HDFS [tpcds.store_sales]
    partitions=1824/1824 files=1824 size=346.60MB
-   runtime filters: RF000 -> tpcds.store_sales.ss_customer_sk, RF002 -> store_sales.ss_sold_date_sk, RF004 -> store_sales.ss_store_sk, RF006 -> store_sales.ss_hdemo_sk
+   runtime filters: RF000 -> tpcds.store_sales.ss_customer_sk, RF002 -> store_sales.ss_store_sk, RF004 -> store_sales.ss_sold_date_sk, RF006 -> store_sales.ss_hdemo_sk
    row-size=36B cardinality=2.88M
 ====
 # TPCDS-Q89
@@ -4952,26 +4942,26 @@ PLAN-ROOT SINK
 |
 10:SELECT
 |  predicates: CASE WHEN (avg(sum(ss_sales_price)) != 0) THEN (abs(sum(ss_sales_price) - avg(sum(ss_sales_price))) / avg(sum(ss_sales_price))) ELSE NULL END > 0.1
-|  row-size=137B cardinality=1.07K
+|  row-size=137B cardinality=5.22K
 |
 09:ANALYTIC
 |  functions: avg(sum(ss_sales_price))
 |  partition by: i_category, i_brand, s_store_name, s_company_name
-|  row-size=137B cardinality=10.67K
+|  row-size=137B cardinality=52.24K
 |
 08:SORT
 |  order by: i_category ASC NULLS FIRST, i_brand ASC NULLS FIRST, s_store_name ASC NULLS FIRST, s_company_name ASC NULLS FIRST
-|  row-size=121B cardinality=10.67K
+|  row-size=121B cardinality=52.24K
 |
 07:AGGREGATE [FINALIZE]
 |  output: sum(ss_sales_price)
 |  group by: i_category, i_class, i_brand, s_store_name, s_company_name, d_moy
-|  row-size=121B cardinality=10.67K
+|  row-size=121B cardinality=52.24K
 |
 06:HASH JOIN [INNER JOIN]
 |  hash predicates: ss_store_sk = s_store_sk
 |  runtime filters: RF000 <- s_store_sk
-|  row-size=145B cardinality=10.67K
+|  row-size=145B cardinality=52.24K
 |
 |--03:SCAN HDFS [tpcds.store]
 |     partitions=1/1 files=1 size=3.08KB
@@ -4980,7 +4970,7 @@ PLAN-ROOT SINK
 05:HASH JOIN [INNER JOIN]
 |  hash predicates: ss_sold_date_sk = d_date_sk
 |  runtime filters: RF002 <- d_date_sk
-|  row-size=106B cardinality=10.67K
+|  row-size=106B cardinality=52.24K
 |
 |--02:SCAN HDFS [tpcds.date_dim]
 |     partitions=1/1 files=1 size=9.84MB
@@ -4990,7 +4980,7 @@ PLAN-ROOT SINK
 04:HASH JOIN [INNER JOIN]
 |  hash predicates: ss_item_sk = i_item_sk
 |  runtime filters: RF004 <- i_item_sk
-|  row-size=94B cardinality=52.17K
+|  row-size=94B cardinality=52.24K
 |
 |--00:SCAN HDFS [tpcds.item]
 |     partitions=1/1 files=1 size=4.82MB
@@ -5002,7 +4992,7 @@ PLAN-ROOT SINK
    runtime filters: RF000 -> ss_store_sk, RF002 -> ss_sold_date_sk, RF004 -> ss_item_sk
    row-size=20B cardinality=2.88M
 ---- DISTRIBUTEDPLAN
-Max Per-Host Resource Reservation: Memory=52.76MB Threads=10
+Max Per-Host Resource Reservation: Memory=58.57MB Threads=10
 Per-Host Resource Estimates: Memory=285MB
 PLAN-ROOT SINK
 |
@@ -5016,33 +5006,33 @@ PLAN-ROOT SINK
 |
 10:SELECT
 |  predicates: CASE WHEN (avg(sum(ss_sales_price)) != 0) THEN (abs(sum(ss_sales_price) - avg(sum(ss_sales_price))) / avg(sum(ss_sales_price))) ELSE NULL END > 0.1
-|  row-size=137B cardinality=1.07K
+|  row-size=137B cardinality=5.22K
 |
 09:ANALYTIC
 |  functions: avg(sum(ss_sales_price))
 |  partition by: i_category, i_brand, s_store_name, s_company_name
-|  row-size=137B cardinality=10.67K
+|  row-size=137B cardinality=52.24K
 |
 08:SORT
 |  order by: i_category ASC NULLS FIRST, i_brand ASC NULLS FIRST, s_store_name ASC NULLS FIRST, s_company_name ASC NULLS FIRST
-|  row-size=121B cardinality=10.67K
+|  row-size=121B cardinality=52.24K
 |
 16:AGGREGATE [FINALIZE]
 |  output: sum:merge(ss_sales_price)
 |  group by: i_category, i_class, i_brand, s_store_name, s_company_name, d_moy
-|  row-size=121B cardinality=10.67K
+|  row-size=121B cardinality=52.24K
 |
 15:EXCHANGE [HASH(i_category,i_brand,s_store_name,s_company_name)]
 |
 07:AGGREGATE [STREAMING]
 |  output: sum(ss_sales_price)
 |  group by: i_category, i_class, i_brand, s_store_name, s_company_name, d_moy
-|  row-size=121B cardinality=10.67K
+|  row-size=121B cardinality=52.24K
 |
 06:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: ss_store_sk = s_store_sk
 |  runtime filters: RF000 <- s_store_sk
-|  row-size=145B cardinality=10.67K
+|  row-size=145B cardinality=52.24K
 |
 |--14:EXCHANGE [BROADCAST]
 |  |
@@ -5053,7 +5043,7 @@ PLAN-ROOT SINK
 05:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: ss_sold_date_sk = d_date_sk
 |  runtime filters: RF002 <- d_date_sk
-|  row-size=106B cardinality=10.67K
+|  row-size=106B cardinality=52.24K
 |
 |--13:EXCHANGE [BROADCAST]
 |  |
@@ -5065,7 +5055,7 @@ PLAN-ROOT SINK
 04:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: ss_item_sk = i_item_sk
 |  runtime filters: RF004 <- i_item_sk
-|  row-size=94B cardinality=52.17K
+|  row-size=94B cardinality=52.24K
 |
 |--12:EXCHANGE [BROADCAST]
 |  |
@@ -5079,7 +5069,7 @@ PLAN-ROOT SINK
    runtime filters: RF000 -> ss_store_sk, RF002 -> ss_sold_date_sk, RF004 -> ss_item_sk
    row-size=20B cardinality=2.88M
 ---- PARALLELPLANS
-Max Per-Host Resource Reservation: Memory=105.52MB Threads=11
+Max Per-Host Resource Reservation: Memory=109.39MB Threads=11
 Per-Host Resource Estimates: Memory=234MB
 PLAN-ROOT SINK
 |
@@ -5093,33 +5083,33 @@ PLAN-ROOT SINK
 |
 10:SELECT
 |  predicates: CASE WHEN (avg(sum(ss_sales_price)) != 0) THEN (abs(sum(ss_sales_price) - avg(sum(ss_sales_price))) / avg(sum(ss_sales_price))) ELSE NULL END > 0.1
-|  row-size=137B cardinality=1.07K
+|  row-size=137B cardinality=5.22K
 |
 09:ANALYTIC
 |  functions: avg(sum(ss_sales_price))
 |  partition by: i_category, i_brand, s_store_name, s_company_name
-|  row-size=137B cardinality=10.67K
+|  row-size=137B cardinality=52.24K
 |
 08:SORT
 |  order by: i_category ASC NULLS FIRST, i_brand ASC NULLS FIRST, s_store_name ASC NULLS FIRST, s_company_name ASC NULLS FIRST
-|  row-size=121B cardinality=10.67K
+|  row-size=121B cardinality=52.24K
 |
 16:AGGREGATE [FINALIZE]
 |  output: sum:merge(ss_sales_price)
 |  group by: i_category, i_class, i_brand, s_store_name, s_company_name, d_moy
-|  row-size=121B cardinality=10.67K
+|  row-size=121B cardinality=52.24K
 |
 15:EXCHANGE [HASH(i_category,i_brand,s_store_name,s_company_name)]
 |
 07:AGGREGATE [STREAMING]
 |  output: sum(ss_sales_price)
 |  group by: i_category, i_class, i_brand, s_store_name, s_company_name, d_moy
-|  row-size=121B cardinality=10.67K
+|  row-size=121B cardinality=52.24K
 |
 06:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: ss_store_sk = s_store_sk
 |  runtime filters: RF000 <- s_store_sk
-|  row-size=145B cardinality=10.67K
+|  row-size=145B cardinality=52.24K
 |
 |--JOIN BUILD
 |  |  join-table-id=00 plan-id=01 cohort-id=01
@@ -5134,7 +5124,7 @@ PLAN-ROOT SINK
 05:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: ss_sold_date_sk = d_date_sk
 |  runtime filters: RF002 <- d_date_sk
-|  row-size=106B cardinality=10.67K
+|  row-size=106B cardinality=52.24K
 |
 |--JOIN BUILD
 |  |  join-table-id=01 plan-id=02 cohort-id=01
@@ -5150,7 +5140,7 @@ PLAN-ROOT SINK
 04:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: ss_item_sk = i_item_sk
 |  runtime filters: RF004 <- i_item_sk
-|  row-size=94B cardinality=52.17K
+|  row-size=94B cardinality=52.24K
 |
 |--JOIN BUILD
 |  |  join-table-id=02 plan-id=03 cohort-id=01
@@ -5195,7 +5185,7 @@ PLAN-ROOT SINK
 06:HASH JOIN [INNER JOIN]
 |  hash predicates: ss.ss_store_sk = s.s_store_sk
 |  runtime filters: RF000 <- s.s_store_sk
-|  row-size=52B cardinality=2.27K
+|  row-size=52B cardinality=69.82K
 |
 |--03:SCAN HDFS [tpcds.store s]
 |     partitions=1/1 files=1 size=3.08KB
@@ -5205,7 +5195,7 @@ PLAN-ROOT SINK
 05:HASH JOIN [INNER JOIN]
 |  hash predicates: ss.ss_hdemo_sk = hd.hd_demo_sk
 |  runtime filters: RF002 <- hd.hd_demo_sk
-|  row-size=32B cardinality=6.82K
+|  row-size=32B cardinality=69.82K
 |
 |--02:SCAN HDFS [tpcds.household_demographics hd]
 |     partitions=1/1 files=1 size=148.10KB
@@ -5244,7 +5234,7 @@ PLAN-ROOT SINK
 06:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: ss.ss_store_sk = s.s_store_sk
 |  runtime filters: RF000 <- s.s_store_sk
-|  row-size=52B cardinality=2.27K
+|  row-size=52B cardinality=69.82K
 |
 |--10:EXCHANGE [BROADCAST]
 |  |
@@ -5256,7 +5246,7 @@ PLAN-ROOT SINK
 05:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: ss.ss_hdemo_sk = hd.hd_demo_sk
 |  runtime filters: RF002 <- hd.hd_demo_sk
-|  row-size=32B cardinality=6.82K
+|  row-size=32B cardinality=69.82K
 |
 |--09:EXCHANGE [BROADCAST]
 |  |
@@ -5299,7 +5289,7 @@ PLAN-ROOT SINK
 06:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: ss.ss_store_sk = s.s_store_sk
 |  runtime filters: RF000 <- s.s_store_sk
-|  row-size=52B cardinality=2.27K
+|  row-size=52B cardinality=69.82K
 |
 |--JOIN BUILD
 |  |  join-table-id=00 plan-id=01 cohort-id=01
@@ -5315,7 +5305,7 @@ PLAN-ROOT SINK
 05:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: ss.ss_hdemo_sk = hd.hd_demo_sk
 |  runtime filters: RF002 <- hd.hd_demo_sk
-|  row-size=32B cardinality=6.82K
+|  row-size=32B cardinality=69.82K
 |
 |--JOIN BUILD
 |  |  join-table-id=01 plan-id=02 cohort-id=01
@@ -6740,43 +6730,43 @@ PLAN-ROOT SINK
 |  |  row-size=16B cardinality=1
 |  |
 |  24:HASH JOIN [INNER JOIN]
+|  |  hash predicates: ss_item_sk = i_item_sk
+|  |  runtime filters: RF012 <- i_item_sk
+|  |  row-size=86B cardinality=33.84K
+|  |
+|  |--19:SCAN HDFS [tpcds.item]
+|  |     partitions=1/1 files=1 size=4.82MB
+|  |     predicates: i_category = 'Books'
+|  |     row-size=26B cardinality=1.80K
+|  |
+|  23:HASH JOIN [INNER JOIN]
 |  |  hash predicates: c_current_addr_sk = ca_address_sk
-|  |  runtime filters: RF012 <- ca_address_sk
-|  |  row-size=86B cardinality=3.30K
+|  |  runtime filters: RF014 <- ca_address_sk
+|  |  row-size=60B cardinality=33.84K
 |  |
 |  |--18:SCAN HDFS [tpcds.customer_address]
 |  |     partitions=1/1 files=1 size=5.25MB
 |  |     predicates: ca_gmt_offset = -5
 |  |     row-size=8B cardinality=8.33K
 |  |
-|  23:HASH JOIN [INNER JOIN]
+|  22:HASH JOIN [INNER JOIN]
 |  |  hash predicates: ss_customer_sk = c_customer_sk
-|  |  runtime filters: RF014 <- c_customer_sk
-|  |  row-size=78B cardinality=17.06K
+|  |  runtime filters: RF016 <- c_customer_sk
+|  |  row-size=52B cardinality=170.55K
 |  |
 |  |--17:SCAN HDFS [tpcds.customer]
 |  |     partitions=1/1 files=1 size=12.60MB
-|  |     runtime filters: RF012 -> c_current_addr_sk
+|  |     runtime filters: RF014 -> c_current_addr_sk
 |  |     row-size=8B cardinality=100.00K
 |  |
-|  22:HASH JOIN [INNER JOIN]
+|  21:HASH JOIN [INNER JOIN]
 |  |  hash predicates: ss_store_sk = s_store_sk
-|  |  row-size=70B cardinality=17.06K
+|  |  row-size=44B cardinality=170.55K
 |  |
 |  |--15:SCAN HDFS [tpcds.store]
 |  |     partitions=1/1 files=1 size=3.08KB
 |  |     predicates: s_gmt_offset = -5
 |  |     row-size=8B cardinality=12
-|  |
-|  21:HASH JOIN [INNER JOIN]
-|  |  hash predicates: ss_item_sk = i_item_sk
-|  |  runtime filters: RF018 <- i_item_sk
-|  |  row-size=62B cardinality=17.06K
-|  |
-|  |--19:SCAN HDFS [tpcds.item]
-|  |     partitions=1/1 files=1 size=4.82MB
-|  |     predicates: i_category = 'Books'
-|  |     row-size=26B cardinality=1.80K
 |  |
 |  20:HASH JOIN [INNER JOIN]
 |  |  hash predicates: ss_sold_date_sk = d_date_sk
@@ -6790,7 +6780,7 @@ PLAN-ROOT SINK
 |  |
 |  14:SCAN HDFS [tpcds.store_sales]
 |     partitions=1824/1824 files=1824 size=346.60MB
-|     runtime filters: RF020 -> ss_sold_date_sk, RF018 -> ss_item_sk, RF014 -> ss_customer_sk
+|     runtime filters: RF020 -> ss_sold_date_sk, RF012 -> ss_item_sk, RF016 -> ss_customer_sk
 |     row-size=24B cardinality=2.88M
 |
 13:AGGREGATE [FINALIZE]
@@ -6798,39 +6788,39 @@ PLAN-ROOT SINK
 |  row-size=16B cardinality=1
 |
 12:HASH JOIN [INNER JOIN]
+|  hash predicates: ss_item_sk = i_item_sk
+|  runtime filters: RF000 <- i_item_sk
+|  row-size=133B cardinality=33.84K
+|
+|--06:SCAN HDFS [tpcds.item]
+|     partitions=1/1 files=1 size=4.82MB
+|     predicates: i_category = 'Books'
+|     row-size=26B cardinality=1.80K
+|
+11:HASH JOIN [INNER JOIN]
 |  hash predicates: c_current_addr_sk = ca_address_sk
-|  runtime filters: RF000 <- ca_address_sk
-|  row-size=133B cardinality=3.28K
+|  runtime filters: RF002 <- ca_address_sk
+|  row-size=107B cardinality=33.84K
 |
 |--05:SCAN HDFS [tpcds.customer_address]
 |     partitions=1/1 files=1 size=5.25MB
 |     predicates: ca_gmt_offset = -5
 |     row-size=8B cardinality=8.33K
 |
-11:HASH JOIN [INNER JOIN]
+10:HASH JOIN [INNER JOIN]
 |  hash predicates: ss_customer_sk = c_customer_sk
-|  runtime filters: RF002 <- c_customer_sk
-|  row-size=125B cardinality=16.94K
+|  runtime filters: RF004 <- c_customer_sk
+|  row-size=99B cardinality=170.55K
 |
 |--04:SCAN HDFS [tpcds.customer]
 |     partitions=1/1 files=1 size=12.60MB
-|     runtime filters: RF000 -> c_current_addr_sk
+|     runtime filters: RF002 -> c_current_addr_sk
 |     row-size=8B cardinality=100.00K
-|
-10:HASH JOIN [INNER JOIN]
-|  hash predicates: ss_store_sk = s_store_sk
-|  runtime filters: RF004 <- s_store_sk
-|  row-size=117B cardinality=16.94K
-|
-|--01:SCAN HDFS [tpcds.store]
-|     partitions=1/1 files=1 size=3.08KB
-|     predicates: s_gmt_offset = -5
-|     row-size=8B cardinality=12
 |
 09:HASH JOIN [INNER JOIN]
 |  hash predicates: ss_promo_sk = p_promo_sk
 |  runtime filters: RF006 <- p_promo_sk
-|  row-size=109B cardinality=16.94K
+|  row-size=91B cardinality=170.55K
 |
 |--02:SCAN HDFS [tpcds.promotion]
 |     partitions=1/1 files=1 size=36.36KB
@@ -6838,14 +6828,14 @@ PLAN-ROOT SINK
 |     row-size=43B cardinality=300
 |
 08:HASH JOIN [INNER JOIN]
-|  hash predicates: ss_item_sk = i_item_sk
-|  runtime filters: RF008 <- i_item_sk
-|  row-size=66B cardinality=17.06K
+|  hash predicates: ss_store_sk = s_store_sk
+|  runtime filters: RF008 <- s_store_sk
+|  row-size=48B cardinality=170.55K
 |
-|--06:SCAN HDFS [tpcds.item]
-|     partitions=1/1 files=1 size=4.82MB
-|     predicates: i_category = 'Books'
-|     row-size=26B cardinality=1.80K
+|--01:SCAN HDFS [tpcds.store]
+|     partitions=1/1 files=1 size=3.08KB
+|     predicates: s_gmt_offset = -5
+|     row-size=8B cardinality=12
 |
 07:HASH JOIN [INNER JOIN]
 |  hash predicates: ss_sold_date_sk = d_date_sk
@@ -6859,11 +6849,11 @@ PLAN-ROOT SINK
 |
 00:SCAN HDFS [tpcds.store_sales]
    partitions=1824/1824 files=1824 size=346.60MB
-   runtime filters: RF010 -> ss_sold_date_sk, RF008 -> ss_item_sk, RF006 -> ss_promo_sk, RF002 -> ss_customer_sk, RF004 -> ss_store_sk
+   runtime filters: RF010 -> ss_sold_date_sk, RF000 -> ss_item_sk, RF004 -> ss_customer_sk, RF006 -> ss_promo_sk, RF008 -> ss_store_sk
    row-size=28B cardinality=2.88M
 ---- DISTRIBUTEDPLAN
-Max Per-Host Resource Reservation: Memory=121.39MB Threads=30
-Per-Host Resource Estimates: Memory=755MB
+Max Per-Host Resource Reservation: Memory=119.39MB Threads=28
+Per-Host Resource Estimates: Memory=751MB
 PLAN-ROOT SINK
 |
 27:SORT
@@ -6873,73 +6863,71 @@ PLAN-ROOT SINK
 26:NESTED LOOP JOIN [CROSS JOIN, BROADCAST]
 |  row-size=32B cardinality=1
 |
-|--45:EXCHANGE [UNPARTITIONED]
+|--43:EXCHANGE [UNPARTITIONED]
 |  |
-|  44:AGGREGATE [FINALIZE]
+|  42:AGGREGATE [FINALIZE]
 |  |  output: sum:merge(ss_ext_sales_price)
 |  |  row-size=16B cardinality=1
 |  |
-|  43:EXCHANGE [UNPARTITIONED]
+|  41:EXCHANGE [UNPARTITIONED]
 |  |
 |  25:AGGREGATE
 |  |  output: sum(ss_ext_sales_price)
 |  |  row-size=16B cardinality=1
 |  |
 |  24:HASH JOIN [INNER JOIN, BROADCAST]
-|  |  hash predicates: c_current_addr_sk = ca_address_sk
-|  |  runtime filters: RF012 <- ca_address_sk
-|  |  row-size=86B cardinality=3.30K
-|  |
-|  |--42:EXCHANGE [BROADCAST]
-|  |  |
-|  |  18:SCAN HDFS [tpcds.customer_address]
-|  |     partitions=1/1 files=1 size=5.25MB
-|  |     predicates: ca_gmt_offset = -5
-|  |     row-size=8B cardinality=8.33K
-|  |
-|  23:HASH JOIN [INNER JOIN, PARTITIONED]
-|  |  hash predicates: ss_customer_sk = c_customer_sk
-|  |  runtime filters: RF014 <- c_customer_sk
-|  |  row-size=78B cardinality=17.06K
-|  |
-|  |--41:EXCHANGE [HASH(c_customer_sk)]
-|  |  |
-|  |  17:SCAN HDFS [tpcds.customer]
-|  |     partitions=1/1 files=1 size=12.60MB
-|  |     runtime filters: RF012 -> c_current_addr_sk
-|  |     row-size=8B cardinality=100.00K
-|  |
-|  40:EXCHANGE [HASH(ss_customer_sk)]
-|  |
-|  22:HASH JOIN [INNER JOIN, BROADCAST]
-|  |  hash predicates: ss_store_sk = s_store_sk
-|  |  row-size=70B cardinality=17.06K
-|  |
-|  |--39:EXCHANGE [BROADCAST]
-|  |  |
-|  |  15:SCAN HDFS [tpcds.store]
-|  |     partitions=1/1 files=1 size=3.08KB
-|  |     predicates: s_gmt_offset = -5
-|  |     row-size=8B cardinality=12
-|  |
-|  21:HASH JOIN [INNER JOIN, BROADCAST]
 |  |  hash predicates: ss_item_sk = i_item_sk
-|  |  runtime filters: RF018 <- i_item_sk
-|  |  row-size=62B cardinality=17.06K
+|  |  runtime filters: RF012 <- i_item_sk
+|  |  row-size=86B cardinality=33.84K
 |  |
-|  |--38:EXCHANGE [BROADCAST]
+|  |--40:EXCHANGE [BROADCAST]
 |  |  |
 |  |  19:SCAN HDFS [tpcds.item]
 |  |     partitions=1/1 files=1 size=4.82MB
 |  |     predicates: i_category = 'Books'
 |  |     row-size=26B cardinality=1.80K
 |  |
+|  23:HASH JOIN [INNER JOIN, BROADCAST]
+|  |  hash predicates: c_current_addr_sk = ca_address_sk
+|  |  runtime filters: RF014 <- ca_address_sk
+|  |  row-size=60B cardinality=33.84K
+|  |
+|  |--39:EXCHANGE [BROADCAST]
+|  |  |
+|  |  18:SCAN HDFS [tpcds.customer_address]
+|  |     partitions=1/1 files=1 size=5.25MB
+|  |     predicates: ca_gmt_offset = -5
+|  |     row-size=8B cardinality=8.33K
+|  |
+|  22:HASH JOIN [INNER JOIN, BROADCAST]
+|  |  hash predicates: ss_customer_sk = c_customer_sk
+|  |  runtime filters: RF016 <- c_customer_sk
+|  |  row-size=52B cardinality=170.55K
+|  |
+|  |--38:EXCHANGE [BROADCAST]
+|  |  |
+|  |  17:SCAN HDFS [tpcds.customer]
+|  |     partitions=1/1 files=1 size=12.60MB
+|  |     runtime filters: RF014 -> c_current_addr_sk
+|  |     row-size=8B cardinality=100.00K
+|  |
+|  21:HASH JOIN [INNER JOIN, BROADCAST]
+|  |  hash predicates: ss_store_sk = s_store_sk
+|  |  row-size=44B cardinality=170.55K
+|  |
+|  |--37:EXCHANGE [BROADCAST]
+|  |  |
+|  |  15:SCAN HDFS [tpcds.store]
+|  |     partitions=1/1 files=1 size=3.08KB
+|  |     predicates: s_gmt_offset = -5
+|  |     row-size=8B cardinality=12
+|  |
 |  20:HASH JOIN [INNER JOIN, BROADCAST]
 |  |  hash predicates: ss_sold_date_sk = d_date_sk
 |  |  runtime filters: RF020 <- d_date_sk
 |  |  row-size=36B cardinality=170.55K
 |  |
-|  |--37:EXCHANGE [BROADCAST]
+|  |--36:EXCHANGE [BROADCAST]
 |  |  |
 |  |  16:SCAN HDFS [tpcds.date_dim]
 |  |     partitions=1/1 files=1 size=9.84MB
@@ -6948,61 +6936,59 @@ PLAN-ROOT SINK
 |  |
 |  14:SCAN HDFS [tpcds.store_sales]
 |     partitions=1824/1824 files=1824 size=346.60MB
-|     runtime filters: RF020 -> ss_sold_date_sk, RF018 -> ss_item_sk, RF014 -> ss_customer_sk
+|     runtime filters: RF020 -> ss_sold_date_sk, RF012 -> ss_item_sk, RF016 -> ss_customer_sk
 |     row-size=24B cardinality=2.88M
 |
-36:AGGREGATE [FINALIZE]
+35:AGGREGATE [FINALIZE]
 |  output: sum:merge(ss_ext_sales_price)
 |  row-size=16B cardinality=1
 |
-35:EXCHANGE [UNPARTITIONED]
+34:EXCHANGE [UNPARTITIONED]
 |
 13:AGGREGATE
 |  output: sum(ss_ext_sales_price)
 |  row-size=16B cardinality=1
 |
 12:HASH JOIN [INNER JOIN, BROADCAST]
-|  hash predicates: c_current_addr_sk = ca_address_sk
-|  runtime filters: RF000 <- ca_address_sk
-|  row-size=133B cardinality=3.28K
+|  hash predicates: ss_item_sk = i_item_sk
+|  runtime filters: RF000 <- i_item_sk
+|  row-size=133B cardinality=33.84K
 |
-|--34:EXCHANGE [BROADCAST]
+|--33:EXCHANGE [BROADCAST]
+|  |
+|  06:SCAN HDFS [tpcds.item]
+|     partitions=1/1 files=1 size=4.82MB
+|     predicates: i_category = 'Books'
+|     row-size=26B cardinality=1.80K
+|
+11:HASH JOIN [INNER JOIN, BROADCAST]
+|  hash predicates: c_current_addr_sk = ca_address_sk
+|  runtime filters: RF002 <- ca_address_sk
+|  row-size=107B cardinality=33.84K
+|
+|--32:EXCHANGE [BROADCAST]
 |  |
 |  05:SCAN HDFS [tpcds.customer_address]
 |     partitions=1/1 files=1 size=5.25MB
 |     predicates: ca_gmt_offset = -5
 |     row-size=8B cardinality=8.33K
 |
-11:HASH JOIN [INNER JOIN, PARTITIONED]
-|  hash predicates: ss_customer_sk = c_customer_sk
-|  runtime filters: RF002 <- c_customer_sk
-|  row-size=125B cardinality=16.94K
-|
-|--33:EXCHANGE [HASH(c_customer_sk)]
-|  |
-|  04:SCAN HDFS [tpcds.customer]
-|     partitions=1/1 files=1 size=12.60MB
-|     runtime filters: RF000 -> c_current_addr_sk
-|     row-size=8B cardinality=100.00K
-|
-32:EXCHANGE [HASH(ss_customer_sk)]
-|
 10:HASH JOIN [INNER JOIN, BROADCAST]
-|  hash predicates: ss_store_sk = s_store_sk
-|  runtime filters: RF004 <- s_store_sk
-|  row-size=117B cardinality=16.94K
+|  hash predicates: ss_customer_sk = c_customer_sk
+|  runtime filters: RF004 <- c_customer_sk
+|  row-size=99B cardinality=170.55K
 |
 |--31:EXCHANGE [BROADCAST]
 |  |
-|  01:SCAN HDFS [tpcds.store]
-|     partitions=1/1 files=1 size=3.08KB
-|     predicates: s_gmt_offset = -5
-|     row-size=8B cardinality=12
+|  04:SCAN HDFS [tpcds.customer]
+|     partitions=1/1 files=1 size=12.60MB
+|     runtime filters: RF002 -> c_current_addr_sk
+|     row-size=8B cardinality=100.00K
 |
 09:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: ss_promo_sk = p_promo_sk
 |  runtime filters: RF006 <- p_promo_sk
-|  row-size=109B cardinality=16.94K
+|  row-size=91B cardinality=170.55K
 |
 |--30:EXCHANGE [BROADCAST]
 |  |
@@ -7012,16 +6998,16 @@ PLAN-ROOT SINK
 |     row-size=43B cardinality=300
 |
 08:HASH JOIN [INNER JOIN, BROADCAST]
-|  hash predicates: ss_item_sk = i_item_sk
-|  runtime filters: RF008 <- i_item_sk
-|  row-size=66B cardinality=17.06K
+|  hash predicates: ss_store_sk = s_store_sk
+|  runtime filters: RF008 <- s_store_sk
+|  row-size=48B cardinality=170.55K
 |
 |--29:EXCHANGE [BROADCAST]
 |  |
-|  06:SCAN HDFS [tpcds.item]
-|     partitions=1/1 files=1 size=4.82MB
-|     predicates: i_category = 'Books'
-|     row-size=26B cardinality=1.80K
+|  01:SCAN HDFS [tpcds.store]
+|     partitions=1/1 files=1 size=3.08KB
+|     predicates: s_gmt_offset = -5
+|     row-size=8B cardinality=12
 |
 07:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: ss_sold_date_sk = d_date_sk
@@ -7037,11 +7023,11 @@ PLAN-ROOT SINK
 |
 00:SCAN HDFS [tpcds.store_sales]
    partitions=1824/1824 files=1824 size=346.60MB
-   runtime filters: RF010 -> ss_sold_date_sk, RF008 -> ss_item_sk, RF006 -> ss_promo_sk, RF002 -> ss_customer_sk, RF004 -> ss_store_sk
+   runtime filters: RF010 -> ss_sold_date_sk, RF000 -> ss_item_sk, RF004 -> ss_customer_sk, RF006 -> ss_promo_sk, RF008 -> ss_store_sk
    row-size=28B cardinality=2.88M
 ---- PARALLELPLANS
-Max Per-Host Resource Reservation: Memory=236.78MB Threads=32
-Per-Host Resource Estimates: Memory=621MB
+Max Per-Host Resource Reservation: Memory=232.78MB Threads=28
+Per-Host Resource Estimates: Memory=613MB
 PLAN-ROOT SINK
 |
 27:SORT
@@ -7055,82 +7041,80 @@ PLAN-ROOT SINK
 |--JOIN BUILD
 |  |  join-table-id=00 plan-id=01 cohort-id=01
 |  |
-|  45:EXCHANGE [UNPARTITIONED]
+|  43:EXCHANGE [UNPARTITIONED]
 |  |
-|  44:AGGREGATE [FINALIZE]
+|  42:AGGREGATE [FINALIZE]
 |  |  output: sum:merge(ss_ext_sales_price)
 |  |  row-size=16B cardinality=1
 |  |
-|  43:EXCHANGE [UNPARTITIONED]
+|  41:EXCHANGE [UNPARTITIONED]
 |  |
 |  25:AGGREGATE
 |  |  output: sum(ss_ext_sales_price)
 |  |  row-size=16B cardinality=1
 |  |
 |  24:HASH JOIN [INNER JOIN, BROADCAST]
-|  |  hash predicates: c_current_addr_sk = ca_address_sk
-|  |  runtime filters: RF012 <- ca_address_sk
-|  |  row-size=86B cardinality=3.30K
+|  |  hash predicates: ss_item_sk = i_item_sk
+|  |  runtime filters: RF012 <- i_item_sk
+|  |  row-size=86B cardinality=33.84K
 |  |
 |  |--JOIN BUILD
 |  |  |  join-table-id=01 plan-id=02 cohort-id=02
+|  |  |  build expressions: i_item_sk
+|  |  |
+|  |  40:EXCHANGE [BROADCAST]
+|  |  |
+|  |  19:SCAN HDFS [tpcds.item]
+|  |     partitions=1/1 files=1 size=4.82MB
+|  |     predicates: i_category = 'Books'
+|  |     row-size=26B cardinality=1.80K
+|  |
+|  23:HASH JOIN [INNER JOIN, BROADCAST]
+|  |  hash predicates: c_current_addr_sk = ca_address_sk
+|  |  runtime filters: RF014 <- ca_address_sk
+|  |  row-size=60B cardinality=33.84K
+|  |
+|  |--JOIN BUILD
+|  |  |  join-table-id=02 plan-id=03 cohort-id=02
 |  |  |  build expressions: ca_address_sk
 |  |  |
-|  |  42:EXCHANGE [BROADCAST]
+|  |  39:EXCHANGE [BROADCAST]
 |  |  |
 |  |  18:SCAN HDFS [tpcds.customer_address]
 |  |     partitions=1/1 files=1 size=5.25MB
 |  |     predicates: ca_gmt_offset = -5
 |  |     row-size=8B cardinality=8.33K
 |  |
-|  23:HASH JOIN [INNER JOIN, PARTITIONED]
-|  |  hash predicates: ss_customer_sk = c_customer_sk
-|  |  runtime filters: RF014 <- c_customer_sk
-|  |  row-size=78B cardinality=17.06K
-|  |
-|  |--JOIN BUILD
-|  |  |  join-table-id=02 plan-id=03 cohort-id=02
-|  |  |  build expressions: c_customer_sk
-|  |  |
-|  |  41:EXCHANGE [HASH(c_customer_sk)]
-|  |  |
-|  |  17:SCAN HDFS [tpcds.customer]
-|  |     partitions=1/1 files=1 size=12.60MB
-|  |     runtime filters: RF012 -> c_current_addr_sk
-|  |     row-size=8B cardinality=100.00K
-|  |
-|  40:EXCHANGE [HASH(ss_customer_sk)]
-|  |
 |  22:HASH JOIN [INNER JOIN, BROADCAST]
-|  |  hash predicates: ss_store_sk = s_store_sk
-|  |  row-size=70B cardinality=17.06K
+|  |  hash predicates: ss_customer_sk = c_customer_sk
+|  |  runtime filters: RF016 <- c_customer_sk
+|  |  row-size=52B cardinality=170.55K
 |  |
 |  |--JOIN BUILD
 |  |  |  join-table-id=03 plan-id=04 cohort-id=02
+|  |  |  build expressions: c_customer_sk
+|  |  |
+|  |  38:EXCHANGE [BROADCAST]
+|  |  |
+|  |  17:SCAN HDFS [tpcds.customer]
+|  |     partitions=1/1 files=1 size=12.60MB
+|  |     runtime filters: RF014 -> c_current_addr_sk
+|  |     row-size=8B cardinality=100.00K
+|  |
+|  21:HASH JOIN [INNER JOIN, BROADCAST]
+|  |  hash predicates: ss_store_sk = s_store_sk
+|  |  row-size=44B cardinality=170.55K
+|  |
+|  |--JOIN BUILD
+|  |  |  join-table-id=04 plan-id=05 cohort-id=02
 |  |  |  build expressions: s_store_sk
 |  |  |
-|  |  39:EXCHANGE [BROADCAST]
+|  |  37:EXCHANGE [BROADCAST]
 |  |  |
 |  |  15:SCAN HDFS [tpcds.store]
 |  |     partitions=1/1 files=1 size=3.08KB
 |  |     predicates: s_gmt_offset = -5
 |  |     row-size=8B cardinality=12
-|  |
-|  21:HASH JOIN [INNER JOIN, BROADCAST]
-|  |  hash predicates: ss_item_sk = i_item_sk
-|  |  runtime filters: RF018 <- i_item_sk
-|  |  row-size=62B cardinality=17.06K
-|  |
-|  |--JOIN BUILD
-|  |  |  join-table-id=04 plan-id=05 cohort-id=02
-|  |  |  build expressions: i_item_sk
-|  |  |
-|  |  38:EXCHANGE [BROADCAST]
-|  |  |
-|  |  19:SCAN HDFS [tpcds.item]
-|  |     partitions=1/1 files=1 size=4.82MB
-|  |     predicates: i_category = 'Books'
-|  |     row-size=26B cardinality=1.80K
 |  |
 |  20:HASH JOIN [INNER JOIN, BROADCAST]
 |  |  hash predicates: ss_sold_date_sk = d_date_sk
@@ -7141,7 +7125,7 @@ PLAN-ROOT SINK
 |  |  |  join-table-id=05 plan-id=06 cohort-id=02
 |  |  |  build expressions: d_date_sk
 |  |  |
-|  |  37:EXCHANGE [BROADCAST]
+|  |  36:EXCHANGE [BROADCAST]
 |  |  |
 |  |  16:SCAN HDFS [tpcds.date_dim]
 |  |     partitions=1/1 files=1 size=9.84MB
@@ -7150,73 +7134,71 @@ PLAN-ROOT SINK
 |  |
 |  14:SCAN HDFS [tpcds.store_sales]
 |     partitions=1824/1824 files=1824 size=346.60MB
-|     runtime filters: RF020 -> ss_sold_date_sk, RF018 -> ss_item_sk, RF014 -> ss_customer_sk
+|     runtime filters: RF020 -> ss_sold_date_sk, RF012 -> ss_item_sk, RF016 -> ss_customer_sk
 |     row-size=24B cardinality=2.88M
 |
-36:AGGREGATE [FINALIZE]
+35:AGGREGATE [FINALIZE]
 |  output: sum:merge(ss_ext_sales_price)
 |  row-size=16B cardinality=1
 |
-35:EXCHANGE [UNPARTITIONED]
+34:EXCHANGE [UNPARTITIONED]
 |
 13:AGGREGATE
 |  output: sum(ss_ext_sales_price)
 |  row-size=16B cardinality=1
 |
 12:HASH JOIN [INNER JOIN, BROADCAST]
-|  hash predicates: c_current_addr_sk = ca_address_sk
-|  runtime filters: RF000 <- ca_address_sk
-|  row-size=133B cardinality=3.28K
+|  hash predicates: ss_item_sk = i_item_sk
+|  runtime filters: RF000 <- i_item_sk
+|  row-size=133B cardinality=33.84K
 |
 |--JOIN BUILD
 |  |  join-table-id=06 plan-id=07 cohort-id=01
+|  |  build expressions: i_item_sk
+|  |
+|  33:EXCHANGE [BROADCAST]
+|  |
+|  06:SCAN HDFS [tpcds.item]
+|     partitions=1/1 files=1 size=4.82MB
+|     predicates: i_category = 'Books'
+|     row-size=26B cardinality=1.80K
+|
+11:HASH JOIN [INNER JOIN, BROADCAST]
+|  hash predicates: c_current_addr_sk = ca_address_sk
+|  runtime filters: RF002 <- ca_address_sk
+|  row-size=107B cardinality=33.84K
+|
+|--JOIN BUILD
+|  |  join-table-id=07 plan-id=08 cohort-id=01
 |  |  build expressions: ca_address_sk
 |  |
-|  34:EXCHANGE [BROADCAST]
+|  32:EXCHANGE [BROADCAST]
 |  |
 |  05:SCAN HDFS [tpcds.customer_address]
 |     partitions=1/1 files=1 size=5.25MB
 |     predicates: ca_gmt_offset = -5
 |     row-size=8B cardinality=8.33K
 |
-11:HASH JOIN [INNER JOIN, PARTITIONED]
-|  hash predicates: ss_customer_sk = c_customer_sk
-|  runtime filters: RF002 <- c_customer_sk
-|  row-size=125B cardinality=16.94K
-|
-|--JOIN BUILD
-|  |  join-table-id=07 plan-id=08 cohort-id=01
-|  |  build expressions: c_customer_sk
-|  |
-|  33:EXCHANGE [HASH(c_customer_sk)]
-|  |
-|  04:SCAN HDFS [tpcds.customer]
-|     partitions=1/1 files=1 size=12.60MB
-|     runtime filters: RF000 -> c_current_addr_sk
-|     row-size=8B cardinality=100.00K
-|
-32:EXCHANGE [HASH(ss_customer_sk)]
-|
 10:HASH JOIN [INNER JOIN, BROADCAST]
-|  hash predicates: ss_store_sk = s_store_sk
-|  runtime filters: RF004 <- s_store_sk
-|  row-size=117B cardinality=16.94K
+|  hash predicates: ss_customer_sk = c_customer_sk
+|  runtime filters: RF004 <- c_customer_sk
+|  row-size=99B cardinality=170.55K
 |
 |--JOIN BUILD
 |  |  join-table-id=08 plan-id=09 cohort-id=01
-|  |  build expressions: s_store_sk
+|  |  build expressions: c_customer_sk
 |  |
 |  31:EXCHANGE [BROADCAST]
 |  |
-|  01:SCAN HDFS [tpcds.store]
-|     partitions=1/1 files=1 size=3.08KB
-|     predicates: s_gmt_offset = -5
-|     row-size=8B cardinality=12
+|  04:SCAN HDFS [tpcds.customer]
+|     partitions=1/1 files=1 size=12.60MB
+|     runtime filters: RF002 -> c_current_addr_sk
+|     row-size=8B cardinality=100.00K
 |
 09:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: ss_promo_sk = p_promo_sk
 |  runtime filters: RF006 <- p_promo_sk
-|  row-size=109B cardinality=16.94K
+|  row-size=91B cardinality=170.55K
 |
 |--JOIN BUILD
 |  |  join-table-id=09 plan-id=10 cohort-id=01
@@ -7230,20 +7212,20 @@ PLAN-ROOT SINK
 |     row-size=43B cardinality=300
 |
 08:HASH JOIN [INNER JOIN, BROADCAST]
-|  hash predicates: ss_item_sk = i_item_sk
-|  runtime filters: RF008 <- i_item_sk
-|  row-size=66B cardinality=17.06K
+|  hash predicates: ss_store_sk = s_store_sk
+|  runtime filters: RF008 <- s_store_sk
+|  row-size=48B cardinality=170.55K
 |
 |--JOIN BUILD
 |  |  join-table-id=10 plan-id=11 cohort-id=01
-|  |  build expressions: i_item_sk
+|  |  build expressions: s_store_sk
 |  |
 |  29:EXCHANGE [BROADCAST]
 |  |
-|  06:SCAN HDFS [tpcds.item]
-|     partitions=1/1 files=1 size=4.82MB
-|     predicates: i_category = 'Books'
-|     row-size=26B cardinality=1.80K
+|  01:SCAN HDFS [tpcds.store]
+|     partitions=1/1 files=1 size=3.08KB
+|     predicates: s_gmt_offset = -5
+|     row-size=8B cardinality=12
 |
 07:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: ss_sold_date_sk = d_date_sk
@@ -7263,7 +7245,7 @@ PLAN-ROOT SINK
 |
 00:SCAN HDFS [tpcds.store_sales]
    partitions=1824/1824 files=1824 size=346.60MB
-   runtime filters: RF010 -> ss_sold_date_sk, RF008 -> ss_item_sk, RF006 -> ss_promo_sk, RF002 -> ss_customer_sk, RF004 -> ss_store_sk
+   runtime filters: RF010 -> ss_sold_date_sk, RF000 -> ss_item_sk, RF004 -> ss_customer_sk, RF006 -> ss_promo_sk, RF008 -> ss_store_sk
    row-size=28B cardinality=2.88M
 ====
 # TPCDS-Q88
@@ -7371,7 +7353,7 @@ PLAN-ROOT SINK
 |  |
 |  62:HASH JOIN [INNER JOIN]
 |  |  hash predicates: ss_store_sk = s_store_sk
-|  |  row-size=56B cardinality=2.27K
+|  |  row-size=56B cardinality=69.82K
 |  |
 |  |--59:SCAN HDFS [tpcds.store]
 |  |     partitions=1/1 files=1 size=3.08KB
@@ -7380,7 +7362,7 @@ PLAN-ROOT SINK
 |  |
 |  61:HASH JOIN [INNER JOIN]
 |  |  hash predicates: ss_hdemo_sk = household_demographics.hd_demo_sk
-|  |  row-size=36B cardinality=6.82K
+|  |  row-size=36B cardinality=69.82K
 |  |
 |  |--57:SCAN HDFS [tpcds.household_demographics]
 |  |     partitions=1/1 files=1 size=148.10KB
@@ -7411,7 +7393,7 @@ PLAN-ROOT SINK
 |  |
 |  54:HASH JOIN [INNER JOIN]
 |  |  hash predicates: ss_store_sk = s_store_sk
-|  |  row-size=56B cardinality=2.27K
+|  |  row-size=56B cardinality=69.82K
 |  |
 |  |--51:SCAN HDFS [tpcds.store]
 |  |     partitions=1/1 files=1 size=3.08KB
@@ -7420,7 +7402,7 @@ PLAN-ROOT SINK
 |  |
 |  53:HASH JOIN [INNER JOIN]
 |  |  hash predicates: ss_hdemo_sk = household_demographics.hd_demo_sk
-|  |  row-size=36B cardinality=6.82K
+|  |  row-size=36B cardinality=69.82K
 |  |
 |  |--49:SCAN HDFS [tpcds.household_demographics]
 |  |     partitions=1/1 files=1 size=148.10KB
@@ -7451,7 +7433,7 @@ PLAN-ROOT SINK
 |  |
 |  46:HASH JOIN [INNER JOIN]
 |  |  hash predicates: ss_store_sk = s_store_sk
-|  |  row-size=56B cardinality=2.27K
+|  |  row-size=56B cardinality=69.82K
 |  |
 |  |--43:SCAN HDFS [tpcds.store]
 |  |     partitions=1/1 files=1 size=3.08KB
@@ -7460,7 +7442,7 @@ PLAN-ROOT SINK
 |  |
 |  45:HASH JOIN [INNER JOIN]
 |  |  hash predicates: ss_hdemo_sk = household_demographics.hd_demo_sk
-|  |  row-size=36B cardinality=6.82K
+|  |  row-size=36B cardinality=69.82K
 |  |
 |  |--41:SCAN HDFS [tpcds.household_demographics]
 |  |     partitions=1/1 files=1 size=148.10KB
@@ -7491,7 +7473,7 @@ PLAN-ROOT SINK
 |  |
 |  38:HASH JOIN [INNER JOIN]
 |  |  hash predicates: ss_store_sk = s_store_sk
-|  |  row-size=56B cardinality=2.27K
+|  |  row-size=56B cardinality=69.82K
 |  |
 |  |--35:SCAN HDFS [tpcds.store]
 |  |     partitions=1/1 files=1 size=3.08KB
@@ -7500,7 +7482,7 @@ PLAN-ROOT SINK
 |  |
 |  37:HASH JOIN [INNER JOIN]
 |  |  hash predicates: ss_hdemo_sk = household_demographics.hd_demo_sk
-|  |  row-size=36B cardinality=6.82K
+|  |  row-size=36B cardinality=69.82K
 |  |
 |  |--33:SCAN HDFS [tpcds.household_demographics]
 |  |     partitions=1/1 files=1 size=148.10KB
@@ -7531,7 +7513,7 @@ PLAN-ROOT SINK
 |  |
 |  30:HASH JOIN [INNER JOIN]
 |  |  hash predicates: ss_store_sk = s_store_sk
-|  |  row-size=56B cardinality=2.27K
+|  |  row-size=56B cardinality=69.82K
 |  |
 |  |--27:SCAN HDFS [tpcds.store]
 |  |     partitions=1/1 files=1 size=3.08KB
@@ -7540,7 +7522,7 @@ PLAN-ROOT SINK
 |  |
 |  29:HASH JOIN [INNER JOIN]
 |  |  hash predicates: ss_hdemo_sk = household_demographics.hd_demo_sk
-|  |  row-size=36B cardinality=6.82K
+|  |  row-size=36B cardinality=69.82K
 |  |
 |  |--25:SCAN HDFS [tpcds.household_demographics]
 |  |     partitions=1/1 files=1 size=148.10KB
@@ -7571,7 +7553,7 @@ PLAN-ROOT SINK
 |  |
 |  22:HASH JOIN [INNER JOIN]
 |  |  hash predicates: ss_store_sk = s_store_sk
-|  |  row-size=56B cardinality=2.27K
+|  |  row-size=56B cardinality=69.82K
 |  |
 |  |--19:SCAN HDFS [tpcds.store]
 |  |     partitions=1/1 files=1 size=3.08KB
@@ -7580,7 +7562,7 @@ PLAN-ROOT SINK
 |  |
 |  21:HASH JOIN [INNER JOIN]
 |  |  hash predicates: ss_hdemo_sk = household_demographics.hd_demo_sk
-|  |  row-size=36B cardinality=6.82K
+|  |  row-size=36B cardinality=69.82K
 |  |
 |  |--17:SCAN HDFS [tpcds.household_demographics]
 |  |     partitions=1/1 files=1 size=148.10KB
@@ -7611,7 +7593,7 @@ PLAN-ROOT SINK
 |  |
 |  14:HASH JOIN [INNER JOIN]
 |  |  hash predicates: ss_store_sk = s_store_sk
-|  |  row-size=56B cardinality=2.27K
+|  |  row-size=56B cardinality=69.82K
 |  |
 |  |--11:SCAN HDFS [tpcds.store]
 |  |     partitions=1/1 files=1 size=3.08KB
@@ -7620,8 +7602,7 @@ PLAN-ROOT SINK
 |  |
 |  13:HASH JOIN [INNER JOIN]
 |  |  hash predicates: ss_hdemo_sk = household_demographics.hd_demo_sk
-|  |  runtime filters: RF008 <- household_demographics.hd_demo_sk
-|  |  row-size=36B cardinality=6.82K
+|  |  row-size=36B cardinality=69.82K
 |  |
 |  |--09:SCAN HDFS [tpcds.household_demographics]
 |  |     partitions=1/1 files=1 size=148.10KB
@@ -7640,7 +7621,7 @@ PLAN-ROOT SINK
 |  |
 |  08:SCAN HDFS [tpcds.store_sales]
 |     partitions=1824/1824 files=1824 size=346.60MB
-|     runtime filters: RF010 -> ss_sold_time_sk, RF008 -> ss_hdemo_sk
+|     runtime filters: RF010 -> ss_sold_time_sk
 |     row-size=12B cardinality=2.88M
 |
 07:AGGREGATE [FINALIZE]
@@ -7649,7 +7630,8 @@ PLAN-ROOT SINK
 |
 06:HASH JOIN [INNER JOIN]
 |  hash predicates: ss_store_sk = s_store_sk
-|  row-size=56B cardinality=2.27K
+|  runtime filters: RF000 <- s_store_sk
+|  row-size=56B cardinality=69.82K
 |
 |--03:SCAN HDFS [tpcds.store]
 |     partitions=1/1 files=1 size=3.08KB
@@ -7659,7 +7641,7 @@ PLAN-ROOT SINK
 05:HASH JOIN [INNER JOIN]
 |  hash predicates: ss_hdemo_sk = household_demographics.hd_demo_sk
 |  runtime filters: RF002 <- household_demographics.hd_demo_sk
-|  row-size=36B cardinality=6.82K
+|  row-size=36B cardinality=69.82K
 |
 |--01:SCAN HDFS [tpcds.household_demographics]
 |     partitions=1/1 files=1 size=148.10KB
@@ -7678,7 +7660,7 @@ PLAN-ROOT SINK
 |
 00:SCAN HDFS [tpcds.store_sales]
    partitions=1824/1824 files=1824 size=346.60MB
-   runtime filters: RF004 -> ss_sold_time_sk, RF002 -> ss_hdemo_sk
+   runtime filters: RF004 -> ss_sold_time_sk, RF000 -> ss_store_sk, RF002 -> ss_hdemo_sk
    row-size=12B cardinality=2.88M
 ---- DISTRIBUTEDPLAN
 Max Per-Host Resource Reservation: Memory=186.56MB Threads=72
@@ -7702,7 +7684,7 @@ PLAN-ROOT SINK
 |  |
 |  62:HASH JOIN [INNER JOIN, BROADCAST]
 |  |  hash predicates: ss_store_sk = s_store_sk
-|  |  row-size=56B cardinality=2.27K
+|  |  row-size=56B cardinality=69.82K
 |  |
 |  |--114:EXCHANGE [BROADCAST]
 |  |  |
@@ -7713,7 +7695,7 @@ PLAN-ROOT SINK
 |  |
 |  61:HASH JOIN [INNER JOIN, BROADCAST]
 |  |  hash predicates: ss_hdemo_sk = household_demographics.hd_demo_sk
-|  |  row-size=36B cardinality=6.82K
+|  |  row-size=36B cardinality=69.82K
 |  |
 |  |--113:EXCHANGE [BROADCAST]
 |  |  |
@@ -7756,7 +7738,7 @@ PLAN-ROOT SINK
 |  |
 |  54:HASH JOIN [INNER JOIN, BROADCAST]
 |  |  hash predicates: ss_store_sk = s_store_sk
-|  |  row-size=56B cardinality=2.27K
+|  |  row-size=56B cardinality=69.82K
 |  |
 |  |--108:EXCHANGE [BROADCAST]
 |  |  |
@@ -7767,7 +7749,7 @@ PLAN-ROOT SINK
 |  |
 |  53:HASH JOIN [INNER JOIN, BROADCAST]
 |  |  hash predicates: ss_hdemo_sk = household_demographics.hd_demo_sk
-|  |  row-size=36B cardinality=6.82K
+|  |  row-size=36B cardinality=69.82K
 |  |
 |  |--107:EXCHANGE [BROADCAST]
 |  |  |
@@ -7810,7 +7792,7 @@ PLAN-ROOT SINK
 |  |
 |  46:HASH JOIN [INNER JOIN, BROADCAST]
 |  |  hash predicates: ss_store_sk = s_store_sk
-|  |  row-size=56B cardinality=2.27K
+|  |  row-size=56B cardinality=69.82K
 |  |
 |  |--102:EXCHANGE [BROADCAST]
 |  |  |
@@ -7821,7 +7803,7 @@ PLAN-ROOT SINK
 |  |
 |  45:HASH JOIN [INNER JOIN, BROADCAST]
 |  |  hash predicates: ss_hdemo_sk = household_demographics.hd_demo_sk
-|  |  row-size=36B cardinality=6.82K
+|  |  row-size=36B cardinality=69.82K
 |  |
 |  |--101:EXCHANGE [BROADCAST]
 |  |  |
@@ -7864,7 +7846,7 @@ PLAN-ROOT SINK
 |  |
 |  38:HASH JOIN [INNER JOIN, BROADCAST]
 |  |  hash predicates: ss_store_sk = s_store_sk
-|  |  row-size=56B cardinality=2.27K
+|  |  row-size=56B cardinality=69.82K
 |  |
 |  |--96:EXCHANGE [BROADCAST]
 |  |  |
@@ -7875,7 +7857,7 @@ PLAN-ROOT SINK
 |  |
 |  37:HASH JOIN [INNER JOIN, BROADCAST]
 |  |  hash predicates: ss_hdemo_sk = household_demographics.hd_demo_sk
-|  |  row-size=36B cardinality=6.82K
+|  |  row-size=36B cardinality=69.82K
 |  |
 |  |--95:EXCHANGE [BROADCAST]
 |  |  |
@@ -7918,7 +7900,7 @@ PLAN-ROOT SINK
 |  |
 |  30:HASH JOIN [INNER JOIN, BROADCAST]
 |  |  hash predicates: ss_store_sk = s_store_sk
-|  |  row-size=56B cardinality=2.27K
+|  |  row-size=56B cardinality=69.82K
 |  |
 |  |--90:EXCHANGE [BROADCAST]
 |  |  |
@@ -7929,7 +7911,7 @@ PLAN-ROOT SINK
 |  |
 |  29:HASH JOIN [INNER JOIN, BROADCAST]
 |  |  hash predicates: ss_hdemo_sk = household_demographics.hd_demo_sk
-|  |  row-size=36B cardinality=6.82K
+|  |  row-size=36B cardinality=69.82K
 |  |
 |  |--89:EXCHANGE [BROADCAST]
 |  |  |
@@ -7972,7 +7954,7 @@ PLAN-ROOT SINK
 |  |
 |  22:HASH JOIN [INNER JOIN, BROADCAST]
 |  |  hash predicates: ss_store_sk = s_store_sk
-|  |  row-size=56B cardinality=2.27K
+|  |  row-size=56B cardinality=69.82K
 |  |
 |  |--84:EXCHANGE [BROADCAST]
 |  |  |
@@ -7983,7 +7965,7 @@ PLAN-ROOT SINK
 |  |
 |  21:HASH JOIN [INNER JOIN, BROADCAST]
 |  |  hash predicates: ss_hdemo_sk = household_demographics.hd_demo_sk
-|  |  row-size=36B cardinality=6.82K
+|  |  row-size=36B cardinality=69.82K
 |  |
 |  |--83:EXCHANGE [BROADCAST]
 |  |  |
@@ -8026,7 +8008,7 @@ PLAN-ROOT SINK
 |  |
 |  14:HASH JOIN [INNER JOIN, BROADCAST]
 |  |  hash predicates: ss_store_sk = s_store_sk
-|  |  row-size=56B cardinality=2.27K
+|  |  row-size=56B cardinality=69.82K
 |  |
 |  |--78:EXCHANGE [BROADCAST]
 |  |  |
@@ -8037,8 +8019,7 @@ PLAN-ROOT SINK
 |  |
 |  13:HASH JOIN [INNER JOIN, BROADCAST]
 |  |  hash predicates: ss_hdemo_sk = household_demographics.hd_demo_sk
-|  |  runtime filters: RF008 <- household_demographics.hd_demo_sk
-|  |  row-size=36B cardinality=6.82K
+|  |  row-size=36B cardinality=69.82K
 |  |
 |  |--77:EXCHANGE [BROADCAST]
 |  |  |
@@ -8061,7 +8042,7 @@ PLAN-ROOT SINK
 |  |
 |  08:SCAN HDFS [tpcds.store_sales]
 |     partitions=1824/1824 files=1824 size=346.60MB
-|     runtime filters: RF010 -> ss_sold_time_sk, RF008 -> ss_hdemo_sk
+|     runtime filters: RF010 -> ss_sold_time_sk
 |     row-size=12B cardinality=2.88M
 |
 75:AGGREGATE [FINALIZE]
@@ -8076,7 +8057,8 @@ PLAN-ROOT SINK
 |
 06:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: ss_store_sk = s_store_sk
-|  row-size=56B cardinality=2.27K
+|  runtime filters: RF000 <- s_store_sk
+|  row-size=56B cardinality=69.82K
 |
 |--73:EXCHANGE [BROADCAST]
 |  |
@@ -8088,7 +8070,7 @@ PLAN-ROOT SINK
 05:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: ss_hdemo_sk = household_demographics.hd_demo_sk
 |  runtime filters: RF002 <- household_demographics.hd_demo_sk
-|  row-size=36B cardinality=6.82K
+|  row-size=36B cardinality=69.82K
 |
 |--72:EXCHANGE [BROADCAST]
 |  |
@@ -8111,7 +8093,7 @@ PLAN-ROOT SINK
 |
 00:SCAN HDFS [tpcds.store_sales]
    partitions=1824/1824 files=1824 size=346.60MB
-   runtime filters: RF004 -> ss_sold_time_sk, RF002 -> ss_hdemo_sk
+   runtime filters: RF004 -> ss_sold_time_sk, RF000 -> ss_store_sk, RF002 -> ss_hdemo_sk
    row-size=12B cardinality=2.88M
 ---- PARALLELPLANS
 Max Per-Host Resource Reservation: Memory=373.12MB Threads=72
@@ -8139,7 +8121,7 @@ PLAN-ROOT SINK
 |  |
 |  62:HASH JOIN [INNER JOIN, BROADCAST]
 |  |  hash predicates: ss_store_sk = s_store_sk
-|  |  row-size=56B cardinality=2.27K
+|  |  row-size=56B cardinality=69.82K
 |  |
 |  |--JOIN BUILD
 |  |  |  join-table-id=01 plan-id=02 cohort-id=02
@@ -8154,7 +8136,7 @@ PLAN-ROOT SINK
 |  |
 |  61:HASH JOIN [INNER JOIN, BROADCAST]
 |  |  hash predicates: ss_hdemo_sk = household_demographics.hd_demo_sk
-|  |  row-size=36B cardinality=6.82K
+|  |  row-size=36B cardinality=69.82K
 |  |
 |  |--JOIN BUILD
 |  |  |  join-table-id=02 plan-id=03 cohort-id=02
@@ -8209,7 +8191,7 @@ PLAN-ROOT SINK
 |  |
 |  54:HASH JOIN [INNER JOIN, BROADCAST]
 |  |  hash predicates: ss_store_sk = s_store_sk
-|  |  row-size=56B cardinality=2.27K
+|  |  row-size=56B cardinality=69.82K
 |  |
 |  |--JOIN BUILD
 |  |  |  join-table-id=05 plan-id=06 cohort-id=03
@@ -8224,7 +8206,7 @@ PLAN-ROOT SINK
 |  |
 |  53:HASH JOIN [INNER JOIN, BROADCAST]
 |  |  hash predicates: ss_hdemo_sk = household_demographics.hd_demo_sk
-|  |  row-size=36B cardinality=6.82K
+|  |  row-size=36B cardinality=69.82K
 |  |
 |  |--JOIN BUILD
 |  |  |  join-table-id=06 plan-id=07 cohort-id=03
@@ -8279,7 +8261,7 @@ PLAN-ROOT SINK
 |  |
 |  46:HASH JOIN [INNER JOIN, BROADCAST]
 |  |  hash predicates: ss_store_sk = s_store_sk
-|  |  row-size=56B cardinality=2.27K
+|  |  row-size=56B cardinality=69.82K
 |  |
 |  |--JOIN BUILD
 |  |  |  join-table-id=09 plan-id=10 cohort-id=04
@@ -8294,7 +8276,7 @@ PLAN-ROOT SINK
 |  |
 |  45:HASH JOIN [INNER JOIN, BROADCAST]
 |  |  hash predicates: ss_hdemo_sk = household_demographics.hd_demo_sk
-|  |  row-size=36B cardinality=6.82K
+|  |  row-size=36B cardinality=69.82K
 |  |
 |  |--JOIN BUILD
 |  |  |  join-table-id=10 plan-id=11 cohort-id=04
@@ -8349,7 +8331,7 @@ PLAN-ROOT SINK
 |  |
 |  38:HASH JOIN [INNER JOIN, BROADCAST]
 |  |  hash predicates: ss_store_sk = s_store_sk
-|  |  row-size=56B cardinality=2.27K
+|  |  row-size=56B cardinality=69.82K
 |  |
 |  |--JOIN BUILD
 |  |  |  join-table-id=13 plan-id=14 cohort-id=05
@@ -8364,7 +8346,7 @@ PLAN-ROOT SINK
 |  |
 |  37:HASH JOIN [INNER JOIN, BROADCAST]
 |  |  hash predicates: ss_hdemo_sk = household_demographics.hd_demo_sk
-|  |  row-size=36B cardinality=6.82K
+|  |  row-size=36B cardinality=69.82K
 |  |
 |  |--JOIN BUILD
 |  |  |  join-table-id=14 plan-id=15 cohort-id=05
@@ -8419,7 +8401,7 @@ PLAN-ROOT SINK
 |  |
 |  30:HASH JOIN [INNER JOIN, BROADCAST]
 |  |  hash predicates: ss_store_sk = s_store_sk
-|  |  row-size=56B cardinality=2.27K
+|  |  row-size=56B cardinality=69.82K
 |  |
 |  |--JOIN BUILD
 |  |  |  join-table-id=17 plan-id=18 cohort-id=06
@@ -8434,7 +8416,7 @@ PLAN-ROOT SINK
 |  |
 |  29:HASH JOIN [INNER JOIN, BROADCAST]
 |  |  hash predicates: ss_hdemo_sk = household_demographics.hd_demo_sk
-|  |  row-size=36B cardinality=6.82K
+|  |  row-size=36B cardinality=69.82K
 |  |
 |  |--JOIN BUILD
 |  |  |  join-table-id=18 plan-id=19 cohort-id=06
@@ -8489,7 +8471,7 @@ PLAN-ROOT SINK
 |  |
 |  22:HASH JOIN [INNER JOIN, BROADCAST]
 |  |  hash predicates: ss_store_sk = s_store_sk
-|  |  row-size=56B cardinality=2.27K
+|  |  row-size=56B cardinality=69.82K
 |  |
 |  |--JOIN BUILD
 |  |  |  join-table-id=21 plan-id=22 cohort-id=07
@@ -8504,7 +8486,7 @@ PLAN-ROOT SINK
 |  |
 |  21:HASH JOIN [INNER JOIN, BROADCAST]
 |  |  hash predicates: ss_hdemo_sk = household_demographics.hd_demo_sk
-|  |  row-size=36B cardinality=6.82K
+|  |  row-size=36B cardinality=69.82K
 |  |
 |  |--JOIN BUILD
 |  |  |  join-table-id=22 plan-id=23 cohort-id=07
@@ -8559,7 +8541,7 @@ PLAN-ROOT SINK
 |  |
 |  14:HASH JOIN [INNER JOIN, BROADCAST]
 |  |  hash predicates: ss_store_sk = s_store_sk
-|  |  row-size=56B cardinality=2.27K
+|  |  row-size=56B cardinality=69.82K
 |  |
 |  |--JOIN BUILD
 |  |  |  join-table-id=25 plan-id=26 cohort-id=08
@@ -8574,8 +8556,7 @@ PLAN-ROOT SINK
 |  |
 |  13:HASH JOIN [INNER JOIN, BROADCAST]
 |  |  hash predicates: ss_hdemo_sk = household_demographics.hd_demo_sk
-|  |  runtime filters: RF008 <- household_demographics.hd_demo_sk
-|  |  row-size=36B cardinality=6.82K
+|  |  row-size=36B cardinality=69.82K
 |  |
 |  |--JOIN BUILD
 |  |  |  join-table-id=26 plan-id=27 cohort-id=08
@@ -8606,7 +8587,7 @@ PLAN-ROOT SINK
 |  |
 |  08:SCAN HDFS [tpcds.store_sales]
 |     partitions=1824/1824 files=1824 size=346.60MB
-|     runtime filters: RF010 -> ss_sold_time_sk, RF008 -> ss_hdemo_sk
+|     runtime filters: RF010 -> ss_sold_time_sk
 |     row-size=12B cardinality=2.88M
 |
 75:AGGREGATE [FINALIZE]
@@ -8621,7 +8602,8 @@ PLAN-ROOT SINK
 |
 06:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: ss_store_sk = s_store_sk
-|  row-size=56B cardinality=2.27K
+|  runtime filters: RF000 <- s_store_sk
+|  row-size=56B cardinality=69.82K
 |
 |--JOIN BUILD
 |  |  join-table-id=28 plan-id=29 cohort-id=01
@@ -8637,7 +8619,7 @@ PLAN-ROOT SINK
 05:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: ss_hdemo_sk = household_demographics.hd_demo_sk
 |  runtime filters: RF002 <- household_demographics.hd_demo_sk
-|  row-size=36B cardinality=6.82K
+|  row-size=36B cardinality=69.82K
 |
 |--JOIN BUILD
 |  |  join-table-id=29 plan-id=30 cohort-id=01
@@ -8668,6 +8650,6 @@ PLAN-ROOT SINK
 |
 00:SCAN HDFS [tpcds.store_sales]
    partitions=1824/1824 files=1824 size=346.60MB
-   runtime filters: RF004 -> ss_sold_time_sk, RF002 -> ss_hdemo_sk
+   runtime filters: RF004 -> ss_sold_time_sk, RF000 -> ss_store_sk, RF002 -> ss_hdemo_sk
    row-size=12B cardinality=2.88M
 ====

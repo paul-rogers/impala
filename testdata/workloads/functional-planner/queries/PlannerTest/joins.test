@@ -162,7 +162,7 @@ PLAN-ROOT SINK
 |  hash predicates: a.id = b.id, a.int_col = b.int_col
 |  other predicates: a.tinyint_col = 15, a.`day` >= 6, a.tinyint_col + b.tinyint_col < 15
 |  runtime filters: RF000 <- b.id, RF001 <- b.int_col
-|  row-size=184B cardinality=5
+|  row-size=184B cardinality=6
 |
 |--01:SCAN HDFS [functional.alltypessmall b]
 |     partition predicates: b.`month` > 2
@@ -185,7 +185,7 @@ PLAN-ROOT SINK
 |  hash predicates: a.id = b.id, a.int_col = b.int_col
 |  other predicates: a.tinyint_col = 15, a.`day` >= 6, a.tinyint_col + b.tinyint_col < 15
 |  runtime filters: RF000 <- b.id, RF001 <- b.int_col
-|  row-size=184B cardinality=5
+|  row-size=184B cardinality=6
 |
 |--04:EXCHANGE [HASH(b.id,b.int_col)]
 |  |
@@ -358,7 +358,7 @@ PLAN-ROOT SINK
 02:HASH JOIN [INNER JOIN]
 |  hash predicates: functional.alltypesagg.id = functional_hbase.alltypessmall.id, functional.alltypesagg.int_col = functional_hbase.alltypessmall.int_col
 |  runtime filters: RF000 <- functional_hbase.alltypessmall.id, RF001 <- functional_hbase.alltypessmall.int_col
-|  row-size=184B cardinality=53
+|  row-size=184B cardinality=54
 |
 |--01:SCAN HBASE [functional_hbase.alltypessmall]
 |     row-size=89B cardinality=50
@@ -375,7 +375,7 @@ PLAN-ROOT SINK
 02:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: functional.alltypesagg.id = functional_hbase.alltypessmall.id, functional.alltypesagg.int_col = functional_hbase.alltypessmall.int_col
 |  runtime filters: RF000 <- functional_hbase.alltypessmall.id, RF001 <- functional_hbase.alltypessmall.int_col
-|  row-size=184B cardinality=53
+|  row-size=184B cardinality=54
 |
 |--03:EXCHANGE [BROADCAST]
 |  |
@@ -527,12 +527,12 @@ PLAN-ROOT SINK
 06:HASH JOIN [INNER JOIN]
 |  hash predicates: d.id = a.id
 |  runtime filters: RF000 <- a.id
-|  row-size=29B cardinality=113
+|  row-size=29B cardinality=116
 |
 |--05:HASH JOIN [RIGHT OUTER JOIN]
 |  |  hash predicates: b.id = c.id
 |  |  runtime filters: RF002 <- c.id
-|  |  row-size=25B cardinality=106
+|  |  row-size=25B cardinality=108
 |  |
 |  |--02:SCAN HDFS [functional.alltypesnopart c]
 |  |     partitions=1/1 files=0 size=0B
@@ -541,7 +541,7 @@ PLAN-ROOT SINK
 |  04:HASH JOIN [INNER JOIN]
 |  |  hash predicates: a.id = b.id, a.int_col = b.int_col
 |  |  runtime filters: RF004 <- b.id, RF005 <- b.int_col
-|  |  row-size=20B cardinality=106
+|  |  row-size=20B cardinality=108
 |  |
 |  |--01:SCAN HDFS [functional.alltypessmall b]
 |  |     partitions=4/4 files=4 size=6.32KB
@@ -584,14 +584,14 @@ PLAN-ROOT SINK
 06:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: d.id = a.id
 |  runtime filters: RF000 <- a.id
-|  row-size=29B cardinality=113
+|  row-size=29B cardinality=116
 |
 |--14:EXCHANGE [BROADCAST]
 |  |
 |  05:HASH JOIN [RIGHT OUTER JOIN, PARTITIONED]
 |  |  hash predicates: b.id = c.id
 |  |  runtime filters: RF002 <- c.id
-|  |  row-size=25B cardinality=106
+|  |  row-size=25B cardinality=108
 |  |
 |  |--13:EXCHANGE [HASH(c.id)]
 |  |  |
@@ -604,7 +604,7 @@ PLAN-ROOT SINK
 |  04:HASH JOIN [INNER JOIN, BROADCAST]
 |  |  hash predicates: a.id = b.id, a.int_col = b.int_col
 |  |  runtime filters: RF004 <- b.id, RF005 <- b.int_col
-|  |  row-size=20B cardinality=106
+|  |  row-size=20B cardinality=108
 |  |
 |  |--11:EXCHANGE [BROADCAST]
 |  |  |
@@ -1074,7 +1074,7 @@ PLAN-ROOT SINK
 02:HASH JOIN [INNER JOIN]
 |  hash predicates: b.id = a.id, b.string_col = a.string_col
 |  runtime filters: RF000 <- a.id, RF001 <- a.string_col
-|  row-size=81B cardinality=73
+|  row-size=81B cardinality=730
 |
 |--00:SCAN HDFS [functional.alltypes a]
 |     partitions=24/24 files=24 size=478.45KB
@@ -1465,7 +1465,7 @@ PLAN-ROOT SINK
 04:HASH JOIN [INNER JOIN]
 |  hash predicates: t1.string_col = t2.string_col
 |  runtime filters: RF000 <- t2.string_col
-|  row-size=53B cardinality=33.58K
+|  row-size=53B cardinality=67.16K
 |
 |--02:SCAN HDFS [functional.alltypes t2]
 |     partitions=24/24 files=24 size=478.45KB
@@ -1474,7 +1474,7 @@ PLAN-ROOT SINK
 03:HASH JOIN [INNER JOIN]
 |  hash predicates: t1.tinyint_col = t3.smallint_col, t1.string_col = t3.date_string_col
 |  runtime filters: RF002 <- t3.smallint_col, RF003 <- t3.date_string_col
-|  row-size=40B cardinality=46
+|  row-size=40B cardinality=92
 |
 |--01:SCAN HDFS [functional.alltypestiny t3]
 |     partitions=4/4 files=4 size=460B
@@ -1854,7 +1854,7 @@ PLAN-ROOT SINK
 04:HASH JOIN [INNER JOIN, PARTITIONED]
 |  hash predicates: b.id = c.id
 |  runtime filters: RF000 <- c.id
-|  row-size=267B cardinality=1
+|  row-size=267B cardinality=8
 |
 |--07:EXCHANGE [HASH(c.id)]
 |  |
@@ -1893,7 +1893,7 @@ PLAN-ROOT SINK
 04:HASH JOIN [INNER JOIN, PARTITIONED]
 |  hash predicates: b.id = c.id
 |  runtime filters: RF000 <- c.id
-|  row-size=267B cardinality=1
+|  row-size=267B cardinality=8
 |
 |--07:EXCHANGE [HASH(c.id)]
 |  |
@@ -1938,7 +1938,7 @@ PLAN-ROOT SINK
 04:HASH JOIN [INNER JOIN, PARTITIONED]
 |  hash predicates: b.id = c.id
 |  runtime filters: RF000 <- c.id
-|  row-size=267B cardinality=1
+|  row-size=267B cardinality=8
 |
 |--07:EXCHANGE [HASH(c.id)]
 |  |

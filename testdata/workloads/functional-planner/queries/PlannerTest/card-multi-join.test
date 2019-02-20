@@ -155,7 +155,7 @@ PLAN-ROOT SINK
 # Correlated filter on two columns
 # |join| = Ave. line items per customer
 # |lineitem| / |o.custkey| = 6M / 100K = 60
-# Bug: Expected cardinality ~60
+# IMPALA-8613: Expected cardinality ~60
 select c.c_name, o.o_orderkey, i.l_linenumber
 from tpch.customer c,
      tpch.orders o,
@@ -169,7 +169,7 @@ PLAN-ROOT SINK
 04:HASH JOIN [INNER JOIN]
 |  hash predicates: o.o_custkey = c.c_custkey
 |  runtime filters: RF000 <- c.c_custkey
-|  row-size=66B cardinality=1
+|  row-size=66B cardinality=16
 |
 |--00:SCAN HDFS [tpch.customer c]
 |     partitions=1/1 files=1 size=23.08MB
@@ -247,29 +247,29 @@ where c.c_custkey = o.o_custkey
 PLAN-ROOT SINK
 |
 04:HASH JOIN [INNER JOIN]
-|  hash predicates: c.c_custkey = o.o_custkey
-|  runtime filters: RF000 <- o.o_custkey
-|  row-size=66B cardinality=1
+|  hash predicates: o.o_custkey = c.c_custkey
+|  runtime filters: RF000 <- c.c_custkey
+|  row-size=66B cardinality=4
 |
-|--03:HASH JOIN [INNER JOIN]
-|  |  hash predicates: i.l_orderkey = o.o_orderkey
-|  |  runtime filters: RF002 <- o.o_orderkey
-|  |  row-size=28B cardinality=1
-|  |
-|  |--01:SCAN HDFS [tpch.orders o]
-|  |     partitions=1/1 files=1 size=162.56MB
-|  |     predicates: o.o_orderkey = 10, o.o_custkey = 20
-|  |     row-size=16B cardinality=1
-|  |
-|  02:SCAN HDFS [tpch.lineitem i]
-|     partitions=1/1 files=1 size=718.94MB
-|     predicates: i.l_orderkey = 10
-|     runtime filters: RF002 -> i.l_orderkey
-|     row-size=12B cardinality=4
+|--00:SCAN HDFS [tpch.customer c]
+|     partitions=1/1 files=1 size=23.08MB
+|     predicates: c.c_custkey = 20
+|     row-size=38B cardinality=1
 |
-00:SCAN HDFS [tpch.customer c]
-   partitions=1/1 files=1 size=23.08MB
-   predicates: c.c_custkey = 20
-   runtime filters: RF000 -> c.c_custkey
-   row-size=38B cardinality=1
+03:HASH JOIN [INNER JOIN]
+|  hash predicates: i.l_orderkey = o.o_orderkey
+|  runtime filters: RF002 <- o.o_orderkey
+|  row-size=28B cardinality=4
+|
+|--01:SCAN HDFS [tpch.orders o]
+|     partitions=1/1 files=1 size=162.56MB
+|     predicates: o.o_orderkey = 10, o.o_custkey = 20
+|     runtime filters: RF000 -> o.o_custkey
+|     row-size=16B cardinality=1
+|
+02:SCAN HDFS [tpch.lineitem i]
+   partitions=1/1 files=1 size=718.94MB
+   predicates: i.l_orderkey = 10
+   runtime filters: RF002 -> i.l_orderkey
+   row-size=12B cardinality=4
 ====

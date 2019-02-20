@@ -79,7 +79,7 @@ PLAN-ROOT SINK
 08:HASH JOIN [INNER JOIN]
 |  hash predicates: c_nationkey = n_nationkey, s_comment = n_comment
 |  runtime filters: RF000 <- n_nationkey, RF001 <- n_comment
-|  row-size=189B cardinality=10.16K
+|  row-size=189B cardinality=10.24K
 |
 |--01:SUBPLAN
 |  |  row-size=26B cardinality=50
@@ -101,7 +101,7 @@ PLAN-ROOT SINK
 07:HASH JOIN [INNER JOIN]
 |  hash predicates: c.c_nationkey = s.s_nationkey, c_comment = s_comment
 |  runtime filters: RF004 <- s.s_nationkey, RF005 <- s_comment
-|  row-size=163B cardinality=10.16K
+|  row-size=163B cardinality=10.24K
 |
 |--06:SCAN HDFS [tpch_nested_parquet.supplier s]
 |     partitions=1/1 files=1 size=41.79MB
@@ -2445,7 +2445,7 @@ left join t4.item.o_lineitems t6 on t6.item.l_returnflag = t4.item.o_orderpriori
 PLAN-ROOT SINK
 |
 14:SUBPLAN
-|  row-size=183B cardinality=1
+|  row-size=183B cardinality=5
 |
 |--12:SUBPLAN
 |  |  row-size=183B cardinality=1
@@ -2470,14 +2470,14 @@ PLAN-ROOT SINK
 |     row-size=0B cardinality=10
 |
 13:HASH JOIN [INNER JOIN]
-|  hash predicates: t1.pos = t2.c_nationkey
-|  runtime filters: RF000 <- t2.c_nationkey
-|  row-size=147B cardinality=1
+|  hash predicates: t3.r_comment = t2.c_address
+|  runtime filters: RF000 <- t2.c_address
+|  row-size=147B cardinality=5
 |
 |--05:HASH JOIN [INNER JOIN]
-|  |  hash predicates: t3.r_comment = t2.c_address
-|  |  runtime filters: RF002 <- t2.c_address
-|  |  row-size=139B cardinality=1
+|  |  hash predicates: t1.pos = t2.c_nationkey
+|  |  runtime filters: RF002 <- t2.c_nationkey
+|  |  row-size=69B cardinality=5
 |  |
 |  |--04:HASH JOIN [INNER JOIN]
 |  |  |  hash predicates: t2.c_custkey = t5.r_regionkey
@@ -2489,19 +2489,19 @@ PLAN-ROOT SINK
 |  |  |     row-size=2B cardinality=5
 |  |  |
 |  |  01:SCAN HDFS [tpch_nested_parquet.customer t2]
-|  |     partitions=1/1 files=4 size=288.99MB
+|  |     partitions=1/1 files=4 size=288.98MB
 |  |     runtime filters: RF004 -> t2.c_custkey
 |  |     row-size=59B cardinality=150.00K
 |  |
-|  02:SCAN HDFS [tpch_nested_parquet.region t3]
+|  00:SCAN HDFS [tpch_nested_parquet.region.r_nations t1]
 |     partitions=1/1 files=1 size=3.44KB
-|     runtime filters: RF002 -> t3.r_comment
-|     row-size=78B cardinality=5
+|     runtime filters: RF002 -> t1.pos
+|     row-size=8B cardinality=50
 |
-00:SCAN HDFS [tpch_nested_parquet.region.r_nations t1]
+02:SCAN HDFS [tpch_nested_parquet.region t3]
    partitions=1/1 files=1 size=3.44KB
-   runtime filters: RF000 -> t1.pos
-   row-size=8B cardinality=50
+   runtime filters: RF000 -> t3.r_comment
+   row-size=78B cardinality=5
 ====
 # Add run time scalar subquery check for uncorrelated subqueries
 # Create CardinalityCheckNode inside a subplan

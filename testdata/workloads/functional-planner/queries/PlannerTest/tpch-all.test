@@ -553,7 +553,7 @@ order by
   o_orderdate
 limit 10
 ---- PLAN
-Max Per-Host Resource Reservation: Memory=36.44MB Threads=4
+Max Per-Host Resource Reservation: Memory=54.44MB Threads=4
 Per-Host Resource Estimates: Memory=516MB
 PLAN-ROOT SINK
 |
@@ -564,12 +564,12 @@ PLAN-ROOT SINK
 05:AGGREGATE [FINALIZE]
 |  output: sum(l_extendedprice * (1 - l_discount))
 |  group by: l_orderkey, o_orderdate, o_shippriority
-|  row-size=50B cardinality=17.56K
+|  row-size=50B cardinality=457.36K
 |
 04:HASH JOIN [INNER JOIN]
 |  hash predicates: o_custkey = c_custkey
 |  runtime filters: RF000 <- c_custkey
-|  row-size=117B cardinality=17.56K
+|  row-size=117B cardinality=457.36K
 |
 |--00:SCAN HDFS [tpch.customer]
 |     partitions=1/1 files=1 size=23.08MB
@@ -579,7 +579,7 @@ PLAN-ROOT SINK
 03:HASH JOIN [INNER JOIN]
 |  hash predicates: l_orderkey = o_orderkey
 |  runtime filters: RF002 <- o_orderkey
-|  row-size=88B cardinality=57.58K
+|  row-size=88B cardinality=575.77K
 |
 |--01:SCAN HDFS [tpch.orders]
 |     partitions=1/1 files=1 size=162.56MB
@@ -593,8 +593,8 @@ PLAN-ROOT SINK
    runtime filters: RF002 -> l_orderkey
    row-size=46B cardinality=600.12K
 ---- DISTRIBUTEDPLAN
-Max Per-Host Resource Reservation: Memory=41.38MB Threads=8
-Per-Host Resource Estimates: Memory=545MB
+Max Per-Host Resource Reservation: Memory=71.44MB Threads=8
+Per-Host Resource Estimates: Memory=566MB
 PLAN-ROOT SINK
 |
 11:MERGING-EXCHANGE [UNPARTITIONED]
@@ -608,19 +608,19 @@ PLAN-ROOT SINK
 10:AGGREGATE [FINALIZE]
 |  output: sum:merge(l_extendedprice * (1 - l_discount))
 |  group by: l_orderkey, o_orderdate, o_shippriority
-|  row-size=50B cardinality=17.56K
+|  row-size=50B cardinality=457.36K
 |
 09:EXCHANGE [HASH(l_orderkey,o_orderdate,o_shippriority)]
 |
 05:AGGREGATE [STREAMING]
 |  output: sum(l_extendedprice * (1 - l_discount))
 |  group by: l_orderkey, o_orderdate, o_shippriority
-|  row-size=50B cardinality=17.56K
+|  row-size=50B cardinality=457.36K
 |
 04:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: o_custkey = c_custkey
 |  runtime filters: RF000 <- c_custkey
-|  row-size=117B cardinality=17.56K
+|  row-size=117B cardinality=457.36K
 |
 |--08:EXCHANGE [BROADCAST]
 |  |
@@ -632,7 +632,7 @@ PLAN-ROOT SINK
 03:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: l_orderkey = o_orderkey
 |  runtime filters: RF002 <- o_orderkey
-|  row-size=88B cardinality=57.58K
+|  row-size=88B cardinality=575.77K
 |
 |--07:EXCHANGE [BROADCAST]
 |  |
@@ -648,8 +648,8 @@ PLAN-ROOT SINK
    runtime filters: RF002 -> l_orderkey
    row-size=46B cardinality=600.12K
 ---- PARALLELPLANS
-Max Per-Host Resource Reservation: Memory=82.75MB Threads=9
-Per-Host Resource Estimates: Memory=484MB
+Max Per-Host Resource Reservation: Memory=109.88MB Threads=9
+Per-Host Resource Estimates: Memory=498MB
 PLAN-ROOT SINK
 |
 11:MERGING-EXCHANGE [UNPARTITIONED]
@@ -663,19 +663,19 @@ PLAN-ROOT SINK
 10:AGGREGATE [FINALIZE]
 |  output: sum:merge(l_extendedprice * (1 - l_discount))
 |  group by: l_orderkey, o_orderdate, o_shippriority
-|  row-size=50B cardinality=17.56K
+|  row-size=50B cardinality=457.36K
 |
 09:EXCHANGE [HASH(l_orderkey,o_orderdate,o_shippriority)]
 |
 05:AGGREGATE [STREAMING]
 |  output: sum(l_extendedprice * (1 - l_discount))
 |  group by: l_orderkey, o_orderdate, o_shippriority
-|  row-size=50B cardinality=17.56K
+|  row-size=50B cardinality=457.36K
 |
 04:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: o_custkey = c_custkey
 |  runtime filters: RF000 <- c_custkey
-|  row-size=117B cardinality=17.56K
+|  row-size=117B cardinality=457.36K
 |
 |--JOIN BUILD
 |  |  join-table-id=00 plan-id=01 cohort-id=01
@@ -691,7 +691,7 @@ PLAN-ROOT SINK
 03:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: l_orderkey = o_orderkey
 |  runtime filters: RF002 <- o_orderkey
-|  row-size=88B cardinality=57.58K
+|  row-size=88B cardinality=575.77K
 |
 |--JOIN BUILD
 |  |  join-table-id=01 plan-id=02 cohort-id=01
@@ -1258,18 +1258,18 @@ PLAN-ROOT SINK
 |
 12:SORT
 |  order by: supp_nation ASC, cust_nation ASC, l_year ASC
-|  row-size=58B cardinality=575.77K
+|  row-size=58B cardinality=600.12K
 |
 11:AGGREGATE [FINALIZE]
 |  output: sum(l_extendedprice * (1 - l_discount))
 |  group by: n1.n_name, n2.n_name, year(l_shipdate)
-|  row-size=58B cardinality=575.77K
+|  row-size=58B cardinality=600.12K
 |
 10:HASH JOIN [INNER JOIN]
 |  hash predicates: c_nationkey = n2.n_nationkey
 |  other predicates: ((n1.n_name = 'FRANCE' AND n2.n_name = 'GERMANY') OR (n1.n_name = 'GERMANY' AND n2.n_name = 'FRANCE'))
 |  runtime filters: RF000 <- n2.n_nationkey
-|  row-size=132B cardinality=575.77K
+|  row-size=132B cardinality=600.12K
 |
 |--05:SCAN HDFS [tpch.nation n2]
 |     partitions=1/1 files=1 size=2.15KB
@@ -1278,7 +1278,7 @@ PLAN-ROOT SINK
 09:HASH JOIN [INNER JOIN]
 |  hash predicates: s_nationkey = n1.n_nationkey
 |  runtime filters: RF002 <- n1.n_nationkey
-|  row-size=111B cardinality=575.77K
+|  row-size=111B cardinality=600.12K
 |
 |--04:SCAN HDFS [tpch.nation n1]
 |     partitions=1/1 files=1 size=2.15KB
@@ -1287,7 +1287,7 @@ PLAN-ROOT SINK
 08:HASH JOIN [INNER JOIN]
 |  hash predicates: o_custkey = c_custkey
 |  runtime filters: RF004 <- c_custkey
-|  row-size=90B cardinality=575.77K
+|  row-size=90B cardinality=600.12K
 |
 |--03:SCAN HDFS [tpch.customer]
 |     partitions=1/1 files=1 size=23.08MB
@@ -1295,33 +1295,33 @@ PLAN-ROOT SINK
 |     row-size=10B cardinality=150.00K
 |
 07:HASH JOIN [INNER JOIN]
-|  hash predicates: l_suppkey = s_suppkey
-|  runtime filters: RF006 <- s_suppkey
-|  row-size=80B cardinality=575.77K
-|
-|--00:SCAN HDFS [tpch.supplier]
-|     partitions=1/1 files=1 size=1.33MB
-|     runtime filters: RF002 -> s_nationkey
-|     row-size=10B cardinality=10.00K
-|
-06:HASH JOIN [INNER JOIN]
 |  hash predicates: l_orderkey = o_orderkey
-|  runtime filters: RF008 <- o_orderkey
-|  row-size=70B cardinality=575.77K
+|  runtime filters: RF006 <- o_orderkey
+|  row-size=80B cardinality=600.12K
 |
 |--02:SCAN HDFS [tpch.orders]
 |     partitions=1/1 files=1 size=162.56MB
 |     runtime filters: RF004 -> o_custkey
 |     row-size=16B cardinality=1.50M
 |
+06:HASH JOIN [INNER JOIN]
+|  hash predicates: l_suppkey = s_suppkey
+|  runtime filters: RF008 <- s_suppkey
+|  row-size=64B cardinality=600.12K
+|
+|--00:SCAN HDFS [tpch.supplier]
+|     partitions=1/1 files=1 size=1.33MB
+|     runtime filters: RF002 -> s_nationkey
+|     row-size=10B cardinality=10.00K
+|
 01:SCAN HDFS [tpch.lineitem]
    partitions=1/1 files=1 size=718.94MB
    predicates: l_shipdate <= '1996-12-31', l_shipdate >= '1995-01-01'
-   runtime filters: RF006 -> l_suppkey, RF008 -> l_orderkey
+   runtime filters: RF006 -> l_orderkey, RF008 -> l_suppkey
    row-size=54B cardinality=600.12K
 ---- DISTRIBUTEDPLAN
-Max Per-Host Resource Reservation: Memory=86.95MB Threads=15
-Per-Host Resource Estimates: Memory=699MB
+Max Per-Host Resource Reservation: Memory=102.95MB Threads=15
+Per-Host Resource Estimates: Memory=715MB
 PLAN-ROOT SINK
 |
 21:MERGING-EXCHANGE [UNPARTITIONED]
@@ -1329,25 +1329,25 @@ PLAN-ROOT SINK
 |
 12:SORT
 |  order by: supp_nation ASC, cust_nation ASC, l_year ASC
-|  row-size=58B cardinality=575.77K
+|  row-size=58B cardinality=600.12K
 |
 20:AGGREGATE [FINALIZE]
 |  output: sum:merge(volume)
 |  group by: supp_nation, cust_nation, l_year
-|  row-size=58B cardinality=575.77K
+|  row-size=58B cardinality=600.12K
 |
 19:EXCHANGE [HASH(supp_nation,cust_nation,l_year)]
 |
 11:AGGREGATE [STREAMING]
 |  output: sum(l_extendedprice * (1 - l_discount))
 |  group by: n1.n_name, n2.n_name, year(l_shipdate)
-|  row-size=58B cardinality=575.77K
+|  row-size=58B cardinality=600.12K
 |
 10:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: c_nationkey = n2.n_nationkey
 |  other predicates: ((n1.n_name = 'FRANCE' AND n2.n_name = 'GERMANY') OR (n1.n_name = 'GERMANY' AND n2.n_name = 'FRANCE'))
 |  runtime filters: RF000 <- n2.n_nationkey
-|  row-size=132B cardinality=575.77K
+|  row-size=132B cardinality=600.12K
 |
 |--18:EXCHANGE [BROADCAST]
 |  |
@@ -1358,7 +1358,7 @@ PLAN-ROOT SINK
 09:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: s_nationkey = n1.n_nationkey
 |  runtime filters: RF002 <- n1.n_nationkey
-|  row-size=111B cardinality=575.77K
+|  row-size=111B cardinality=600.12K
 |
 |--17:EXCHANGE [BROADCAST]
 |  |
@@ -1369,7 +1369,7 @@ PLAN-ROOT SINK
 08:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: o_custkey = c_custkey
 |  runtime filters: RF004 <- c_custkey
-|  row-size=90B cardinality=575.77K
+|  row-size=90B cardinality=600.12K
 |
 |--16:EXCHANGE [BROADCAST]
 |  |
@@ -1378,40 +1378,40 @@ PLAN-ROOT SINK
 |     runtime filters: RF000 -> c_nationkey
 |     row-size=10B cardinality=150.00K
 |
-07:HASH JOIN [INNER JOIN, BROADCAST]
-|  hash predicates: l_suppkey = s_suppkey
-|  runtime filters: RF006 <- s_suppkey
-|  row-size=80B cardinality=575.77K
-|
-|--15:EXCHANGE [BROADCAST]
-|  |
-|  00:SCAN HDFS [tpch.supplier]
-|     partitions=1/1 files=1 size=1.33MB
-|     runtime filters: RF002 -> s_nationkey
-|     row-size=10B cardinality=10.00K
-|
-06:HASH JOIN [INNER JOIN, PARTITIONED]
+07:HASH JOIN [INNER JOIN, PARTITIONED]
 |  hash predicates: l_orderkey = o_orderkey
-|  runtime filters: RF008 <- o_orderkey
-|  row-size=70B cardinality=575.77K
+|  runtime filters: RF006 <- o_orderkey
+|  row-size=80B cardinality=600.12K
 |
-|--14:EXCHANGE [HASH(o_orderkey)]
+|--15:EXCHANGE [HASH(o_orderkey)]
 |  |
 |  02:SCAN HDFS [tpch.orders]
 |     partitions=1/1 files=1 size=162.56MB
 |     runtime filters: RF004 -> o_custkey
 |     row-size=16B cardinality=1.50M
 |
-13:EXCHANGE [HASH(l_orderkey)]
+14:EXCHANGE [HASH(l_orderkey)]
+|
+06:HASH JOIN [INNER JOIN, BROADCAST]
+|  hash predicates: l_suppkey = s_suppkey
+|  runtime filters: RF008 <- s_suppkey
+|  row-size=64B cardinality=600.12K
+|
+|--13:EXCHANGE [BROADCAST]
+|  |
+|  00:SCAN HDFS [tpch.supplier]
+|     partitions=1/1 files=1 size=1.33MB
+|     runtime filters: RF002 -> s_nationkey
+|     row-size=10B cardinality=10.00K
 |
 01:SCAN HDFS [tpch.lineitem]
    partitions=1/1 files=1 size=718.94MB
    predicates: l_shipdate <= '1996-12-31', l_shipdate >= '1995-01-01'
-   runtime filters: RF006 -> l_suppkey, RF008 -> l_orderkey
+   runtime filters: RF006 -> l_orderkey, RF008 -> l_suppkey
    row-size=54B cardinality=600.12K
 ---- PARALLELPLANS
-Max Per-Host Resource Reservation: Memory=144.78MB Threads=17
-Per-Host Resource Estimates: Memory=655MB
+Max Per-Host Resource Reservation: Memory=158.78MB Threads=17
+Per-Host Resource Estimates: Memory=667MB
 PLAN-ROOT SINK
 |
 21:MERGING-EXCHANGE [UNPARTITIONED]
@@ -1419,25 +1419,25 @@ PLAN-ROOT SINK
 |
 12:SORT
 |  order by: supp_nation ASC, cust_nation ASC, l_year ASC
-|  row-size=58B cardinality=575.77K
+|  row-size=58B cardinality=600.12K
 |
 20:AGGREGATE [FINALIZE]
 |  output: sum:merge(volume)
 |  group by: supp_nation, cust_nation, l_year
-|  row-size=58B cardinality=575.77K
+|  row-size=58B cardinality=600.12K
 |
 19:EXCHANGE [HASH(supp_nation,cust_nation,l_year)]
 |
 11:AGGREGATE [STREAMING]
 |  output: sum(l_extendedprice * (1 - l_discount))
 |  group by: n1.n_name, n2.n_name, year(l_shipdate)
-|  row-size=58B cardinality=575.77K
+|  row-size=58B cardinality=600.12K
 |
 10:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: c_nationkey = n2.n_nationkey
 |  other predicates: ((n1.n_name = 'FRANCE' AND n2.n_name = 'GERMANY') OR (n1.n_name = 'GERMANY' AND n2.n_name = 'FRANCE'))
 |  runtime filters: RF000 <- n2.n_nationkey
-|  row-size=132B cardinality=575.77K
+|  row-size=132B cardinality=600.12K
 |
 |--JOIN BUILD
 |  |  join-table-id=00 plan-id=01 cohort-id=01
@@ -1452,7 +1452,7 @@ PLAN-ROOT SINK
 09:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: s_nationkey = n1.n_nationkey
 |  runtime filters: RF002 <- n1.n_nationkey
-|  row-size=111B cardinality=575.77K
+|  row-size=111B cardinality=600.12K
 |
 |--JOIN BUILD
 |  |  join-table-id=01 plan-id=02 cohort-id=01
@@ -1467,7 +1467,7 @@ PLAN-ROOT SINK
 08:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: o_custkey = c_custkey
 |  runtime filters: RF004 <- c_custkey
-|  row-size=90B cardinality=575.77K
+|  row-size=90B cardinality=600.12K
 |
 |--JOIN BUILD
 |  |  join-table-id=02 plan-id=03 cohort-id=01
@@ -1480,44 +1480,44 @@ PLAN-ROOT SINK
 |     runtime filters: RF000 -> c_nationkey
 |     row-size=10B cardinality=150.00K
 |
-07:HASH JOIN [INNER JOIN, BROADCAST]
-|  hash predicates: l_suppkey = s_suppkey
-|  runtime filters: RF006 <- s_suppkey
-|  row-size=80B cardinality=575.77K
+07:HASH JOIN [INNER JOIN, PARTITIONED]
+|  hash predicates: l_orderkey = o_orderkey
+|  runtime filters: RF006 <- o_orderkey
+|  row-size=80B cardinality=600.12K
 |
 |--JOIN BUILD
 |  |  join-table-id=03 plan-id=04 cohort-id=01
-|  |  build expressions: s_suppkey
-|  |
-|  15:EXCHANGE [BROADCAST]
-|  |
-|  00:SCAN HDFS [tpch.supplier]
-|     partitions=1/1 files=1 size=1.33MB
-|     runtime filters: RF002 -> s_nationkey
-|     row-size=10B cardinality=10.00K
-|
-06:HASH JOIN [INNER JOIN, PARTITIONED]
-|  hash predicates: l_orderkey = o_orderkey
-|  runtime filters: RF008 <- o_orderkey
-|  row-size=70B cardinality=575.77K
-|
-|--JOIN BUILD
-|  |  join-table-id=04 plan-id=05 cohort-id=01
 |  |  build expressions: o_orderkey
 |  |
-|  14:EXCHANGE [HASH(o_orderkey)]
+|  15:EXCHANGE [HASH(o_orderkey)]
 |  |
 |  02:SCAN HDFS [tpch.orders]
 |     partitions=1/1 files=1 size=162.56MB
 |     runtime filters: RF004 -> o_custkey
 |     row-size=16B cardinality=1.50M
 |
-13:EXCHANGE [HASH(l_orderkey)]
+14:EXCHANGE [HASH(l_orderkey)]
+|
+06:HASH JOIN [INNER JOIN, BROADCAST]
+|  hash predicates: l_suppkey = s_suppkey
+|  runtime filters: RF008 <- s_suppkey
+|  row-size=64B cardinality=600.12K
+|
+|--JOIN BUILD
+|  |  join-table-id=04 plan-id=05 cohort-id=01
+|  |  build expressions: s_suppkey
+|  |
+|  13:EXCHANGE [BROADCAST]
+|  |
+|  00:SCAN HDFS [tpch.supplier]
+|     partitions=1/1 files=1 size=1.33MB
+|     runtime filters: RF002 -> s_nationkey
+|     row-size=10B cardinality=10.00K
 |
 01:SCAN HDFS [tpch.lineitem]
    partitions=1/1 files=1 size=718.94MB
    predicates: l_shipdate <= '1996-12-31', l_shipdate >= '1995-01-01'
-   runtime filters: RF006 -> l_suppkey, RF008 -> l_orderkey
+   runtime filters: RF006 -> l_orderkey, RF008 -> l_suppkey
    row-size=54B cardinality=600.12K
 ====
 # TPCH-Q8
@@ -1560,23 +1560,23 @@ group by
 order by
   o_year
 ---- PLAN
-Max Per-Host Resource Reservation: Memory=50.71MB Threads=9
-Per-Host Resource Estimates: Memory=713MB
+Max Per-Host Resource Reservation: Memory=53.59MB Threads=9
+Per-Host Resource Estimates: Memory=716MB
 PLAN-ROOT SINK
 |
 16:SORT
 |  order by: o_year ASC
-|  row-size=36B cardinality=761
+|  row-size=36B cardinality=2.47K
 |
 15:AGGREGATE [FINALIZE]
 |  output: sum(CASE WHEN n2.n_name = 'BRAZIL' THEN l_extendedprice * (1 - l_discount) ELSE 0 END), sum(l_extendedprice * (1 - l_discount))
 |  group by: year(o_orderdate)
-|  row-size=36B cardinality=761
+|  row-size=36B cardinality=2.47K
 |
 14:HASH JOIN [INNER JOIN]
 |  hash predicates: s_nationkey = n2.n_nationkey
 |  runtime filters: RF000 <- n2.n_nationkey
-|  row-size=184B cardinality=761
+|  row-size=184B cardinality=7.93K
 |
 |--06:SCAN HDFS [tpch.nation n2]
 |     partitions=1/1 files=1 size=2.15KB
@@ -1585,7 +1585,7 @@ PLAN-ROOT SINK
 13:HASH JOIN [INNER JOIN]
 |  hash predicates: n1.n_regionkey = r_regionkey
 |  runtime filters: RF002 <- r_regionkey
-|  row-size=163B cardinality=761
+|  row-size=163B cardinality=7.93K
 |
 |--07:SCAN HDFS [tpch.region]
 |     partitions=1/1 files=1 size=384B
@@ -1595,7 +1595,7 @@ PLAN-ROOT SINK
 12:HASH JOIN [INNER JOIN]
 |  hash predicates: c_nationkey = n1.n_nationkey
 |  runtime filters: RF004 <- n1.n_nationkey
-|  row-size=143B cardinality=3.81K
+|  row-size=143B cardinality=39.66K
 |
 |--05:SCAN HDFS [tpch.nation n1]
 |     partitions=1/1 files=1 size=2.15KB
@@ -1603,80 +1603,80 @@ PLAN-ROOT SINK
 |     row-size=4B cardinality=25
 |
 11:HASH JOIN [INNER JOIN]
-|  hash predicates: c_custkey = o_custkey
-|  runtime filters: RF006 <- o_custkey
-|  row-size=139B cardinality=3.81K
+|  hash predicates: o_custkey = c_custkey
+|  runtime filters: RF006 <- c_custkey
+|  row-size=139B cardinality=39.66K
 |
-|--10:HASH JOIN [INNER JOIN]
+|--04:SCAN HDFS [tpch.customer]
+|     partitions=1/1 files=1 size=23.08MB
+|     runtime filters: RF004 -> c_nationkey
+|     row-size=10B cardinality=150.00K
+|
+10:HASH JOIN [INNER JOIN]
+|  hash predicates: o_orderkey = l_orderkey
+|  runtime filters: RF008 <- l_orderkey
+|  row-size=129B cardinality=39.66K
+|
+|--09:HASH JOIN [INNER JOIN]
 |  |  hash predicates: l_suppkey = s_suppkey
-|  |  runtime filters: RF008 <- s_suppkey
-|  |  row-size=129B cardinality=3.81K
+|  |  runtime filters: RF010 <- s_suppkey
+|  |  row-size=91B cardinality=39.66K
 |  |
 |  |--01:SCAN HDFS [tpch.supplier]
 |  |     partitions=1/1 files=1 size=1.33MB
 |  |     runtime filters: RF000 -> s_nationkey
 |  |     row-size=10B cardinality=10.00K
 |  |
-|  09:HASH JOIN [INNER JOIN]
-|  |  hash predicates: o_orderkey = l_orderkey
-|  |  runtime filters: RF010 <- l_orderkey
-|  |  row-size=119B cardinality=3.81K
+|  08:HASH JOIN [INNER JOIN]
+|  |  hash predicates: l_partkey = p_partkey
+|  |  runtime filters: RF012 <- p_partkey
+|  |  row-size=81B cardinality=39.66K
 |  |
-|  |--08:HASH JOIN [INNER JOIN]
-|  |  |  hash predicates: l_partkey = p_partkey
-|  |  |  runtime filters: RF012 <- p_partkey
-|  |  |  row-size=81B cardinality=39.66K
-|  |  |
-|  |  |--00:SCAN HDFS [tpch.part]
-|  |  |     partitions=1/1 files=1 size=22.83MB
-|  |  |     predicates: p_type = 'ECONOMY ANODIZED STEEL'
-|  |  |     row-size=41B cardinality=1.32K
-|  |  |
-|  |  02:SCAN HDFS [tpch.lineitem]
-|  |     partitions=1/1 files=1 size=718.94MB
-|  |     runtime filters: RF008 -> l_suppkey, RF012 -> l_partkey
-|  |     row-size=40B cardinality=6.00M
+|  |--00:SCAN HDFS [tpch.part]
+|  |     partitions=1/1 files=1 size=22.83MB
+|  |     predicates: p_type = 'ECONOMY ANODIZED STEEL'
+|  |     row-size=41B cardinality=1.32K
 |  |
-|  03:SCAN HDFS [tpch.orders]
-|     partitions=1/1 files=1 size=162.56MB
-|     predicates: o_orderdate <= '1996-12-31', o_orderdate >= '1995-01-01'
-|     runtime filters: RF010 -> o_orderkey
-|     row-size=38B cardinality=150.00K
+|  02:SCAN HDFS [tpch.lineitem]
+|     partitions=1/1 files=1 size=718.94MB
+|     runtime filters: RF010 -> l_suppkey, RF012 -> l_partkey
+|     row-size=40B cardinality=6.00M
 |
-04:SCAN HDFS [tpch.customer]
-   partitions=1/1 files=1 size=23.08MB
-   runtime filters: RF004 -> c_nationkey, RF006 -> c_custkey
-   row-size=10B cardinality=150.00K
+03:SCAN HDFS [tpch.orders]
+   partitions=1/1 files=1 size=162.56MB
+   predicates: o_orderdate <= '1996-12-31', o_orderdate >= '1995-01-01'
+   runtime filters: RF006 -> o_custkey, RF008 -> o_orderkey
+   row-size=38B cardinality=150.00K
 ---- DISTRIBUTEDPLAN
-Max Per-Host Resource Reservation: Memory=71.46MB Threads=21
-Per-Host Resource Estimates: Memory=756MB
+Max Per-Host Resource Reservation: Memory=70.46MB Threads=20
+Per-Host Resource Estimates: Memory=757MB
 PLAN-ROOT SINK
 |
-29:MERGING-EXCHANGE [UNPARTITIONED]
+28:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: o_year ASC
 |
 16:SORT
 |  order by: o_year ASC
-|  row-size=36B cardinality=761
+|  row-size=36B cardinality=2.47K
 |
-28:AGGREGATE [FINALIZE]
+27:AGGREGATE [FINALIZE]
 |  output: sum:merge(CASE WHEN nation = 'BRAZIL' THEN volume ELSE 0 END), sum:merge(volume)
 |  group by: o_year
-|  row-size=36B cardinality=761
+|  row-size=36B cardinality=2.47K
 |
-27:EXCHANGE [HASH(o_year)]
+26:EXCHANGE [HASH(o_year)]
 |
 15:AGGREGATE [STREAMING]
 |  output: sum(CASE WHEN n2.n_name = 'BRAZIL' THEN l_extendedprice * (1 - l_discount) ELSE 0 END), sum(l_extendedprice * (1 - l_discount))
 |  group by: year(o_orderdate)
-|  row-size=36B cardinality=761
+|  row-size=36B cardinality=2.47K
 |
 14:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: s_nationkey = n2.n_nationkey
 |  runtime filters: RF000 <- n2.n_nationkey
-|  row-size=184B cardinality=761
+|  row-size=184B cardinality=7.93K
 |
-|--26:EXCHANGE [BROADCAST]
+|--25:EXCHANGE [BROADCAST]
 |  |
 |  06:SCAN HDFS [tpch.nation n2]
 |     partitions=1/1 files=1 size=2.15KB
@@ -1685,9 +1685,9 @@ PLAN-ROOT SINK
 13:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: n1.n_regionkey = r_regionkey
 |  runtime filters: RF002 <- r_regionkey
-|  row-size=163B cardinality=761
+|  row-size=163B cardinality=7.93K
 |
-|--25:EXCHANGE [BROADCAST]
+|--24:EXCHANGE [BROADCAST]
 |  |
 |  07:SCAN HDFS [tpch.region]
 |     partitions=1/1 files=1 size=384B
@@ -1697,9 +1697,9 @@ PLAN-ROOT SINK
 12:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: c_nationkey = n1.n_nationkey
 |  runtime filters: RF004 <- n1.n_nationkey
-|  row-size=143B cardinality=3.81K
+|  row-size=143B cardinality=39.66K
 |
-|--24:EXCHANGE [BROADCAST]
+|--23:EXCHANGE [BROADCAST]
 |  |
 |  05:SCAN HDFS [tpch.nation n1]
 |     partitions=1/1 files=1 size=2.15KB
@@ -1709,37 +1709,23 @@ PLAN-ROOT SINK
 11:HASH JOIN [INNER JOIN, PARTITIONED]
 |  hash predicates: o_custkey = c_custkey
 |  runtime filters: RF006 <- c_custkey
-|  row-size=139B cardinality=3.81K
+|  row-size=139B cardinality=39.66K
 |
-|--23:EXCHANGE [HASH(c_custkey)]
+|--22:EXCHANGE [HASH(c_custkey)]
 |  |
 |  04:SCAN HDFS [tpch.customer]
 |     partitions=1/1 files=1 size=23.08MB
 |     runtime filters: RF004 -> c_nationkey
 |     row-size=10B cardinality=150.00K
 |
-22:EXCHANGE [HASH(o_custkey)]
+21:EXCHANGE [HASH(o_custkey)]
 |
 10:HASH JOIN [INNER JOIN, PARTITIONED]
-|  hash predicates: l_suppkey = s_suppkey
-|  runtime filters: RF008 <- s_suppkey
-|  row-size=129B cardinality=3.81K
-|
-|--21:EXCHANGE [HASH(s_suppkey)]
-|  |
-|  01:SCAN HDFS [tpch.supplier]
-|     partitions=1/1 files=1 size=1.33MB
-|     runtime filters: RF000 -> s_nationkey
-|     row-size=10B cardinality=10.00K
-|
-20:EXCHANGE [HASH(l_suppkey)]
-|
-09:HASH JOIN [INNER JOIN, PARTITIONED]
 |  hash predicates: l_orderkey = o_orderkey
-|  runtime filters: RF010 <- o_orderkey
-|  row-size=119B cardinality=3.81K
+|  runtime filters: RF008 <- o_orderkey
+|  row-size=129B cardinality=39.66K
 |
-|--19:EXCHANGE [HASH(o_orderkey)]
+|--20:EXCHANGE [HASH(o_orderkey)]
 |  |
 |  03:SCAN HDFS [tpch.orders]
 |     partitions=1/1 files=1 size=162.56MB
@@ -1747,7 +1733,19 @@ PLAN-ROOT SINK
 |     runtime filters: RF006 -> o_custkey
 |     row-size=38B cardinality=150.00K
 |
-18:EXCHANGE [HASH(l_orderkey)]
+19:EXCHANGE [HASH(l_orderkey)]
+|
+09:HASH JOIN [INNER JOIN, BROADCAST]
+|  hash predicates: l_suppkey = s_suppkey
+|  runtime filters: RF010 <- s_suppkey
+|  row-size=91B cardinality=39.66K
+|
+|--18:EXCHANGE [BROADCAST]
+|  |
+|  01:SCAN HDFS [tpch.supplier]
+|     partitions=1/1 files=1 size=1.33MB
+|     runtime filters: RF000 -> s_nationkey
+|     row-size=10B cardinality=10.00K
 |
 08:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: l_partkey = p_partkey
@@ -1763,42 +1761,42 @@ PLAN-ROOT SINK
 |
 02:SCAN HDFS [tpch.lineitem]
    partitions=1/1 files=1 size=718.94MB
-   runtime filters: RF008 -> l_suppkey, RF010 -> l_orderkey, RF012 -> l_partkey
+   runtime filters: RF008 -> l_orderkey, RF010 -> l_suppkey, RF012 -> l_partkey
    row-size=40B cardinality=6.00M
 ---- PARALLELPLANS
-Max Per-Host Resource Reservation: Memory=141.05MB Threads=25
-Per-Host Resource Estimates: Memory=724MB
+Max Per-Host Resource Reservation: Memory=139.05MB Threads=23
+Per-Host Resource Estimates: Memory=722MB
 PLAN-ROOT SINK
 |
-29:MERGING-EXCHANGE [UNPARTITIONED]
+28:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: o_year ASC
 |
 16:SORT
 |  order by: o_year ASC
-|  row-size=36B cardinality=761
+|  row-size=36B cardinality=2.47K
 |
-28:AGGREGATE [FINALIZE]
+27:AGGREGATE [FINALIZE]
 |  output: sum:merge(CASE WHEN nation = 'BRAZIL' THEN volume ELSE 0 END), sum:merge(volume)
 |  group by: o_year
-|  row-size=36B cardinality=761
+|  row-size=36B cardinality=2.47K
 |
-27:EXCHANGE [HASH(o_year)]
+26:EXCHANGE [HASH(o_year)]
 |
 15:AGGREGATE [STREAMING]
 |  output: sum(CASE WHEN n2.n_name = 'BRAZIL' THEN l_extendedprice * (1 - l_discount) ELSE 0 END), sum(l_extendedprice * (1 - l_discount))
 |  group by: year(o_orderdate)
-|  row-size=36B cardinality=761
+|  row-size=36B cardinality=2.47K
 |
 14:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: s_nationkey = n2.n_nationkey
 |  runtime filters: RF000 <- n2.n_nationkey
-|  row-size=184B cardinality=761
+|  row-size=184B cardinality=7.93K
 |
 |--JOIN BUILD
 |  |  join-table-id=00 plan-id=01 cohort-id=01
 |  |  build expressions: n2.n_nationkey
 |  |
-|  26:EXCHANGE [BROADCAST]
+|  25:EXCHANGE [BROADCAST]
 |  |
 |  06:SCAN HDFS [tpch.nation n2]
 |     partitions=1/1 files=1 size=2.15KB
@@ -1807,13 +1805,13 @@ PLAN-ROOT SINK
 13:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: n1.n_regionkey = r_regionkey
 |  runtime filters: RF002 <- r_regionkey
-|  row-size=163B cardinality=761
+|  row-size=163B cardinality=7.93K
 |
 |--JOIN BUILD
 |  |  join-table-id=01 plan-id=02 cohort-id=01
 |  |  build expressions: r_regionkey
 |  |
-|  25:EXCHANGE [BROADCAST]
+|  24:EXCHANGE [BROADCAST]
 |  |
 |  07:SCAN HDFS [tpch.region]
 |     partitions=1/1 files=1 size=384B
@@ -1823,13 +1821,13 @@ PLAN-ROOT SINK
 12:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: c_nationkey = n1.n_nationkey
 |  runtime filters: RF004 <- n1.n_nationkey
-|  row-size=143B cardinality=3.81K
+|  row-size=143B cardinality=39.66K
 |
 |--JOIN BUILD
 |  |  join-table-id=02 plan-id=03 cohort-id=01
 |  |  build expressions: n1.n_nationkey
 |  |
-|  24:EXCHANGE [BROADCAST]
+|  23:EXCHANGE [BROADCAST]
 |  |
 |  05:SCAN HDFS [tpch.nation n1]
 |     partitions=1/1 files=1 size=2.15KB
@@ -1839,49 +1837,31 @@ PLAN-ROOT SINK
 11:HASH JOIN [INNER JOIN, PARTITIONED]
 |  hash predicates: o_custkey = c_custkey
 |  runtime filters: RF006 <- c_custkey
-|  row-size=139B cardinality=3.81K
+|  row-size=139B cardinality=39.66K
 |
 |--JOIN BUILD
 |  |  join-table-id=03 plan-id=04 cohort-id=01
 |  |  build expressions: c_custkey
 |  |
-|  23:EXCHANGE [HASH(c_custkey)]
+|  22:EXCHANGE [HASH(c_custkey)]
 |  |
 |  04:SCAN HDFS [tpch.customer]
 |     partitions=1/1 files=1 size=23.08MB
 |     runtime filters: RF004 -> c_nationkey
 |     row-size=10B cardinality=150.00K
 |
-22:EXCHANGE [HASH(o_custkey)]
+21:EXCHANGE [HASH(o_custkey)]
 |
 10:HASH JOIN [INNER JOIN, PARTITIONED]
-|  hash predicates: l_suppkey = s_suppkey
-|  runtime filters: RF008 <- s_suppkey
-|  row-size=129B cardinality=3.81K
+|  hash predicates: l_orderkey = o_orderkey
+|  runtime filters: RF008 <- o_orderkey
+|  row-size=129B cardinality=39.66K
 |
 |--JOIN BUILD
 |  |  join-table-id=04 plan-id=05 cohort-id=01
-|  |  build expressions: s_suppkey
-|  |
-|  21:EXCHANGE [HASH(s_suppkey)]
-|  |
-|  01:SCAN HDFS [tpch.supplier]
-|     partitions=1/1 files=1 size=1.33MB
-|     runtime filters: RF000 -> s_nationkey
-|     row-size=10B cardinality=10.00K
-|
-20:EXCHANGE [HASH(l_suppkey)]
-|
-09:HASH JOIN [INNER JOIN, PARTITIONED]
-|  hash predicates: l_orderkey = o_orderkey
-|  runtime filters: RF010 <- o_orderkey
-|  row-size=119B cardinality=3.81K
-|
-|--JOIN BUILD
-|  |  join-table-id=05 plan-id=06 cohort-id=01
 |  |  build expressions: o_orderkey
 |  |
-|  19:EXCHANGE [HASH(o_orderkey)]
+|  20:EXCHANGE [HASH(o_orderkey)]
 |  |
 |  03:SCAN HDFS [tpch.orders]
 |     partitions=1/1 files=1 size=162.56MB
@@ -1889,7 +1869,23 @@ PLAN-ROOT SINK
 |     runtime filters: RF006 -> o_custkey
 |     row-size=38B cardinality=150.00K
 |
-18:EXCHANGE [HASH(l_orderkey)]
+19:EXCHANGE [HASH(l_orderkey)]
+|
+09:HASH JOIN [INNER JOIN, BROADCAST]
+|  hash predicates: l_suppkey = s_suppkey
+|  runtime filters: RF010 <- s_suppkey
+|  row-size=91B cardinality=39.66K
+|
+|--JOIN BUILD
+|  |  join-table-id=05 plan-id=06 cohort-id=01
+|  |  build expressions: s_suppkey
+|  |
+|  18:EXCHANGE [BROADCAST]
+|  |
+|  01:SCAN HDFS [tpch.supplier]
+|     partitions=1/1 files=1 size=1.33MB
+|     runtime filters: RF000 -> s_nationkey
+|     row-size=10B cardinality=10.00K
 |
 08:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: l_partkey = p_partkey
@@ -1909,7 +1905,7 @@ PLAN-ROOT SINK
 |
 02:SCAN HDFS [tpch.lineitem]
    partitions=1/1 files=1 size=718.94MB
-   runtime filters: RF008 -> l_suppkey, RF010 -> l_orderkey, RF012 -> l_partkey
+   runtime filters: RF008 -> l_orderkey, RF010 -> l_suppkey, RF012 -> l_partkey
    row-size=40B cardinality=6.00M
 ====
 # TPCH-Q9
@@ -1962,39 +1958,39 @@ PLAN-ROOT SINK
 10:HASH JOIN [INNER JOIN]
 |  hash predicates: s_nationkey = n_nationkey
 |  runtime filters: RF000 <- n_nationkey
-|  row-size=186B cardinality=574.29K
+|  row-size=186B cardinality=598.58K
 |
 |--05:SCAN HDFS [tpch.nation]
 |     partitions=1/1 files=1 size=2.15KB
 |     row-size=21B cardinality=25
 |
 09:HASH JOIN [INNER JOIN]
+|  hash predicates: l_orderkey = o_orderkey
+|  runtime filters: RF002 <- o_orderkey
+|  row-size=165B cardinality=598.58K
+|
+|--04:SCAN HDFS [tpch.orders]
+|     partitions=1/1 files=1 size=162.56MB
+|     row-size=30B cardinality=1.50M
+|
+08:HASH JOIN [INNER JOIN]
 |  hash predicates: l_partkey = ps_partkey, l_suppkey = ps_suppkey
-|  runtime filters: RF002 <- ps_partkey, RF003 <- ps_suppkey
-|  row-size=165B cardinality=574.29K
+|  runtime filters: RF004 <- ps_partkey, RF005 <- ps_suppkey
+|  row-size=135B cardinality=598.58K
 |
 |--03:SCAN HDFS [tpch.partsupp]
 |     partitions=1/1 files=1 size=112.71MB
 |     row-size=24B cardinality=800.00K
 |
-08:HASH JOIN [INNER JOIN]
+07:HASH JOIN [INNER JOIN]
 |  hash predicates: l_suppkey = s_suppkey
-|  runtime filters: RF006 <- s_suppkey
-|  row-size=141B cardinality=574.29K
+|  runtime filters: RF008 <- s_suppkey
+|  row-size=111B cardinality=598.58K
 |
 |--01:SCAN HDFS [tpch.supplier]
 |     partitions=1/1 files=1 size=1.33MB
-|     runtime filters: RF000 -> s_nationkey, RF003 -> tpch.supplier.s_suppkey
+|     runtime filters: RF000 -> s_nationkey, RF005 -> tpch.supplier.s_suppkey
 |     row-size=10B cardinality=10.00K
-|
-07:HASH JOIN [INNER JOIN]
-|  hash predicates: l_orderkey = o_orderkey
-|  runtime filters: RF008 <- o_orderkey
-|  row-size=131B cardinality=574.29K
-|
-|--04:SCAN HDFS [tpch.orders]
-|     partitions=1/1 files=1 size=162.56MB
-|     row-size=30B cardinality=1.50M
 |
 06:HASH JOIN [INNER JOIN]
 |  hash predicates: l_partkey = p_partkey
@@ -2004,31 +2000,31 @@ PLAN-ROOT SINK
 |--00:SCAN HDFS [tpch.part]
 |     partitions=1/1 files=1 size=22.83MB
 |     predicates: p_name LIKE '%green%'
-|     runtime filters: RF002 -> tpch.part.p_partkey
+|     runtime filters: RF004 -> tpch.part.p_partkey
 |     row-size=53B cardinality=20.00K
 |
 02:SCAN HDFS [tpch.lineitem]
    partitions=1/1 files=1 size=718.94MB
-   runtime filters: RF002 -> l_partkey, RF003 -> l_suppkey, RF006 -> l_suppkey, RF008 -> l_orderkey, RF010 -> l_partkey
+   runtime filters: RF002 -> l_orderkey, RF004 -> l_partkey, RF005 -> l_suppkey, RF008 -> l_suppkey, RF010 -> l_partkey
    row-size=48B cardinality=6.00M
 ---- DISTRIBUTEDPLAN
-Max Per-Host Resource Reservation: Memory=123.70MB Threads=15
-Per-Host Resource Estimates: Memory=879MB
+Max Per-Host Resource Reservation: Memory=97.20MB Threads=16
+Per-Host Resource Estimates: Memory=863MB
 PLAN-ROOT SINK
 |
-21:MERGING-EXCHANGE [UNPARTITIONED]
+22:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: nation ASC, o_year DESC
 |
 12:SORT
 |  order by: nation ASC, o_year DESC
 |  row-size=39B cardinality=61.70K
 |
-20:AGGREGATE [FINALIZE]
+21:AGGREGATE [FINALIZE]
 |  output: sum:merge(amount)
 |  group by: nation, o_year
 |  row-size=39B cardinality=61.70K
 |
-19:EXCHANGE [HASH(nation,o_year)]
+20:EXCHANGE [HASH(nation,o_year)]
 |
 11:AGGREGATE [STREAMING]
 |  output: sum(l_extendedprice * (1 - l_discount) - ps_supplycost * l_quantity)
@@ -2038,49 +2034,51 @@ PLAN-ROOT SINK
 10:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: s_nationkey = n_nationkey
 |  runtime filters: RF000 <- n_nationkey
-|  row-size=186B cardinality=574.29K
+|  row-size=186B cardinality=598.58K
 |
-|--18:EXCHANGE [BROADCAST]
+|--19:EXCHANGE [BROADCAST]
 |  |
 |  05:SCAN HDFS [tpch.nation]
 |     partitions=1/1 files=1 size=2.15KB
 |     row-size=21B cardinality=25
 |
-09:HASH JOIN [INNER JOIN, BROADCAST]
-|  hash predicates: l_partkey = ps_partkey, l_suppkey = ps_suppkey
-|  runtime filters: RF002 <- ps_partkey, RF003 <- ps_suppkey
-|  row-size=165B cardinality=574.29K
-|
-|--17:EXCHANGE [BROADCAST]
-|  |
-|  03:SCAN HDFS [tpch.partsupp]
-|     partitions=1/1 files=1 size=112.71MB
-|     row-size=24B cardinality=800.00K
-|
-08:HASH JOIN [INNER JOIN, BROADCAST]
-|  hash predicates: l_suppkey = s_suppkey
-|  runtime filters: RF006 <- s_suppkey
-|  row-size=141B cardinality=574.29K
-|
-|--16:EXCHANGE [BROADCAST]
-|  |
-|  01:SCAN HDFS [tpch.supplier]
-|     partitions=1/1 files=1 size=1.33MB
-|     runtime filters: RF000 -> s_nationkey, RF003 -> tpch.supplier.s_suppkey
-|     row-size=10B cardinality=10.00K
-|
-07:HASH JOIN [INNER JOIN, PARTITIONED]
+09:HASH JOIN [INNER JOIN, PARTITIONED]
 |  hash predicates: l_orderkey = o_orderkey
-|  runtime filters: RF008 <- o_orderkey
-|  row-size=131B cardinality=574.29K
+|  runtime filters: RF002 <- o_orderkey
+|  row-size=165B cardinality=598.58K
 |
-|--15:EXCHANGE [HASH(o_orderkey)]
+|--18:EXCHANGE [HASH(o_orderkey)]
 |  |
 |  04:SCAN HDFS [tpch.orders]
 |     partitions=1/1 files=1 size=162.56MB
 |     row-size=30B cardinality=1.50M
 |
-14:EXCHANGE [HASH(l_orderkey)]
+17:EXCHANGE [HASH(l_orderkey)]
+|
+08:HASH JOIN [INNER JOIN, PARTITIONED]
+|  hash predicates: l_partkey = ps_partkey, l_suppkey = ps_suppkey
+|  runtime filters: RF004 <- ps_partkey, RF005 <- ps_suppkey
+|  row-size=135B cardinality=598.58K
+|
+|--16:EXCHANGE [HASH(ps_partkey,ps_suppkey)]
+|  |
+|  03:SCAN HDFS [tpch.partsupp]
+|     partitions=1/1 files=1 size=112.71MB
+|     row-size=24B cardinality=800.00K
+|
+15:EXCHANGE [HASH(l_partkey,l_suppkey)]
+|
+07:HASH JOIN [INNER JOIN, BROADCAST]
+|  hash predicates: l_suppkey = s_suppkey
+|  runtime filters: RF008 <- s_suppkey
+|  row-size=111B cardinality=598.58K
+|
+|--14:EXCHANGE [BROADCAST]
+|  |
+|  01:SCAN HDFS [tpch.supplier]
+|     partitions=1/1 files=1 size=1.33MB
+|     runtime filters: RF000 -> s_nationkey, RF005 -> tpch.supplier.s_suppkey
+|     row-size=10B cardinality=10.00K
 |
 06:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: l_partkey = p_partkey
@@ -2092,31 +2090,31 @@ PLAN-ROOT SINK
 |  00:SCAN HDFS [tpch.part]
 |     partitions=1/1 files=1 size=22.83MB
 |     predicates: p_name LIKE '%green%'
-|     runtime filters: RF002 -> tpch.part.p_partkey
+|     runtime filters: RF004 -> tpch.part.p_partkey
 |     row-size=53B cardinality=20.00K
 |
 02:SCAN HDFS [tpch.lineitem]
    partitions=1/1 files=1 size=718.94MB
-   runtime filters: RF002 -> l_partkey, RF003 -> l_suppkey, RF006 -> l_suppkey, RF008 -> l_orderkey, RF010 -> l_partkey
+   runtime filters: RF002 -> l_orderkey, RF004 -> l_partkey, RF005 -> l_suppkey, RF008 -> l_suppkey, RF010 -> l_partkey
    row-size=48B cardinality=6.00M
 ---- PARALLELPLANS
-Max Per-Host Resource Reservation: Memory=230.39MB Threads=17
-Per-Host Resource Estimates: Memory=867MB
+Max Per-Host Resource Reservation: Memory=169.89MB Threads=19
+Per-Host Resource Estimates: Memory=828MB
 PLAN-ROOT SINK
 |
-21:MERGING-EXCHANGE [UNPARTITIONED]
+22:MERGING-EXCHANGE [UNPARTITIONED]
 |  order by: nation ASC, o_year DESC
 |
 12:SORT
 |  order by: nation ASC, o_year DESC
 |  row-size=39B cardinality=61.70K
 |
-20:AGGREGATE [FINALIZE]
+21:AGGREGATE [FINALIZE]
 |  output: sum:merge(amount)
 |  group by: nation, o_year
 |  row-size=39B cardinality=61.70K
 |
-19:EXCHANGE [HASH(nation,o_year)]
+20:EXCHANGE [HASH(nation,o_year)]
 |
 11:AGGREGATE [STREAMING]
 |  output: sum(l_extendedprice * (1 - l_discount) - ps_supplycost * l_quantity)
@@ -2126,65 +2124,67 @@ PLAN-ROOT SINK
 10:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: s_nationkey = n_nationkey
 |  runtime filters: RF000 <- n_nationkey
-|  row-size=186B cardinality=574.29K
+|  row-size=186B cardinality=598.58K
 |
 |--JOIN BUILD
 |  |  join-table-id=00 plan-id=01 cohort-id=01
 |  |  build expressions: n_nationkey
 |  |
-|  18:EXCHANGE [BROADCAST]
+|  19:EXCHANGE [BROADCAST]
 |  |
 |  05:SCAN HDFS [tpch.nation]
 |     partitions=1/1 files=1 size=2.15KB
 |     row-size=21B cardinality=25
 |
-09:HASH JOIN [INNER JOIN, BROADCAST]
-|  hash predicates: l_partkey = ps_partkey, l_suppkey = ps_suppkey
-|  runtime filters: RF002 <- ps_partkey, RF003 <- ps_suppkey
-|  row-size=165B cardinality=574.29K
+09:HASH JOIN [INNER JOIN, PARTITIONED]
+|  hash predicates: l_orderkey = o_orderkey
+|  runtime filters: RF002 <- o_orderkey
+|  row-size=165B cardinality=598.58K
 |
 |--JOIN BUILD
 |  |  join-table-id=01 plan-id=02 cohort-id=01
-|  |  build expressions: ps_partkey, ps_suppkey
-|  |
-|  17:EXCHANGE [BROADCAST]
-|  |
-|  03:SCAN HDFS [tpch.partsupp]
-|     partitions=1/1 files=1 size=112.71MB
-|     row-size=24B cardinality=800.00K
-|
-08:HASH JOIN [INNER JOIN, BROADCAST]
-|  hash predicates: l_suppkey = s_suppkey
-|  runtime filters: RF006 <- s_suppkey
-|  row-size=141B cardinality=574.29K
-|
-|--JOIN BUILD
-|  |  join-table-id=02 plan-id=03 cohort-id=01
-|  |  build expressions: s_suppkey
-|  |
-|  16:EXCHANGE [BROADCAST]
-|  |
-|  01:SCAN HDFS [tpch.supplier]
-|     partitions=1/1 files=1 size=1.33MB
-|     runtime filters: RF000 -> s_nationkey, RF003 -> tpch.supplier.s_suppkey
-|     row-size=10B cardinality=10.00K
-|
-07:HASH JOIN [INNER JOIN, PARTITIONED]
-|  hash predicates: l_orderkey = o_orderkey
-|  runtime filters: RF008 <- o_orderkey
-|  row-size=131B cardinality=574.29K
-|
-|--JOIN BUILD
-|  |  join-table-id=03 plan-id=04 cohort-id=01
 |  |  build expressions: o_orderkey
 |  |
-|  15:EXCHANGE [HASH(o_orderkey)]
+|  18:EXCHANGE [HASH(o_orderkey)]
 |  |
 |  04:SCAN HDFS [tpch.orders]
 |     partitions=1/1 files=1 size=162.56MB
 |     row-size=30B cardinality=1.50M
 |
-14:EXCHANGE [HASH(l_orderkey)]
+17:EXCHANGE [HASH(l_orderkey)]
+|
+08:HASH JOIN [INNER JOIN, PARTITIONED]
+|  hash predicates: l_partkey = ps_partkey, l_suppkey = ps_suppkey
+|  runtime filters: RF004 <- ps_partkey, RF005 <- ps_suppkey
+|  row-size=135B cardinality=598.58K
+|
+|--JOIN BUILD
+|  |  join-table-id=02 plan-id=03 cohort-id=01
+|  |  build expressions: ps_partkey, ps_suppkey
+|  |
+|  16:EXCHANGE [HASH(ps_partkey,ps_suppkey)]
+|  |
+|  03:SCAN HDFS [tpch.partsupp]
+|     partitions=1/1 files=1 size=112.71MB
+|     row-size=24B cardinality=800.00K
+|
+15:EXCHANGE [HASH(l_partkey,l_suppkey)]
+|
+07:HASH JOIN [INNER JOIN, BROADCAST]
+|  hash predicates: l_suppkey = s_suppkey
+|  runtime filters: RF008 <- s_suppkey
+|  row-size=111B cardinality=598.58K
+|
+|--JOIN BUILD
+|  |  join-table-id=03 plan-id=04 cohort-id=01
+|  |  build expressions: s_suppkey
+|  |
+|  14:EXCHANGE [BROADCAST]
+|  |
+|  01:SCAN HDFS [tpch.supplier]
+|     partitions=1/1 files=1 size=1.33MB
+|     runtime filters: RF000 -> s_nationkey, RF005 -> tpch.supplier.s_suppkey
+|     row-size=10B cardinality=10.00K
 |
 06:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: l_partkey = p_partkey
@@ -2200,12 +2200,12 @@ PLAN-ROOT SINK
 |  00:SCAN HDFS [tpch.part]
 |     partitions=1/1 files=1 size=22.83MB
 |     predicates: p_name LIKE '%green%'
-|     runtime filters: RF002 -> tpch.part.p_partkey
+|     runtime filters: RF004 -> tpch.part.p_partkey
 |     row-size=53B cardinality=20.00K
 |
 02:SCAN HDFS [tpch.lineitem]
    partitions=1/1 files=1 size=718.94MB
-   runtime filters: RF002 -> l_partkey, RF003 -> l_suppkey, RF006 -> l_suppkey, RF008 -> l_orderkey, RF010 -> l_partkey
+   runtime filters: RF002 -> l_orderkey, RF004 -> l_partkey, RF005 -> l_suppkey, RF008 -> l_suppkey, RF010 -> l_partkey
    row-size=48B cardinality=6.00M
 ====
 # TPCH-Q10
@@ -2244,8 +2244,8 @@ order by
   revenue desc
 limit 20
 ---- PLAN
-Max Per-Host Resource Reservation: Memory=63.94MB Threads=5
-Per-Host Resource Estimates: Memory=549MB
+Max Per-Host Resource Reservation: Memory=89.44MB Threads=5
+Per-Host Resource Estimates: Memory=583MB
 PLAN-ROOT SINK
 |
 08:TOP-N [LIMIT=20]
@@ -2255,45 +2255,46 @@ PLAN-ROOT SINK
 07:AGGREGATE [FINALIZE]
 |  output: sum(l_extendedprice * (1 - l_discount))
 |  group by: c_custkey, c_name, c_acctbal, c_phone, n_name, c_address, c_comment
-|  row-size=230B cardinality=191.92K
+|  row-size=230B cardinality=575.77K
 |
 06:HASH JOIN [INNER JOIN]
 |  hash predicates: c_nationkey = n_nationkey
 |  runtime filters: RF000 <- n_nationkey
-|  row-size=293B cardinality=191.92K
+|  row-size=293B cardinality=575.77K
 |
 |--03:SCAN HDFS [tpch.nation]
 |     partitions=1/1 files=1 size=2.15KB
 |     row-size=21B cardinality=25
 |
 05:HASH JOIN [INNER JOIN]
-|  hash predicates: c_custkey = o_custkey
-|  runtime filters: RF002 <- o_custkey
-|  row-size=272B cardinality=191.92K
+|  hash predicates: o_custkey = c_custkey
+|  runtime filters: RF002 <- c_custkey
+|  row-size=272B cardinality=575.77K
 |
-|--04:HASH JOIN [INNER JOIN]
-|  |  hash predicates: l_orderkey = o_orderkey
-|  |  runtime filters: RF004 <- o_orderkey
-|  |  row-size=75B cardinality=191.92K
-|  |
-|  |--01:SCAN HDFS [tpch.orders]
-|  |     partitions=1/1 files=1 size=162.56MB
-|  |     predicates: o_orderdate < '1994-01-01', o_orderdate >= '1993-10-01'
-|  |     row-size=38B cardinality=150.00K
-|  |
-|  02:SCAN HDFS [tpch.lineitem]
-|     partitions=1/1 files=1 size=718.94MB
-|     predicates: l_returnflag = 'R'
-|     runtime filters: RF004 -> l_orderkey
-|     row-size=37B cardinality=2.00M
+|--00:SCAN HDFS [tpch.customer]
+|     partitions=1/1 files=1 size=23.08MB
+|     runtime filters: RF000 -> c_nationkey
+|     row-size=197B cardinality=150.00K
 |
-00:SCAN HDFS [tpch.customer]
-   partitions=1/1 files=1 size=23.08MB
-   runtime filters: RF000 -> c_nationkey, RF002 -> c_custkey
-   row-size=197B cardinality=150.00K
+04:HASH JOIN [INNER JOIN]
+|  hash predicates: l_orderkey = o_orderkey
+|  runtime filters: RF004 <- o_orderkey
+|  row-size=75B cardinality=575.77K
+|
+|--01:SCAN HDFS [tpch.orders]
+|     partitions=1/1 files=1 size=162.56MB
+|     predicates: o_orderdate < '1994-01-01', o_orderdate >= '1993-10-01'
+|     runtime filters: RF002 -> o_custkey
+|     row-size=38B cardinality=150.00K
+|
+02:SCAN HDFS [tpch.lineitem]
+   partitions=1/1 files=1 size=718.94MB
+   predicates: l_returnflag = 'R'
+   runtime filters: RF004 -> l_orderkey
+   row-size=37B cardinality=2.00M
 ---- DISTRIBUTEDPLAN
 Max Per-Host Resource Reservation: Memory=124.45MB Threads=11
-Per-Host Resource Estimates: Memory=668MB
+Per-Host Resource Estimates: Memory=744MB
 PLAN-ROOT SINK
 |
 15:MERGING-EXCHANGE [UNPARTITIONED]
@@ -2307,19 +2308,19 @@ PLAN-ROOT SINK
 14:AGGREGATE [FINALIZE]
 |  output: sum:merge(l_extendedprice * (1 - l_discount))
 |  group by: c_custkey, c_name, c_acctbal, c_phone, n_name, c_address, c_comment
-|  row-size=230B cardinality=191.92K
+|  row-size=230B cardinality=575.77K
 |
 13:EXCHANGE [HASH(c_custkey,c_name,c_acctbal,c_phone,n_name,c_address,c_comment)]
 |
 07:AGGREGATE [STREAMING]
 |  output: sum(l_extendedprice * (1 - l_discount))
 |  group by: c_custkey, c_name, c_acctbal, c_phone, n_name, c_address, c_comment
-|  row-size=230B cardinality=191.92K
+|  row-size=230B cardinality=575.77K
 |
 06:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: c_nationkey = n_nationkey
 |  runtime filters: RF000 <- n_nationkey
-|  row-size=293B cardinality=191.92K
+|  row-size=293B cardinality=575.77K
 |
 |--12:EXCHANGE [BROADCAST]
 |  |
@@ -2330,7 +2331,7 @@ PLAN-ROOT SINK
 05:HASH JOIN [INNER JOIN, PARTITIONED]
 |  hash predicates: o_custkey = c_custkey
 |  runtime filters: RF002 <- c_custkey
-|  row-size=272B cardinality=191.92K
+|  row-size=272B cardinality=575.77K
 |
 |--11:EXCHANGE [HASH(c_custkey)]
 |  |
@@ -2344,7 +2345,7 @@ PLAN-ROOT SINK
 04:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: l_orderkey = o_orderkey
 |  runtime filters: RF004 <- o_orderkey
-|  row-size=75B cardinality=191.92K
+|  row-size=75B cardinality=575.77K
 |
 |--09:EXCHANGE [BROADCAST]
 |  |
@@ -2360,8 +2361,8 @@ PLAN-ROOT SINK
    runtime filters: RF004 -> l_orderkey
    row-size=37B cardinality=2.00M
 ---- PARALLELPLANS
-Max Per-Host Resource Reservation: Memory=163.89MB Threads=13
-Per-Host Resource Estimates: Memory=607MB
+Max Per-Host Resource Reservation: Memory=231.89MB Threads=13
+Per-Host Resource Estimates: Memory=678MB
 PLAN-ROOT SINK
 |
 15:MERGING-EXCHANGE [UNPARTITIONED]
@@ -2375,19 +2376,19 @@ PLAN-ROOT SINK
 14:AGGREGATE [FINALIZE]
 |  output: sum:merge(l_extendedprice * (1 - l_discount))
 |  group by: c_custkey, c_name, c_acctbal, c_phone, n_name, c_address, c_comment
-|  row-size=230B cardinality=191.92K
+|  row-size=230B cardinality=575.77K
 |
 13:EXCHANGE [HASH(c_custkey,c_name,c_acctbal,c_phone,n_name,c_address,c_comment)]
 |
 07:AGGREGATE [STREAMING]
 |  output: sum(l_extendedprice * (1 - l_discount))
 |  group by: c_custkey, c_name, c_acctbal, c_phone, n_name, c_address, c_comment
-|  row-size=230B cardinality=191.92K
+|  row-size=230B cardinality=575.77K
 |
 06:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: c_nationkey = n_nationkey
 |  runtime filters: RF000 <- n_nationkey
-|  row-size=293B cardinality=191.92K
+|  row-size=293B cardinality=575.77K
 |
 |--JOIN BUILD
 |  |  join-table-id=00 plan-id=01 cohort-id=01
@@ -2402,7 +2403,7 @@ PLAN-ROOT SINK
 05:HASH JOIN [INNER JOIN, PARTITIONED]
 |  hash predicates: o_custkey = c_custkey
 |  runtime filters: RF002 <- c_custkey
-|  row-size=272B cardinality=191.92K
+|  row-size=272B cardinality=575.77K
 |
 |--JOIN BUILD
 |  |  join-table-id=01 plan-id=02 cohort-id=01
@@ -2420,7 +2421,7 @@ PLAN-ROOT SINK
 04:HASH JOIN [INNER JOIN, BROADCAST]
 |  hash predicates: l_orderkey = o_orderkey
 |  runtime filters: RF004 <- o_orderkey
-|  row-size=75B cardinality=191.92K
+|  row-size=75B cardinality=575.77K
 |
 |--JOIN BUILD
 |  |  join-table-id=02 plan-id=03 cohort-id=01
@@ -3089,7 +3090,7 @@ PLAN-ROOT SINK
 02:HASH JOIN [INNER JOIN]
 |  hash predicates: l_partkey = p_partkey
 |  runtime filters: RF000 <- p_partkey
-|  row-size=87B cardinality=598.58K
+|  row-size=87B cardinality=600.12K
 |
 |--01:SCAN HDFS [tpch.part]
 |     partitions=1/1 files=1 size=22.83MB
@@ -3118,7 +3119,7 @@ PLAN-ROOT SINK
 02:HASH JOIN [INNER JOIN, PARTITIONED]
 |  hash predicates: l_partkey = p_partkey
 |  runtime filters: RF000 <- p_partkey
-|  row-size=87B cardinality=598.58K
+|  row-size=87B cardinality=600.12K
 |
 |--05:EXCHANGE [HASH(p_partkey)]
 |  |
@@ -3151,7 +3152,7 @@ PLAN-ROOT SINK
 02:HASH JOIN [INNER JOIN, PARTITIONED]
 |  hash predicates: l_partkey = p_partkey
 |  runtime filters: RF000 <- p_partkey
-|  row-size=87B cardinality=598.58K
+|  row-size=87B cardinality=600.12K
 |
 |--JOIN BUILD
 |  |  join-table-id=00 plan-id=01 cohort-id=01
@@ -4090,7 +4091,7 @@ PLAN-ROOT SINK
 |  hash predicates: l_partkey = p_partkey
 |  other predicates: ((p_brand = 'Brand#12' AND p_container IN ('SM CASE', 'SM BOX', 'SM PACK', 'SM PKG') AND l_quantity >= 1 AND l_quantity <= 11 AND p_size <= 5) OR (p_brand = 'Brand#23' AND p_container IN ('MED BAG', 'MED BOX', 'MED PKG', 'MED PACK') AND l_quantity >= 10 AND l_quantity <= 20 AND p_size <= 10) OR (p_brand = 'Brand#34' AND p_container IN ('LG CASE', 'LG BOX', 'LG PACK', 'LG PKG') AND l_quantity >= 20 AND l_quantity <= 30 AND p_size <= 15))
 |  runtime filters: RF000 <- p_partkey
-|  row-size=124B cardinality=79.99K
+|  row-size=124B cardinality=598.58K
 |
 |--01:SCAN HDFS [tpch.part]
 |     partitions=1/1 files=1 size=22.83MB
@@ -4121,7 +4122,7 @@ PLAN-ROOT SINK
 |  hash predicates: l_partkey = p_partkey
 |  other predicates: ((p_brand = 'Brand#12' AND p_container IN ('SM CASE', 'SM BOX', 'SM PACK', 'SM PKG') AND l_quantity >= 1 AND l_quantity <= 11 AND p_size <= 5) OR (p_brand = 'Brand#23' AND p_container IN ('MED BAG', 'MED BOX', 'MED PKG', 'MED PACK') AND l_quantity >= 10 AND l_quantity <= 20 AND p_size <= 10) OR (p_brand = 'Brand#34' AND p_container IN ('LG CASE', 'LG BOX', 'LG PACK', 'LG PKG') AND l_quantity >= 20 AND l_quantity <= 30 AND p_size <= 15))
 |  runtime filters: RF000 <- p_partkey
-|  row-size=124B cardinality=79.99K
+|  row-size=124B cardinality=598.58K
 |
 |--04:EXCHANGE [BROADCAST]
 |  |
@@ -4154,7 +4155,7 @@ PLAN-ROOT SINK
 |  hash predicates: l_partkey = p_partkey
 |  other predicates: ((p_brand = 'Brand#12' AND p_container IN ('SM CASE', 'SM BOX', 'SM PACK', 'SM PKG') AND l_quantity >= 1 AND l_quantity <= 11 AND p_size <= 5) OR (p_brand = 'Brand#23' AND p_container IN ('MED BAG', 'MED BOX', 'MED PKG', 'MED PACK') AND l_quantity >= 10 AND l_quantity <= 20 AND p_size <= 10) OR (p_brand = 'Brand#34' AND p_container IN ('LG CASE', 'LG BOX', 'LG PACK', 'LG PKG') AND l_quantity >= 20 AND l_quantity <= 30 AND p_size <= 15))
 |  runtime filters: RF000 <- p_partkey
-|  row-size=124B cardinality=79.99K
+|  row-size=124B cardinality=598.58K
 |
 |--JOIN BUILD
 |  |  join-table-id=00 plan-id=01 cohort-id=01
@@ -4492,8 +4493,8 @@ order by
   s_name
 limit 100
 ---- PLAN
-Max Per-Host Resource Reservation: Memory=58.88MB Threads=7
-Per-Host Resource Estimates: Memory=1.03GB
+Max Per-Host Resource Reservation: Memory=44.62MB Threads=7
+Per-Host Resource Estimates: Memory=1.02GB
 PLAN-ROOT SINK
 |
 12:TOP-N [LIMIT=100]
@@ -4503,54 +4504,55 @@ PLAN-ROOT SINK
 11:AGGREGATE [FINALIZE]
 |  output: count(*)
 |  group by: s_name
-|  row-size=38B cardinality=7.68K
+|  row-size=38B cardinality=9.96K
 |
 10:HASH JOIN [RIGHT ANTI JOIN]
 |  hash predicates: l3.l_orderkey = l1.l_orderkey
 |  other join predicates: l3.l_suppkey != l1.l_suppkey
-|  row-size=142B cardinality=7.68K
+|  row-size=142B cardinality=24.00K
 |
 |--09:HASH JOIN [RIGHT SEMI JOIN]
 |  |  hash predicates: l2.l_orderkey = l1.l_orderkey
 |  |  other join predicates: l2.l_suppkey != l1.l_suppkey
 |  |  runtime filters: RF000 <- l1.l_orderkey
-|  |  row-size=142B cardinality=7.68K
+|  |  row-size=142B cardinality=24.00K
 |  |
 |  |--08:HASH JOIN [INNER JOIN]
-|  |  |  hash predicates: s_nationkey = n_nationkey
-|  |  |  runtime filters: RF002 <- n_nationkey
-|  |  |  row-size=142B cardinality=7.68K
+|  |  |  hash predicates: o_orderkey = l1.l_orderkey
+|  |  |  runtime filters: RF002 <- l1.l_orderkey
+|  |  |  row-size=142B cardinality=24.00K
 |  |  |
-|  |  |--03:SCAN HDFS [tpch.nation]
-|  |  |     partitions=1/1 files=1 size=2.15KB
-|  |  |     predicates: n_name = 'SAUDI ARABIA'
-|  |  |     row-size=21B cardinality=1
+|  |  |--07:HASH JOIN [INNER JOIN]
+|  |  |  |  hash predicates: s_nationkey = n_nationkey
+|  |  |  |  runtime filters: RF004 <- n_nationkey
+|  |  |  |  row-size=121B cardinality=24.00K
+|  |  |  |
+|  |  |  |--03:SCAN HDFS [tpch.nation]
+|  |  |  |     partitions=1/1 files=1 size=2.15KB
+|  |  |  |     predicates: n_name = 'SAUDI ARABIA'
+|  |  |  |     row-size=21B cardinality=1
+|  |  |  |
+|  |  |  06:HASH JOIN [INNER JOIN]
+|  |  |  |  hash predicates: l1.l_suppkey = s_suppkey
+|  |  |  |  runtime filters: RF006 <- s_suppkey
+|  |  |  |  row-size=100B cardinality=600.12K
+|  |  |  |
+|  |  |  |--00:SCAN HDFS [tpch.supplier]
+|  |  |  |     partitions=1/1 files=1 size=1.33MB
+|  |  |  |     runtime filters: RF004 -> s_nationkey
+|  |  |  |     row-size=40B cardinality=10.00K
+|  |  |  |
+|  |  |  01:SCAN HDFS [tpch.lineitem l1]
+|  |  |     partitions=1/1 files=1 size=718.94MB
+|  |  |     predicates: l1.l_receiptdate > l1.l_commitdate
+|  |  |     runtime filters: RF006 -> l1.l_suppkey
+|  |  |     row-size=60B cardinality=600.12K
 |  |  |
-|  |  07:HASH JOIN [INNER JOIN]
-|  |  |  hash predicates: l1.l_suppkey = s_suppkey
-|  |  |  runtime filters: RF004 <- s_suppkey
-|  |  |  row-size=121B cardinality=191.92K
-|  |  |
-|  |  |--00:SCAN HDFS [tpch.supplier]
-|  |  |     partitions=1/1 files=1 size=1.33MB
-|  |  |     runtime filters: RF002 -> s_nationkey
-|  |  |     row-size=40B cardinality=10.00K
-|  |  |
-|  |  06:HASH JOIN [INNER JOIN]
-|  |  |  hash predicates: l1.l_orderkey = o_orderkey
-|  |  |  runtime filters: RF006 <- o_orderkey
-|  |  |  row-size=81B cardinality=191.92K
-|  |  |
-|  |  |--02:SCAN HDFS [tpch.orders]
-|  |  |     partitions=1/1 files=1 size=162.56MB
-|  |  |     predicates: o_orderstatus = 'F'
-|  |  |     row-size=21B cardinality=500.00K
-|  |  |
-|  |  01:SCAN HDFS [tpch.lineitem l1]
-|  |     partitions=1/1 files=1 size=718.94MB
-|  |     predicates: l1.l_receiptdate > l1.l_commitdate
-|  |     runtime filters: RF004 -> l1.l_suppkey, RF006 -> l1.l_orderkey
-|  |     row-size=60B cardinality=600.12K
+|  |  02:SCAN HDFS [tpch.orders]
+|  |     partitions=1/1 files=1 size=162.56MB
+|  |     predicates: o_orderstatus = 'F'
+|  |     runtime filters: RF002 -> o_orderkey
+|  |     row-size=21B cardinality=500.00K
 |  |
 |  04:SCAN HDFS [tpch.lineitem l2]
 |     partitions=1/1 files=1 size=718.94MB
@@ -4562,8 +4564,8 @@ PLAN-ROOT SINK
    predicates: l3.l_receiptdate > l3.l_commitdate
    row-size=60B cardinality=600.12K
 ---- DISTRIBUTEDPLAN
-Max Per-Host Resource Reservation: Memory=56.51MB Threads=15
-Per-Host Resource Estimates: Memory=1.08GB
+Max Per-Host Resource Reservation: Memory=58.32MB Threads=15
+Per-Host Resource Estimates: Memory=1.07GB
 PLAN-ROOT SINK
 |
 21:MERGING-EXCHANGE [UNPARTITIONED]
@@ -4577,71 +4579,72 @@ PLAN-ROOT SINK
 20:AGGREGATE [FINALIZE]
 |  output: count:merge(*)
 |  group by: s_name
-|  row-size=38B cardinality=7.68K
+|  row-size=38B cardinality=9.96K
 |
 19:EXCHANGE [HASH(s_name)]
 |
 11:AGGREGATE [STREAMING]
 |  output: count(*)
 |  group by: s_name
-|  row-size=38B cardinality=7.68K
+|  row-size=38B cardinality=9.96K
 |
 10:HASH JOIN [RIGHT ANTI JOIN, PARTITIONED]
 |  hash predicates: l3.l_orderkey = l1.l_orderkey
 |  other join predicates: l3.l_suppkey != l1.l_suppkey
-|  row-size=142B cardinality=7.68K
+|  row-size=142B cardinality=24.00K
 |
 |--09:HASH JOIN [RIGHT SEMI JOIN, PARTITIONED]
 |  |  hash predicates: l2.l_orderkey = l1.l_orderkey
 |  |  other join predicates: l2.l_suppkey != l1.l_suppkey
 |  |  runtime filters: RF000 <- l1.l_orderkey
-|  |  row-size=142B cardinality=7.68K
+|  |  row-size=142B cardinality=24.00K
 |  |
-|  |--08:HASH JOIN [INNER JOIN, BROADCAST]
-|  |  |  hash predicates: s_nationkey = n_nationkey
-|  |  |  runtime filters: RF002 <- n_nationkey
-|  |  |  row-size=142B cardinality=7.68K
+|  |--17:EXCHANGE [HASH(l1.l_orderkey)]
 |  |  |
-|  |  |--16:EXCHANGE [BROADCAST]
-|  |  |  |
-|  |  |  03:SCAN HDFS [tpch.nation]
-|  |  |     partitions=1/1 files=1 size=2.15KB
-|  |  |     predicates: n_name = 'SAUDI ARABIA'
-|  |  |     row-size=21B cardinality=1
-|  |  |
-|  |  07:HASH JOIN [INNER JOIN, BROADCAST]
-|  |  |  hash predicates: l1.l_suppkey = s_suppkey
-|  |  |  runtime filters: RF004 <- s_suppkey
-|  |  |  row-size=121B cardinality=191.92K
+|  |  08:HASH JOIN [INNER JOIN, BROADCAST]
+|  |  |  hash predicates: o_orderkey = l1.l_orderkey
+|  |  |  runtime filters: RF002 <- l1.l_orderkey
+|  |  |  row-size=142B cardinality=24.00K
 |  |  |
 |  |  |--15:EXCHANGE [BROADCAST]
 |  |  |  |
-|  |  |  00:SCAN HDFS [tpch.supplier]
-|  |  |     partitions=1/1 files=1 size=1.33MB
-|  |  |     runtime filters: RF002 -> s_nationkey
-|  |  |     row-size=40B cardinality=10.00K
-|  |  |
-|  |  06:HASH JOIN [INNER JOIN, PARTITIONED]
-|  |  |  hash predicates: l1.l_orderkey = o_orderkey
-|  |  |  runtime filters: RF006 <- o_orderkey
-|  |  |  row-size=81B cardinality=191.92K
-|  |  |
-|  |  |--14:EXCHANGE [HASH(o_orderkey)]
+|  |  |  07:HASH JOIN [INNER JOIN, BROADCAST]
+|  |  |  |  hash predicates: s_nationkey = n_nationkey
+|  |  |  |  runtime filters: RF004 <- n_nationkey
+|  |  |  |  row-size=121B cardinality=24.00K
 |  |  |  |
-|  |  |  02:SCAN HDFS [tpch.orders]
-|  |  |     partitions=1/1 files=1 size=162.56MB
-|  |  |     predicates: o_orderstatus = 'F'
-|  |  |     row-size=21B cardinality=500.00K
+|  |  |  |--14:EXCHANGE [BROADCAST]
+|  |  |  |  |
+|  |  |  |  03:SCAN HDFS [tpch.nation]
+|  |  |  |     partitions=1/1 files=1 size=2.15KB
+|  |  |  |     predicates: n_name = 'SAUDI ARABIA'
+|  |  |  |     row-size=21B cardinality=1
+|  |  |  |
+|  |  |  06:HASH JOIN [INNER JOIN, BROADCAST]
+|  |  |  |  hash predicates: l1.l_suppkey = s_suppkey
+|  |  |  |  runtime filters: RF006 <- s_suppkey
+|  |  |  |  row-size=100B cardinality=600.12K
+|  |  |  |
+|  |  |  |--13:EXCHANGE [BROADCAST]
+|  |  |  |  |
+|  |  |  |  00:SCAN HDFS [tpch.supplier]
+|  |  |  |     partitions=1/1 files=1 size=1.33MB
+|  |  |  |     runtime filters: RF004 -> s_nationkey
+|  |  |  |     row-size=40B cardinality=10.00K
+|  |  |  |
+|  |  |  01:SCAN HDFS [tpch.lineitem l1]
+|  |  |     partitions=1/1 files=1 size=718.94MB
+|  |  |     predicates: l1.l_receiptdate > l1.l_commitdate
+|  |  |     runtime filters: RF006 -> l1.l_suppkey
+|  |  |     row-size=60B cardinality=600.12K
 |  |  |
-|  |  13:EXCHANGE [HASH(l1.l_orderkey)]
-|  |  |
-|  |  01:SCAN HDFS [tpch.lineitem l1]
-|  |     partitions=1/1 files=1 size=718.94MB
-|  |     predicates: l1.l_receiptdate > l1.l_commitdate
-|  |     runtime filters: RF004 -> l1.l_suppkey, RF006 -> l1.l_orderkey
-|  |     row-size=60B cardinality=600.12K
+|  |  02:SCAN HDFS [tpch.orders]
+|  |     partitions=1/1 files=1 size=162.56MB
+|  |     predicates: o_orderstatus = 'F'
+|  |     runtime filters: RF002 -> o_orderkey
+|  |     row-size=21B cardinality=500.00K
 |  |
-|  17:EXCHANGE [HASH(l2.l_orderkey)]
+|  16:EXCHANGE [HASH(l2.l_orderkey)]
 |  |
 |  04:SCAN HDFS [tpch.lineitem l2]
 |     partitions=1/1 files=1 size=718.94MB
@@ -4655,8 +4658,8 @@ PLAN-ROOT SINK
    predicates: l3.l_receiptdate > l3.l_commitdate
    row-size=60B cardinality=600.12K
 ---- PARALLELPLANS
-Max Per-Host Resource Reservation: Memory=109.27MB Threads=17
-Per-Host Resource Estimates: Memory=863MB
+Max Per-Host Resource Reservation: Memory=112.89MB Threads=17
+Per-Host Resource Estimates: Memory=866MB
 PLAN-ROOT SINK
 |
 21:MERGING-EXCHANGE [UNPARTITIONED]
@@ -4670,19 +4673,19 @@ PLAN-ROOT SINK
 20:AGGREGATE [FINALIZE]
 |  output: count:merge(*)
 |  group by: s_name
-|  row-size=38B cardinality=7.68K
+|  row-size=38B cardinality=9.96K
 |
 19:EXCHANGE [HASH(s_name)]
 |
 11:AGGREGATE [STREAMING]
 |  output: count(*)
 |  group by: s_name
-|  row-size=38B cardinality=7.68K
+|  row-size=38B cardinality=9.96K
 |
 10:HASH JOIN [RIGHT ANTI JOIN, PARTITIONED]
 |  hash predicates: l3.l_orderkey = l1.l_orderkey
 |  other join predicates: l3.l_suppkey != l1.l_suppkey
-|  row-size=142B cardinality=7.68K
+|  row-size=142B cardinality=24.00K
 |
 |--JOIN BUILD
 |  |  join-table-id=00 plan-id=01 cohort-id=01
@@ -4692,69 +4695,70 @@ PLAN-ROOT SINK
 |  |  hash predicates: l2.l_orderkey = l1.l_orderkey
 |  |  other join predicates: l2.l_suppkey != l1.l_suppkey
 |  |  runtime filters: RF000 <- l1.l_orderkey
-|  |  row-size=142B cardinality=7.68K
+|  |  row-size=142B cardinality=24.00K
 |  |
 |  |--JOIN BUILD
 |  |  |  join-table-id=01 plan-id=02 cohort-id=02
 |  |  |  build expressions: l1.l_orderkey
 |  |  |
+|  |  17:EXCHANGE [HASH(l1.l_orderkey)]
+|  |  |
 |  |  08:HASH JOIN [INNER JOIN, BROADCAST]
-|  |  |  hash predicates: s_nationkey = n_nationkey
-|  |  |  runtime filters: RF002 <- n_nationkey
-|  |  |  row-size=142B cardinality=7.68K
+|  |  |  hash predicates: o_orderkey = l1.l_orderkey
+|  |  |  runtime filters: RF002 <- l1.l_orderkey
+|  |  |  row-size=142B cardinality=24.00K
 |  |  |
 |  |  |--JOIN BUILD
 |  |  |  |  join-table-id=02 plan-id=03 cohort-id=03
-|  |  |  |  build expressions: n_nationkey
-|  |  |  |
-|  |  |  16:EXCHANGE [BROADCAST]
-|  |  |  |
-|  |  |  03:SCAN HDFS [tpch.nation]
-|  |  |     partitions=1/1 files=1 size=2.15KB
-|  |  |     predicates: n_name = 'SAUDI ARABIA'
-|  |  |     row-size=21B cardinality=1
-|  |  |
-|  |  07:HASH JOIN [INNER JOIN, BROADCAST]
-|  |  |  hash predicates: l1.l_suppkey = s_suppkey
-|  |  |  runtime filters: RF004 <- s_suppkey
-|  |  |  row-size=121B cardinality=191.92K
-|  |  |
-|  |  |--JOIN BUILD
-|  |  |  |  join-table-id=03 plan-id=04 cohort-id=03
-|  |  |  |  build expressions: s_suppkey
+|  |  |  |  build expressions: l1.l_orderkey
 |  |  |  |
 |  |  |  15:EXCHANGE [BROADCAST]
 |  |  |  |
-|  |  |  00:SCAN HDFS [tpch.supplier]
-|  |  |     partitions=1/1 files=1 size=1.33MB
-|  |  |     runtime filters: RF002 -> s_nationkey
-|  |  |     row-size=40B cardinality=10.00K
-|  |  |
-|  |  06:HASH JOIN [INNER JOIN, PARTITIONED]
-|  |  |  hash predicates: l1.l_orderkey = o_orderkey
-|  |  |  runtime filters: RF006 <- o_orderkey
-|  |  |  row-size=81B cardinality=191.92K
-|  |  |
-|  |  |--JOIN BUILD
-|  |  |  |  join-table-id=04 plan-id=05 cohort-id=03
-|  |  |  |  build expressions: o_orderkey
+|  |  |  07:HASH JOIN [INNER JOIN, BROADCAST]
+|  |  |  |  hash predicates: s_nationkey = n_nationkey
+|  |  |  |  runtime filters: RF004 <- n_nationkey
+|  |  |  |  row-size=121B cardinality=24.00K
 |  |  |  |
-|  |  |  14:EXCHANGE [HASH(o_orderkey)]
+|  |  |  |--JOIN BUILD
+|  |  |  |  |  join-table-id=03 plan-id=04 cohort-id=04
+|  |  |  |  |  build expressions: n_nationkey
+|  |  |  |  |
+|  |  |  |  14:EXCHANGE [BROADCAST]
+|  |  |  |  |
+|  |  |  |  03:SCAN HDFS [tpch.nation]
+|  |  |  |     partitions=1/1 files=1 size=2.15KB
+|  |  |  |     predicates: n_name = 'SAUDI ARABIA'
+|  |  |  |     row-size=21B cardinality=1
 |  |  |  |
-|  |  |  02:SCAN HDFS [tpch.orders]
-|  |  |     partitions=1/1 files=1 size=162.56MB
-|  |  |     predicates: o_orderstatus = 'F'
-|  |  |     row-size=21B cardinality=500.00K
+|  |  |  06:HASH JOIN [INNER JOIN, BROADCAST]
+|  |  |  |  hash predicates: l1.l_suppkey = s_suppkey
+|  |  |  |  runtime filters: RF006 <- s_suppkey
+|  |  |  |  row-size=100B cardinality=600.12K
+|  |  |  |
+|  |  |  |--JOIN BUILD
+|  |  |  |  |  join-table-id=04 plan-id=05 cohort-id=04
+|  |  |  |  |  build expressions: s_suppkey
+|  |  |  |  |
+|  |  |  |  13:EXCHANGE [BROADCAST]
+|  |  |  |  |
+|  |  |  |  00:SCAN HDFS [tpch.supplier]
+|  |  |  |     partitions=1/1 files=1 size=1.33MB
+|  |  |  |     runtime filters: RF004 -> s_nationkey
+|  |  |  |     row-size=40B cardinality=10.00K
+|  |  |  |
+|  |  |  01:SCAN HDFS [tpch.lineitem l1]
+|  |  |     partitions=1/1 files=1 size=718.94MB
+|  |  |     predicates: l1.l_receiptdate > l1.l_commitdate
+|  |  |     runtime filters: RF006 -> l1.l_suppkey
+|  |  |     row-size=60B cardinality=600.12K
 |  |  |
-|  |  13:EXCHANGE [HASH(l1.l_orderkey)]
-|  |  |
-|  |  01:SCAN HDFS [tpch.lineitem l1]
-|  |     partitions=1/1 files=1 size=718.94MB
-|  |     predicates: l1.l_receiptdate > l1.l_commitdate
-|  |     runtime filters: RF004 -> l1.l_suppkey, RF006 -> l1.l_orderkey
-|  |     row-size=60B cardinality=600.12K
+|  |  02:SCAN HDFS [tpch.orders]
+|  |     partitions=1/1 files=1 size=162.56MB
+|  |     predicates: o_orderstatus = 'F'
+|  |     runtime filters: RF002 -> o_orderkey
+|  |     row-size=21B cardinality=500.00K
 |  |
-|  17:EXCHANGE [HASH(l2.l_orderkey)]
+|  16:EXCHANGE [HASH(l2.l_orderkey)]
 |  |
 |  04:SCAN HDFS [tpch.lineitem l2]
 |     partitions=1/1 files=1 size=718.94MB
