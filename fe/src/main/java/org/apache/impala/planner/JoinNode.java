@@ -240,13 +240,7 @@ public abstract class JoinNode extends PlanNode {
    *   TODO: Revisit this pessimistic adjustment that tends to overestimate.
    *
    * Generic estimation:
-   * cardinality = |child(0)| * |child(1)| / max(NDV(L.c), NDV(R.d))
-   * - case A: NDV(L.c) <= NDV(R.d)
-   *   every row from child(0) joins with |child(1)| / NDV(R.d) rows
-   * - case B: NDV(L.c) > NDV(R.d)
-   *   every row from child(1) joins with |child(0)| / NDV(L.c) rows
-   * - we adjust the NDVs from both sides to account for predicates that may
-   *   might have reduce the cardinality and NDVs
+   * See comment in getFkPkJoinCardinality()
    */
   private long getJoinCardinality(Analyzer analyzer) {
     Preconditions.checkState(joinOp_.isInnerJoin() || joinOp_.isOuterJoin());
@@ -357,26 +351,60 @@ public abstract class JoinNode extends PlanNode {
     Preconditions.checkState(!eqJoinConjunctSlots.isEmpty());
     Preconditions.checkState(lhsCard >= 0 && rhsCard >= 0);
 
-    long result = -1;
-    for (EqJoinConjunctScanSlots slots: eqJoinConjunctSlots) {
-      // Adjust the NDVs on both sides to account for predicates. Intuitively, the NDVs
-      // should only decrease. We ignore adjustments that would lead to an increase.
-      double lhsAdjNdv = slots.lhsNdv();
-      if (slots.lhsNumRows() > lhsCard) lhsAdjNdv *= lhsCard / slots.lhsNumRows();
-      double rhsAdjNdv = slots.rhsNdv();
-      if (slots.rhsNumRows() > rhsCard) rhsAdjNdv *= rhsCard / slots.rhsNumRows();
-      // A lower limit of 1 on the max Adjusted Ndv ensures we don't estimate
-      // cardinality more than the max possible. This also handles the case of
-      // null columns on both sides having an Ndv of zero (which would change
-      // after IMPALA-7310 is fixed).
-      long joinCard = Math.round((lhsCard / Math.max(1, Math.max(lhsAdjNdv, rhsAdjNdv))) *
-          rhsCard);
-      if (result == -1) {
-        result = joinCard;
-      } else {
-        result = Math.min(result, joinCard);
+    //                       prod(|T.ki|)
+    // |T.k'| = |T'| * min( -------------, 1 )
+    //                           |T|
+    //
+    //
+    //                     |L’| * |R’|
+    // |L’ >< R’| = -----------------------
+    //               max( |L.k'|, |R.k'| )
+    //
+    // Where:
+    //
+    // * T = L (lhs) or R (rhs).
+    // * |T| is base table cardinality.
+    // * |T'| is scan cardinality
+    // * |T.k| is the (possibly compound) join key for table T
+    // * |T.ki| is the NDV of the i'th column of the key for table TS
+    //
+    // Actual code is a bit messier because of handling potentially
+    // bogus base table estimates.
+    double lKeyCard;
+    double rKeyCard;
+    EqJoinConjunctScanSlots firstSlot = eqJoinConjunctSlots.get(0);
+    double lTableCard = firstSlot.lhsNumRows();
+    double rTableCard = firstSlot.rhsNumRows();
+    if (eqJoinConjunctSlots.size() == 1) {
+      lKeyCard = Math.max(1, firstSlot.lhsNdv());
+      rKeyCard = Math.max(1, firstSlot.rhsNdv());
+    } else {
+      lKeyCard = 1;
+      rKeyCard = 1;
+      for (EqJoinConjunctScanSlots slots : eqJoinConjunctSlots) {
+        // Work around IMPALA-8094: NDV can sometimes be 0
+        lKeyCard *= Math.max(1, slots.lhsNdv());
+        rKeyCard *= Math.max(1, slots.rhsNdv());
       }
+
+      // |key| can't exceed the table cardinality (this helps limit |key|
+      // when the join columns are not independent, as in many of
+      // the unit tests.)
+      lKeyCard = Math.min(lKeyCard, lTableCard);
+      rKeyCard = Math.min(lKeyCard, rTableCard);
+
+      // Adjust both keys by the percentage of the table that is scanned.
+      // (IMPALA-8218 explains that this is the wrong math to use.)
+      // Be paranoid about bogus table cardinalities.
+      if (lTableCard > lhsCard) lKeyCard *= lhsCard / lTableCard;
+      if (rTableCard > rhsCard) rKeyCard *= rhsCard / rTableCard;
+
+      // Clamp key cardinality in range (1, |T'|)
+      lKeyCard = Math.max(1, Math.min(lKeyCard, lhsCard));
+      rKeyCard = Math.max(1, Math.min(rKeyCard, rhsCard));
     }
+    double joinCard = (double) lhsCard * rhsCard / Math.max(lKeyCard, rKeyCard);
+    long result = Math.max(1, Math.round(Math.min(joinCard, Long.MAX_VALUE)));
     Preconditions.checkState(result >= 0);
     return result;
   }
