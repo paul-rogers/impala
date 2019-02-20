@@ -413,39 +413,45 @@ public abstract class JoinNode extends PlanNode {
     //                  |D'| * |M'|
     // |D' >< M'| = -------------------
     //               max( |D.fk'|, |M'|)
-
-//    long result = -1;
-    double fkCard = 1;
-    for (EqJoinConjunctScanSlots slots : eqJoinConjunctSlots) {
-      // Work around IMPALA-8094: NDV can sometimes be 0
-      fkCard *= Math.max(1, slots.lhsNdv());
+    double fkCard;
+    EqJoinConjunctScanSlots firstSlot = eqJoinConjunctSlots.get(0);
+    double detailTableCard = firstSlot.lhsNumRows();
+    double masterTableCard = firstSlot.rhsNumRows();
+    if (eqJoinConjunctSlots.size() == 1) {
+      fkCard = Math.max(1, firstSlot.lhsNdv());
+    } else {
+      // Compound key, must handle possibly correlated columns.
+      // |fk| is a crude estimate, so adjust to keep in reasonable range.
+      fkCard = 1;
+      double largestKeyCard = 0;
+      for (EqJoinConjunctScanSlots slots : eqJoinConjunctSlots) {
+        // Work around IMPALA-8094: NDV can sometimes be 0
+        fkCard *= Math.max(1, slots.lhsNdv());
+        largestKeyCard = Math.max(largestKeyCard, slots.lhsNdv());
+      }
+      // |fk| can't exceed the detail table scan cardinality (this helps
+      // limit the |fk| when the join columns are not independent, as in many of
+      // the unit tests.)
+      fkCard = Math.min(fkCard, detailTableCard);
+      // |fk| can't exceed |pk| by the "containment" assumption in the M:1 case
+      // And |pk| = |M| by definition of a primary key.
+      // Only applies if the detail table has more rows than the master table.
+      // After adjustment, the compound key can't be any smaller than largest NDV
+      // of its component columns.
+      if (detailTableCard > masterTableCard) {
+        fkCard = Math.min(fkCard, Math.max(largestKeyCard, masterTableCard));
+      }
+      // Obviously, |fk'| can't exceed |D'|
+      // In pathological cases, HBase scan cardinality is larger than table
+      // cardinality.
+      fkCard = Math.min(fkCard, detailCard);
     }
-    // |fk| can't exceed |pk| by the "containment" assumption in the M:1 case
-    fkCard = Math.max(1, Math.min(fkCard, masterCard));
+    // Scale by the selectivity of the detail scan filter
+    if (detailCard < detailTableCard && detailTableCard > 0) {
+      fkCard *= Math.max(1, detailCard / detailTableCard);
+    }
     double joinCard = (double) detailCard * masterCard / Math.max(fkCard, masterCard);
-    long result = Math.round(Math.min(joinCard, Long.MAX_VALUE));
-//      // Adjust the join selectivity based on the NDV ratio to avoid underestimating
-//      // the cardinality if the PK side has a higher NDV than the FK side.
-//      double ndvRatio = 1.0;
-//      if (slots.lhsNdv() > 0) ndvRatio = slots.rhsNdv() / slots.lhsNdv();
-//      double rhsSelectivity = Double.MIN_VALUE;
-//      if (slots.rhsNumRows() > 0) rhsSelectivity = rhsCard / slots.rhsNumRows();
-//      long joinCard = (long) Math.ceil(lhsCard * rhsSelectivity * ndvRatio);
-//      if (result == -1) {
-//        result = joinCard;
-//      } else {
-//        result = Math.min(result, joinCard);
-//      }
-//      System.out.println(String.format("  key: ndv ratio=%.3f lhs=%s, |lhs|=%s, rhs=%s, |rhs|=%s, |join|=%s",
-//          ndvRatio,
-//          slots.lhs_.getColumn().getName(),
-//          PrintUtils.printMetric(Math.round(slots.lhsNdv())),
-//          slots.rhs_.getColumn().getName(),
-//          PrintUtils.printMetric(Math.round(slots.rhsNdv())),
-//          PrintUtils.printMetric(joinCard)));
-//    }
-//    // FK/PK join cardinality must be <= the lhs cardinality.
-//    result = Math.min(result, lhsCard);
+    long result = (long) Math.ceil(Math.min(joinCard, Long.MAX_VALUE));
     Preconditions.checkState(result >= 0);
     System.out.println(String.format("  fk/pk, |join|=%s", PrintUtils.printMetric(result)));
     return result;
