@@ -286,6 +286,7 @@ public class DumpParser {
   }
 
   public void parse(File file) throws FileNotFoundException, IOException, ImpalaException {
+    System.out.println(file.getName());
     try (BufferedReader in = new BufferedReader(new FileReader(file))) {
       load(in);
     }

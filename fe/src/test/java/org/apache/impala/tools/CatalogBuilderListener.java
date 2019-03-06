@@ -64,10 +64,16 @@ public class CatalogBuilderListener implements DumpListener {
   public TableName stmt(String stmt) throws ImpalaException {
     // Must parse and analyze the statement because we use the CREATE TABLE statement
     // to know when the table changes. But' don't execute if configured not to.
-    if (config().runCreate) {
-      cb_.runStmt(stmt);
-    } else {
-      cb_.parseStmt(stmt);
+    try {
+      if (config().runCreate) {
+        cb_.runStmt(stmt);
+      } else {
+        cb_.parseStmt(stmt);
+      }
+    }
+    catch (ImpalaException e) {
+      System.out.println(stmt);
+      throw e;
     }
     return cb_.mostRecentTable().getTableName();
   }
