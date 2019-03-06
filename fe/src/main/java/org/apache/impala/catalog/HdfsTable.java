@@ -1174,6 +1174,9 @@ public class HdfsTable extends Table implements FeFsTable {
     prototypePartition_ = HdfsPartition.prototypePartition(this, hdfsStorageDescriptor);
   }
 
+  @VisibleForTesting
+  public HdfsPartition getPrototypePartition() { return prototypePartition_; }
+
   @Override
   public void load(boolean reuseMetadata, IMetaStoreClient client,
       org.apache.hadoop.hive.metastore.api.Table msTbl) throws TableLoadingException {
@@ -2225,14 +2228,19 @@ public class HdfsTable extends Table implements FeFsTable {
   public static HdfsTable createCtasTarget(Db db,
       org.apache.hadoop.hive.metastore.api.Table msTbl) throws CatalogException {
     HdfsTable tmpTable = new HdfsTable(msTbl, db, msTbl.getTableName(), msTbl.getOwner());
+    tmpTable.initTempTable(msTbl);
+    return tmpTable;
+  }
+
+  @VisibleForTesting
+  public void initTempTable(org.apache.hadoop.hive.metastore.api.Table msTbl) throws CatalogException {
     HiveConf hiveConf = new HiveConf(HdfsTable.class);
     // set nullPartitionKeyValue from the hive conf.
-    tmpTable.nullPartitionKeyValue_ = hiveConf.get(
+    nullPartitionKeyValue_ = hiveConf.get(
         MetaStoreUtil.NULL_PARTITION_KEY_VALUE_CONF_KEY,
         MetaStoreUtil.DEFAULT_NULL_PARTITION_KEY_VALUE);
-    tmpTable.loadSchema(msTbl);
-    tmpTable.initializePartitionMetadata(msTbl);
-    tmpTable.setTableStats(msTbl);
-    return tmpTable;
+    loadSchema(msTbl);
+    initializePartitionMetadata(msTbl);
+    setTableStats(msTbl);
   }
 }

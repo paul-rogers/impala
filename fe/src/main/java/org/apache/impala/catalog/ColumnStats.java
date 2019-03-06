@@ -159,6 +159,8 @@ public class ColumnStats {
     numDistinctValues_ = numDistinctValues;
   }
   public void setNumNulls(long numNulls) { numNulls_ = numNulls; }
+  public void setAvgSize(double size) { avgSize_ = size; }
+  public void setMaxSize(long size) { maxSize_ = size; }
   public double getAvgSerializedSize() { return avgSerializedSize_; }
   public double getAvgSize() { return avgSize_; }
   public long getMaxSize() { return maxSize_; }

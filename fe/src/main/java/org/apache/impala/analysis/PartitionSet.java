@@ -32,6 +32,7 @@ import org.apache.impala.common.Reference;
 import org.apache.impala.planner.HdfsPartitionPruner;
 import org.apache.impala.thrift.TPartitionKeyValue;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
@@ -51,6 +52,8 @@ public class PartitionSet extends PartitionSpecBase {
   }
 
   public List<? extends FeFsPartition> getPartitions() { return partitions_; }
+  @VisibleForTesting
+  public List<Expr> getPartitionExprs() { return partitionExprs_; }
 
   @Override
   public void analyze(Analyzer analyzer) throws AnalysisException {

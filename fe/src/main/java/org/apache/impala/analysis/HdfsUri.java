@@ -85,38 +85,40 @@ public class HdfsUri {
       throw new AnalysisException("URI path must be absolute: " + uriPath_);
     }
 
-    uriPath_ = FileSystemUtil.createFullyQualifiedPath(uriPath_);
+    if (! analyzer.getQueryCtx().getClient_request().getQuery_options().isPlanner_testcase_mode()) {
+      uriPath_ = FileSystemUtil.createFullyQualifiedPath(uriPath_);
 
-    // Check if parent path exists and if impala is allowed to access it.
-    Path parentPath = uriPath_.getParent();
-    try {
-      FileSystem fs = uriPath_.getFileSystem(FileSystemUtil.getConfiguration());
-      if (pathMustExist && !fs.exists(uriPath_)) {
-        throw new AnalysisException(String.format("Path does not exist: %s", uriPath_));
-      }
-      boolean parentPathExists = false;
-      StringBuilder errorMsg = new StringBuilder();
+      // Check if parent path exists and if impala is allowed to access it.
+      Path parentPath = uriPath_.getParent();
       try {
-        parentPathExists = fs.exists(parentPath);
+        FileSystem fs = uriPath_.getFileSystem(FileSystemUtil.getConfiguration());
+        if (pathMustExist && !fs.exists(uriPath_)) {
+          throw new AnalysisException(String.format("Path does not exist: %s", uriPath_));
+        }
+        boolean parentPathExists = false;
+        StringBuilder errorMsg = new StringBuilder();
+        try {
+          parentPathExists = fs.exists(parentPath);
+          if (!parentPathExists) {
+            errorMsg.append("Path does not exist.");
+          }
+        } catch (Exception e) {
+          errorMsg.append(e.getMessage());
+        }
         if (!parentPathExists) {
-          errorMsg.append("Path does not exist.");
+          analyzer.addWarning(String.format("Path '%s' cannot be reached: %s",
+              parentPath, errorMsg.toString()));
+        } else if (perm != FsAction.NONE) {
+          FsPermissionChecker checker = FsPermissionChecker.getInstance();
+          if (!checker.getPermissions(fs, parentPath).checkPermissions(perm)) {
+            analyzer.addWarning(String.format(
+                "Impala does not have %s access to path '%s'",
+                perm.toString(), parentPath));
+          }
         }
-      } catch (Exception e) {
-        errorMsg.append(e.getMessage());
+      } catch (IOException e) {
+        throw new AnalysisException(e.getMessage(), e);
       }
-      if (!parentPathExists) {
-        analyzer.addWarning(String.format("Path '%s' cannot be reached: %s",
-            parentPath, errorMsg.toString()));
-      } else if (perm != FsAction.NONE) {
-        FsPermissionChecker checker = FsPermissionChecker.getInstance();
-        if (!checker.getPermissions(fs, parentPath).checkPermissions(perm)) {
-          analyzer.addWarning(String.format(
-              "Impala does not have %s access to path '%s'",
-              perm.toString(), parentPath));
-        }
-      }
-    } catch (IOException e) {
-      throw new AnalysisException(e.getMessage(), e);
     }
 
     if (registerPrivReq) {

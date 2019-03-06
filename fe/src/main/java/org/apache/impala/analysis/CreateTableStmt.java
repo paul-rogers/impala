@@ -93,20 +93,25 @@ public class CreateTableStmt extends StatementBase {
   public TableName getTblName() { return tableDef_.getTblName(); }
   public boolean getIfNotExists() { return tableDef_.getIfNotExists(); }
   public List<ColumnDef> getColumnDefs() { return tableDef_.getColumnDefs(); }
+  public boolean isExternal() { return tableDef_.isExternal(); }
+
   private void setColumnDefs(List<ColumnDef> colDefs) {
     getColumnDefs().clear();
     getColumnDefs().addAll(colDefs);
   }
+
   public List<ColumnDef> getPrimaryKeyColumnDefs() {
     return tableDef_.getPrimaryKeyColumnDefs();
   }
-  public boolean isExternal() { return tableDef_.isExternal(); }
+
   public List<ColumnDef> getPartitionColumnDefs() {
     return tableDef_.getPartitionColumnDefs();
   }
+
   public List<KuduPartitionParam> getKuduPartitionParams() {
     return tableDef_.getKuduPartitionParams();
   }
+
   public List<String> getSortColumns() { return tableDef_.getSortColumns(); }
   public String getComment() { return tableDef_.getComment(); }
   Map<String, String> getTblProperties() { return tableDef_.getTblProperties(); }
@@ -115,9 +120,14 @@ public class CreateTableStmt extends StatementBase {
   Map<String, String> getSerdeProperties() { return tableDef_.getSerdeProperties(); }
   public THdfsFileFormat getFileFormat() { return tableDef_.getFileFormat(); }
   RowFormat getRowFormat() { return tableDef_.getRowFormat(); }
+
+  @VisibleForTesting
+  public TableDef getTableDef() { return tableDef_; }
+
   private void putGeneratedKuduProperty(String key, String value) {
     tableDef_.putGeneratedKuduProperty(key, value);
   }
+
   public Map<String, String> getGeneratedKuduProperties() {
     return tableDef_.getGeneratedKuduProperties();
   }
