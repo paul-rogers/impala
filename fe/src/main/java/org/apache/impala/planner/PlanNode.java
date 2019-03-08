@@ -201,6 +201,7 @@ abstract public class PlanNode extends TreeNode<PlanNode> {
 
   public PlanNodeId getId() { return id_; }
   public List<PipelineMembership> getPipelines() { return pipelines_; }
+
   public void setId(PlanNodeId id) {
     Preconditions.checkState(id_ == null);
     id_ = id;
@@ -217,6 +218,7 @@ abstract public class PlanNode extends TreeNode<PlanNode> {
   public ExprSubstitutionMap getOutputSmap() { return outputSmap_; }
   public void setOutputSmap(ExprSubstitutionMap smap) { outputSmap_ = smap; }
   public Set<ExprId> getAssignedConjuncts() { return assignedConjuncts_; }
+
   public void setAssignedConjuncts(Set<ExprId> conjuncts) {
     assignedConjuncts_ = conjuncts;
   }
@@ -246,10 +248,16 @@ abstract public class PlanNode extends TreeNode<PlanNode> {
 
   public void addConjuncts(List<Expr> conjuncts) {
     if (conjuncts == null)  return;
+    if (! conjuncts.isEmpty()) {
+      System.out.println("addConjuncts: " + getExplainString(conjuncts, TExplainLevel.EXTENDED));
+    }
     conjuncts_.addAll(conjuncts);
   }
 
   public void transferConjuncts(PlanNode recipient) {
+    if (! conjuncts_.isEmpty()) {
+      System.out.println("transferConjuncts: " + getExplainString(conjuncts_, TExplainLevel.EXTENDED));
+    }
     recipient.conjuncts_.addAll(conjuncts_);
     conjuncts_.clear();
   }
@@ -502,6 +510,9 @@ abstract public class PlanNode extends TreeNode<PlanNode> {
    */
   protected void assignConjuncts(Analyzer analyzer) {
     List<Expr> unassigned = analyzer.getUnassignedConjuncts(this);
+    if (! unassigned.isEmpty()) {
+      System.out.println("assignConjuncts: " + getExplainString(unassigned, TExplainLevel.EXTENDED));
+    }
     conjuncts_.addAll(unassigned);
     analyzer.markConjunctsAssigned(unassigned);
   }
@@ -528,7 +539,13 @@ abstract public class PlanNode extends TreeNode<PlanNode> {
     ExprSubstitutionMap combinedChildSmap = getCombinedChildSmap();
     outputSmap_ =
         ExprSubstitutionMap.compose(outputSmap_, combinedChildSmap, analyzer);
+    if (! conjuncts_.isEmpty()) {
+      System.out.println("createDefaultSmap Before: " + getExplainString(conjuncts_, TExplainLevel.EXTENDED));
+    }
     conjuncts_ = Expr.substituteList(conjuncts_, outputSmap_, analyzer, false);
+    if (! conjuncts_.isEmpty()) {
+      System.out.println("createDefaultSmap After: " + getExplainString(conjuncts_, TExplainLevel.EXTENDED));
+    }
   }
 
   /**

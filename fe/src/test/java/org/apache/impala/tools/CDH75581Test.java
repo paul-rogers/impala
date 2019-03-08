@@ -56,16 +56,16 @@ public class CDH75581Test extends FrontendTestBase {
 //    PlanAnalysisUtils.dumpLogicalPlan(planCtx.plan().logicalPlan(), new File(dir, baseName + "-logical.json"));
 
     File destFile = new File(dir, baseName + "-plan-I31.txt");
-    PrintUtils.writeFile(destFile, explainStr);
+    QueryUtils.writeFile(destFile, explainStr);
 
     destFile = new File(dir, baseName + "-plan.txt");
-    PrintUtils.writeFile(destFile, pp.plan());
+    QueryUtils.writeFile(destFile, pp.plan());
 
     destFile = new File(dir, baseName + "-outline-I31.txt");
-    PrintUtils.writeFile(destFile, PlanAnalysisUtils.reduce(explainStr));
+    QueryUtils.writeFile(destFile, PlanAnalysisUtils.reduce(explainStr));
 
     destFile = new File(dir, baseName + "-outline.txt");
-    PrintUtils.writeFile(destFile, PlanAnalysisUtils.reduce(pp.plan()));
+    QueryUtils.writeFile(destFile, PlanAnalysisUtils.reduce(pp.plan()));
   }
 
   // Customer-provided file
@@ -111,9 +111,9 @@ public class CDH75581Test extends FrontendTestBase {
     String baseName = FilenameUtils.getBaseName(queryFile.getName());
 
     File destFile = new File(dir, baseName + "-plan-I31.txt");
-    PrintUtils.writeFile(destFile, explainStr);
+    QueryUtils.writeFile(destFile, explainStr);
 
     destFile = new File(dir, baseName + "-outline.txt");
-    PrintUtils.writeFile(destFile, PlanAnalysisUtils.reduce(explainStr));
+    QueryUtils.writeFile(destFile, PlanAnalysisUtils.reduce(explainStr));
   }
 }

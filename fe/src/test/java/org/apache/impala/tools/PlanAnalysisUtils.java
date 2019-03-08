@@ -213,10 +213,10 @@ public class PlanAnalysisUtils {
     public void writeTable(PrintWriter out) {
       out.println(String.format(LAYOUT,
           "Operation", "Card", "Est Card", "Table"));
-      out.println(PrintUtils.repeat("-", 26 + 1 + 8 + 2 + 8 + 2 + 20));
+      out.println(QueryUtils.repeat("-", 26 + 1 + 8 + 2 + 8 + 2 + 20));
       for (CardinalityNode node : nodes.values()) {
         out.println(String.format(LAYOUT,
-            PrintUtils.repeat("  ", node.depth_) + node.label_,
+            QueryUtils.repeat("  ", node.depth_) + node.label_,
             node.actualCard_, node.estCard_,
             node.table_ == null ? "" : node.table_));
       }
@@ -372,7 +372,7 @@ public class PlanAnalysisUtils {
       buf.append(String.format(CARD_FORMAT + "    %s",
           "Operation", "Card", "Est Card", "log10(error)"))
          .append("\n")
-         .append(PrintUtils.repeat("-", 64 +
+         .append(QueryUtils.repeat("-", 64 +
              Math.max(0, maxLogError - minLogError - 6)))
          .append("\n");
       for (RowSummary row : rows) {
@@ -381,9 +381,9 @@ public class PlanAnalysisUtils {
             row.node_.actualCardinality, row.node_.estCardinality,
             row.logError));
         if (row.est < 0) {
-          buf.append(PrintUtils.repeat(" ", -minLogError - 1)).append("???");
+          buf.append(QueryUtils.repeat(" ", -minLogError - 1)).append("???");
         } else {
-          buf.append(PrintUtils.horizBarChart(minLogError, maxLogError, row.logError));
+          buf.append(QueryUtils.horizBarChart(minLogError, maxLogError, row.logError));
         }
         buf.append("\n");
       }

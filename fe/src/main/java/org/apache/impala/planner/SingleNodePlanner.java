@@ -1468,6 +1468,12 @@ public class SingleNodePlanner {
         Preconditions.checkState(hasNullMatchingEqOperator);
       }
     }
+    if (!otherJoinConjuncts.isEmpty()) {
+      System.out.println("Other Conjuncts:");
+      for (Expr expr : otherJoinConjuncts) {
+        System.out.println("  " + expr.toSql());
+      }
+    }
     analyzer.markConjunctsAssigned(otherJoinConjuncts);
 
     // Use a nested-loop join if there are no equi-join conjuncts, or if the inner

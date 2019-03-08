@@ -122,6 +122,13 @@ public class BinaryPredicate extends Predicate {
     children_.add(e1);
     Preconditions.checkNotNull(e2);
     children_.add(e2);
+    if (e2 instanceof SlotRef) {
+      SlotRef s2 =  (SlotRef) e2;
+      String l2 = s2.getLabel();
+      if (l2 != null && l2.toLowerCase().contains("promise_date_dt")) {
+        System.out.println("Created: " + toSql());
+      }
+    }
   }
 
   protected BinaryPredicate(BinaryPredicate other) {
@@ -328,4 +335,15 @@ public class BinaryPredicate extends Predicate {
 
   @Override
   public Expr clone() { return new BinaryPredicate(this); }
+
+  public void trace(String context) {
+    if (getChild(0) instanceof SlotRef && getChild(1) instanceof SlotRef) {
+      SlotRef left = ((SlotRef) getChild(0));
+      SlotRef right = ((SlotRef) getChild(1));
+      System.out.println(String.format("%s: %s = %s",
+          context,
+          left.debugString(),
+          right.debugString()));
+    }
+  }
 }

@@ -132,6 +132,8 @@ public class SlotRef extends Expr {
 
   @VisibleForTesting
   public List<String> getRawPath() { return rawPath_; }
+  @VisibleForTesting
+  public String getLabel() { return label_; }
 
   public SlotDescriptor getDesc() {
     Preconditions.checkState(isAnalyzed());
@@ -173,10 +175,20 @@ public class SlotRef extends Expr {
   @Override
   public String debugString() {
     Objects.ToStringHelper toStrHelper = Objects.toStringHelper(this);
+    if (label_ != null) toStrHelper.add("label", label_);
     if (rawPath_ != null) toStrHelper.add("path", Joiner.on('.').join(rawPath_));
     toStrHelper.add("type", type_.toSql());
     String idStr = (desc_ == null ? "null" : Integer.toString(desc_.getId().asInt()));
     toStrHelper.add("id", idStr);
+    if (desc_ != null) {
+      if (desc_.getParent().getPath() != null) {
+        toStrHelper.add("parent path", desc_.getParent().getPath().toString());
+      }
+      if (desc_.getColumn() != null) {
+        toStrHelper.add("column", desc_.getColumn().getName());
+      }
+      toStrHelper.add("tuple id", desc_.getParent().getId().asInt());
+     }
     return toStrHelper.toString();
   }
 

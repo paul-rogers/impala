@@ -1185,6 +1185,7 @@ public class Analyzer {
     pred.setIsInferred();
     // create casts if needed
     pred.analyzeNoThrow(this);
+    pred.trace("createInferredEqPred");
     return pred;
   }
 
@@ -1577,7 +1578,10 @@ public class Analyzer {
           // Unset the id because this bound predicate itself is not registered, and
           // to prevent callers from inadvertently marking the srcConjunct as assigned.
           p.setId(null);
-          if (p instanceof BinaryPredicate) ((BinaryPredicate) p).setIsInferred();
+          if (p instanceof BinaryPredicate) {
+            ((BinaryPredicate) p).setIsInferred();
+            ((BinaryPredicate) p).trace("getBoundPredicates");
+          }
           if (LOG.isTraceEnabled()) {
             LOG.trace("new pred: " + p.toSql() + " " + p.debugString());
           }

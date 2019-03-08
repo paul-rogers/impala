@@ -38,16 +38,16 @@ public class CDH76230Test extends FrontendTestBase {
 //    PlanAnalysisUtils.dumpLogicalPlan(planCtx.plan().logicalPlan(), new File(dir, baseName + "-logical.json"));
 
     File destFile = new File(dir, baseName + "-plan-I31.txt");
-    PrintUtils.writeFile(destFile, explainStr);
+    QueryUtils.writeFile(destFile, explainStr);
 
     destFile = new File(dir, baseName + "-plan.txt");
-    PrintUtils.writeFile(destFile, pp.plan());
+    QueryUtils.writeFile(destFile, pp.plan());
 
     destFile = new File(dir, baseName + "-outline-I31.txt");
-    PrintUtils.writeFile(destFile, PlanAnalysisUtils.reduce(explainStr));
+    QueryUtils.writeFile(destFile, PlanAnalysisUtils.reduce(explainStr));
 
     destFile = new File(dir, baseName + "-outline.txt");
-    PrintUtils.writeFile(destFile, PlanAnalysisUtils.reduce(pp.plan()));
+    QueryUtils.writeFile(destFile, PlanAnalysisUtils.reduce(pp.plan()));
   }
 
   private void createDbs(File file, CatalogBuilderListener listener) throws FileNotFoundException, IOException {
@@ -60,7 +60,6 @@ public class CDH76230Test extends FrontendTestBase {
     }
   }
 
-  // Customer-provided file
   @Test
   public void testCDH_76230() throws IOException, ImpalaException {
     File dir = new File("/home/progers/data/CDH-76230");
@@ -68,16 +67,22 @@ public class CDH76230Test extends FrontendTestBase {
     CatalogBuilderListener listener = new CatalogBuilderListener(feFixture_);
     createDbs(new File(dir, "dbs.txt"), listener);
     try {
-    DumpParser parser = new DumpParser(listener);
-    parser.parse(new File(dir, "export.txt"));
-    parser.parse(new File(dir, "export2.txt"));
-    parser.parse(new File(dir, "export3.txt"));
-    parser.parse(new File(dir, "views.txt"));
-//    File viewFile = new File(dir, "show_view_with_explain.txt");
-//    parser.parse(viewFile);
-//    listener.cb.dumpCatalog(new File(dir, "schema.json"));
+      DumpParser parser = new DumpParser(listener);
+      parser.parse(new File(dir, "export.txt"));
+      parser.parse(new File(dir, "export2.txt"));
+      parser.parse(new File(dir, "export3.txt"));
+      parser.parse(new File(dir, "views.txt"));
 
-      testQuery(new File(dir, "04_12_2018_profile_select_count.txt"));
+//      testQuery(new File(dir, "04_12_2018_profile_select_count.txt"));
+      File queryFile = new File(dir, "revised-query.txt");
+      String query = QueryUtils.readFile(queryFile);
+      String explainStr = explainQuery(query);
+
+      String baseName = FilenameUtils.getBaseName(queryFile.getName());
+
+      File destFile = new File(dir, baseName + "-plan-I31.txt");
+      QueryUtils.writeFile(destFile, explainStr);
+
     } catch (ImpalaException e) {
       System.err.println(e.getMessage());
       throw e;

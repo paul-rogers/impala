@@ -193,6 +193,7 @@ public class HashJoinNode extends JoinNode {
       if (!conjuncts_.isEmpty()) {
         output.append(detailPrefix + "other predicates: ")
             .append(getExplainString(conjuncts_, detailLevel) + "\n");
+        System.out.println("Extra preds: " + getExplainString(conjuncts_, detailLevel));
       }
       if (!runtimeFilters_.isEmpty()) {
         output.append(detailPrefix + "runtime filters: ");

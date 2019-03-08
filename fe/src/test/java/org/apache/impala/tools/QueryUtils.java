@@ -17,12 +17,15 @@
 
 package org.apache.impala.tools;
 
+import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintWriter;
 
-public class PrintUtils {
+public class QueryUtils {
 
   public static String repeat(String str, int count) {
     StringBuilder buf = new StringBuilder();
@@ -41,17 +44,29 @@ public class PrintUtils {
   public static String horizBarChart(int minNeg, int maxPos, int value) {
     StringBuilder buf = new StringBuilder();
     if (value < 0) {
-      buf.append(PrintUtils.repeat(" ", value - minNeg));
-      buf.append(PrintUtils.repeat("=", -value));
+      buf.append(QueryUtils.repeat(" ", value - minNeg));
+      buf.append(QueryUtils.repeat("=", -value));
     } else {
-      buf.append(PrintUtils.repeat(" ", -minNeg));
+      buf.append(QueryUtils.repeat(" ", -minNeg));
     }
     buf.append("|");
     if (value > 0) {
-      buf.append(PrintUtils.repeat("=", value));
-      buf.append(PrintUtils.repeat(" ", maxPos - value));
+      buf.append(QueryUtils.repeat("=", value));
+      buf.append(QueryUtils.repeat(" ", maxPos - value));
     }
     return buf.toString();
+  }
+
+  public static String readFile(File srcFile) throws FileNotFoundException, IOException {
+    try (BufferedReader in = new BufferedReader(new FileReader(srcFile))) {
+      StringBuilder buf = new StringBuilder();
+      String line;
+      while ((line = in.readLine()) != null) {
+        buf.append(line);
+        buf.append("\n");
+      }
+      return buf.toString();
+    }
   }
 
 }
